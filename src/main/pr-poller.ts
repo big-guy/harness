@@ -1,9 +1,10 @@
 import { listWorktrees, getBranchSha } from './worktree'
 import {
-  getRepoInfo,
+  getRepoContext,
   listPullRequests,
   loadPRStatusForItem,
-  type PRListItem
+  type PRListItem,
+  type RepoContext
 } from './github'
 import { log } from './debug'
 import type { Store } from './store'
@@ -113,24 +114,24 @@ export class PRPoller {
       this.lastAllFetchAt = now
       for (const wt of allWorktrees) this.lastFetchAtByPath.set(wt.path, now)
 
-      // Per-repo: fetch the PR list + the base repo's full_name once.
-      // Both are stable for the lifetime of the refresh, so we cache them
-      // by repoRoot for the per-worktree match step below.
+      // Per-repo: fetch the PR list + the repo context (origin + upstream)
+      // once. Both are stable for the lifetime of the refresh, so we cache
+      // them by repoRoot for the per-worktree match step below.
       const repoData = await Promise.all(
         roots.map(async (root) => {
-          const [info, prs] = await Promise.all([
-            getRepoInfo(root),
+          const [ctx, prs] = await Promise.all([
+            getRepoContext(root),
             listPullRequests(root)
           ])
-          return { root, info, prs }
+          return { root, ctx, prs }
         })
       )
       const prsByRoot = new Map<
         string,
-        { info: { owner: string; repo: string } | null; prs: PRListItem[] | null }
+        { ctx: RepoContext | null; prs: PRListItem[] | null }
       >()
       for (const r of repoData) {
-        prsByRoot.set(r.root, { info: r.info, prs: r.prs })
+        prsByRoot.set(r.root, { ctx: r.ctx, prs: r.prs })
       }
 
       const statusResults = await Promise.all(
@@ -185,21 +186,20 @@ export class PRPoller {
 
   private async statusForWorktree(
     wt: { path: string; branch: string; head: string; repoRoot: string },
-    prsByRoot: Map<
-      string,
-      { info: { owner: string; repo: string } | null; prs: PRListItem[] | null }
-    >
+    prsByRoot: Map<string, { ctx: RepoContext | null; prs: PRListItem[] | null }>
   ): Promise<PRStatus | null> {
     const entry = prsByRoot.get(wt.repoRoot)
-    if (!entry || !entry.info || !entry.prs) return null
-    const baseFull = `${entry.info.owner}/${entry.info.repo}`
+    if (!entry || !entry.ctx || !entry.prs) return null
+    // Match against origin (= fork) so fork PRs match by ref+repo;
+    // load details against upstream where the PR lives.
+    const baseFull = `${entry.ctx.origin.owner}/${entry.ctx.origin.repo}`
     const item = pickPRForWorktree(
       { path: wt.path, branch: wt.branch, head: wt.head },
       entry.prs,
       baseFull
     )
     if (!item) return null
-    return loadPRStatusForItem(wt.path, item, entry.info)
+    return loadPRStatusForItem(wt.path, item, entry.ctx.upstream)
   }
 
   /** Refresh a single worktree's PR status. Used when a Claude terminal
@@ -215,20 +215,20 @@ export class PRPoller {
         .getSnapshot()
         .state.worktrees.list.find((w) => w.path === wtPath)
       if (!wt) return
-      const [info, prs] = await Promise.all([
-        getRepoInfo(wt.repoRoot),
+      const [ctx, prs] = await Promise.all([
+        getRepoContext(wt.repoRoot),
         listPullRequests(wt.repoRoot)
       ])
       let status: PRStatus | null = null
-      if (info && prs) {
-        const baseFull = `${info.owner}/${info.repo}`
+      if (ctx && prs) {
+        const baseFull = `${ctx.origin.owner}/${ctx.origin.repo}`
         const item = pickPRForWorktree(
           { path: wt.path, branch: wt.branch, head: wt.head },
           prs,
           baseFull
         )
         if (item) {
-          status = await loadPRStatusForItem(wt.path, item, info)
+          status = await loadPRStatusForItem(wt.path, item, ctx.upstream)
         }
       }
       this.lastFetchAtByPath.set(wtPath, Date.now())
