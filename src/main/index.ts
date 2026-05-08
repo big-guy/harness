@@ -1701,6 +1701,18 @@ function registerIpcHandlers(): void {
     return true
   })
 
+  transport.onRequest('config:setTerminalLinkClickMode', (_ctx, mode: 'always' | 'cmd-required') => {
+    if (mode !== 'always' && mode !== 'cmd-required') return false
+    if (mode === 'cmd-required') {
+      delete config.terminalLinkClickMode
+    } else {
+      config.terminalLinkClickMode = mode
+    }
+    saveConfig(config)
+    store.dispatch({ type: 'settings/terminalLinkClickModeChanged', payload: mode })
+    return true
+  })
+
   transport.onRequest('config:setEditor', (_ctx, editorId: string) => {
     if (!AVAILABLE_EDITORS.some((e) => e.id === editorId)) return false
     if (editorId === DEFAULT_EDITOR_ID) {

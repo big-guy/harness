@@ -660,3 +660,13 @@ button, [role="button"], a[href], [onclick] {
 .xterm .xterm-rows {
   font-variant-emoji: text;
 }
+
+/* When terminal hyperlinks require a modifier to open, suppress xterm's
+ * pointer cursor on link hover unless Cmd/Ctrl is actually held. The
+ * body classes are kept in sync from XTerminal.tsx: `harness-link-cmd-
+ * required` reflects the user setting; `harness-link-modifier-held`
+ * reflects window-level Cmd/Ctrl key state. */
+body.harness-link-cmd-required:not(.harness-link-modifier-held) .xterm-screen,
+body.harness-link-cmd-required:not(.harness-link-modifier-held) .xterm-rows {
+  cursor: text !important;
+}

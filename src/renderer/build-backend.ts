@@ -258,6 +258,8 @@ export function buildBackend(
       req('config:setTerminalFontFamily', fontFamily),
     getDefaultTerminalFontFamily: () => req('config:getDefaultTerminalFontFamily'),
     setTerminalFontSize: (fontSize: number) => req('config:setTerminalFontSize', fontSize),
+    setTerminalLinkClickMode: (mode: 'always' | 'cmd-required') =>
+      req('config:setTerminalLinkClickMode', mode),
 
     panesAddTab: (wtPath: string, tab: unknown, paneId?: string) =>
       req('panes:addTab', wtPath, tab, paneId),

@@ -80,6 +80,9 @@ export interface Config {
   terminalFontFamily?: string
   // Terminal font size in px
   terminalFontSize?: number
+  // How OSC 8 hyperlinks in terminals respond to clicks. 'cmd-required'
+  // (default) requires Cmd/Ctrl-click; 'always' opens on plain click.
+  terminalLinkClickMode?: 'always' | 'cmd-required'
   // Preferred external editor id (see AVAILABLE_EDITORS)
   editor?: string
   // New worktrees are branched from: 'remote' = fetch origin then branch

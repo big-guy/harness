@@ -14,6 +14,8 @@ export type BrowserToolsMode = 'view' | 'full'
 
 export type JsonModeChatDensity = 'compact' | 'comfy'
 
+export type TerminalLinkClickMode = 'always' | 'cmd-required'
+
 export interface SettingsState {
   theme: string
   hotkeys: Record<string, string> | null
@@ -87,6 +89,10 @@ export interface SettingsState {
    *  stays in the tree (history intact) and re-spawns on click. 0
    *  disables auto-sleep entirely. */
   autoSleepMinutes: number
+  /** How OSC 8 hyperlinks in terminals respond to clicks. 'cmd-required'
+   *  (default) requires Cmd/Ctrl-click to open and only shows the pointer
+   *  cursor while the modifier is held; 'always' opens on plain click. */
+  terminalLinkClickMode: TerminalLinkClickMode
 }
 
 export type SettingsEvent =
@@ -132,6 +138,7 @@ export type SettingsEvent =
       payload: JsonClaudePermissionMode
     }
   | { type: 'settings/autoSleepMinutesChanged'; payload: number }
+  | { type: 'settings/terminalLinkClickModeChanged'; payload: TerminalLinkClickMode }
 
 // Client-side placeholder. Real values are seeded in the main-process Store
 // constructor from the on-disk config and secrets.
@@ -174,7 +181,8 @@ export const initialSettings: SettingsState = {
   useSystemClaudeForJsonMode: false,
   jsonModeChatDensity: 'compact',
   jsonModeDefaultPermissionMode: 'acceptEdits',
-  autoSleepMinutes: 30
+  autoSleepMinutes: 30,
+  terminalLinkClickMode: 'cmd-required'
 }
 
 export function settingsReducer(state: SettingsState, event: SettingsEvent): SettingsState {
@@ -257,6 +265,8 @@ export function settingsReducer(state: SettingsState, event: SettingsEvent): Set
       return { ...state, jsonModeDefaultPermissionMode: event.payload }
     case 'settings/autoSleepMinutesChanged':
       return { ...state, autoSleepMinutes: event.payload }
+    case 'settings/terminalLinkClickModeChanged':
+      return { ...state, terminalLinkClickMode: event.payload }
     default: {
       const _exhaustive: never = event
       void _exhaustive

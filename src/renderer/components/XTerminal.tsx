@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import type { StateEvent } from '../../shared/state'
+import type { TerminalLinkClickMode } from '../../shared/state/settings'
 import { getClientId, useTerminalSession } from '../store'
 import { getBackend, useBackend } from '../backend'
 import { Eye } from 'lucide-react'
@@ -79,6 +80,38 @@ export function isTerminalAtBottom(id: string): boolean {
  * with the user's chosen values without any prop drilling. */
 let currentFontFamily = DEFAULT_TERMINAL_FONT_FAMILY
 let currentFontSize = DEFAULT_TERMINAL_FONT_SIZE
+let currentLinkClickMode: TerminalLinkClickMode = 'cmd-required'
+
+function applyLinkCmdRequiredClass(): void {
+  if (typeof document === 'undefined') return
+  document.body.classList.toggle(
+    'harness-link-cmd-required',
+    currentLinkClickMode === 'cmd-required'
+  )
+}
+
+// Window-level modifier tracking. A single set of listeners drives a body
+// class that all xterm instances' CSS keys off, so the cursor / hover
+// affordance only appears while Cmd (or Ctrl on non-Mac) is held.
+let modifierListenersInstalled = false
+function installModifierListeners(): void {
+  if (modifierListenersInstalled) return
+  if (typeof window === 'undefined') return
+  modifierListenersInstalled = true
+  const setHeld = (held: boolean): void => {
+    document.body.classList.toggle('harness-link-modifier-held', held)
+  }
+  window.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.metaKey || e.ctrlKey) setHeld(true)
+  })
+  window.addEventListener('keyup', (e: KeyboardEvent) => {
+    // On keyup the released key is excluded from metaKey/ctrlKey, so check
+    // the released key itself too — releasing Cmd should drop the class
+    // even if Ctrl is also being held (and vice versa).
+    if (!e.metaKey && !e.ctrlKey) setHeld(false)
+  })
+  window.addEventListener('blur', () => setHeld(false))
+}
 
 function applyFontToAll(): void {
   for (const [id, term] of terminalRegistry) {
@@ -110,11 +143,14 @@ let fontCacheInitialized = false
 function initFontCache(): void {
   if (fontCacheInitialized) return
   fontCacheInitialized = true
+  installModifierListeners()
   const backend = getBackend()
   void backend.getStateSnapshot().then(({ state }) => {
     currentFontFamily = state.settings.terminalFontFamily || DEFAULT_TERMINAL_FONT_FAMILY
     currentFontSize = state.settings.terminalFontSize || DEFAULT_TERMINAL_FONT_SIZE
+    currentLinkClickMode = state.settings.terminalLinkClickMode || 'cmd-required'
     applyFontToAll()
+    applyLinkCmdRequiredClass()
   })
   backend.onStateEvent((raw) => {
     const event = raw as StateEvent
@@ -124,6 +160,9 @@ function initFontCache(): void {
     } else if (event.type === 'settings/terminalFontSizeChanged') {
       currentFontSize = event.payload || DEFAULT_TERMINAL_FONT_SIZE
       applyFontToAll()
+    } else if (event.type === 'settings/terminalLinkClickModeChanged') {
+      currentLinkClickMode = event.payload
+      applyLinkCmdRequiredClass()
     }
   })
 }
@@ -244,7 +283,10 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
       // xterm's default handler shows a confirm prompt and then calls
       // window.open, which Electron silently swallows.
       linkHandler: {
-        activate: (_event, uri) => {
+        activate: (event, uri) => {
+          if (currentLinkClickMode === 'cmd-required' && !event.metaKey && !event.ctrlKey) {
+            return
+          }
           if (uri.startsWith('http://') || uri.startsWith('https://') || uri.startsWith('mailto:')) {
             backend.openExternal(uri)
           }

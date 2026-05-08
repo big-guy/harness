@@ -91,7 +91,9 @@ export function buildInitialAppState(
         Number.isFinite(config.autoSleepMinutes) &&
         config.autoSleepMinutes >= 0
           ? Math.floor(config.autoSleepMinutes)
-          : 30
+          : 30,
+      terminalLinkClickMode:
+        config.terminalLinkClickMode === 'always' ? 'always' : 'cmd-required'
     }
   }
 }

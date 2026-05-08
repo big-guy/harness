@@ -173,6 +173,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
     codexModel,
     terminalFontFamily,
     terminalFontSize,
+    terminalLinkClickMode,
     editor: editorId,
     worktreeBase,
     mergeStrategy,
@@ -1058,6 +1059,37 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                   }}
                 >
                   the quick brown fox 0123 =&gt; != &lt;= -&gt;
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-fg mb-2">
+                    Hyperlink clicks
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => void backend.setTerminalLinkClickMode('cmd-required')}
+                      className={`px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
+                        terminalLinkClickMode === 'cmd-required'
+                          ? 'bg-surface text-fg-bright border border-fg'
+                          : 'bg-panel border border-border text-dim hover:text-fg hover:border-border-strong'
+                      }`}
+                    >
+                      Require ⌘-click
+                    </button>
+                    <button
+                      onClick={() => void backend.setTerminalLinkClickMode('always')}
+                      className={`px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
+                        terminalLinkClickMode === 'always'
+                          ? 'bg-surface text-fg-bright border border-fg'
+                          : 'bg-panel border border-border text-dim hover:text-fg hover:border-border-strong'
+                      }`}
+                    >
+                      Open on plain click
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-faint">
+                    When ⌘-click is required, the pointer cursor only appears while ⌘ (or Ctrl) is held.
+                  </p>
                 </div>
               </div>
             </section>

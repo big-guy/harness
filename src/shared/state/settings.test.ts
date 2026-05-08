@@ -410,6 +410,20 @@ describe('settingsReducer', () => {
     expect(off.autoSleepMinutes).toBe(0)
   })
 
+  it('terminalLinkClickModeChanged toggles between cmd-required and always', () => {
+    expect(initialSettings.terminalLinkClickMode).toBe('cmd-required')
+    const always = apply(initialSettings, {
+      type: 'settings/terminalLinkClickModeChanged',
+      payload: 'always'
+    })
+    expect(always.terminalLinkClickMode).toBe('always')
+    const back = apply(always, {
+      type: 'settings/terminalLinkClickModeChanged',
+      payload: 'cmd-required'
+    })
+    expect(back.terminalLinkClickMode).toBe('cmd-required')
+  })
+
   it('returns a new object reference (no mutation)', () => {
     const next = apply(initialSettings, { type: 'settings/themeChanged', payload: 'x' })
     expect(next).not.toBe(initialSettings)

@@ -306,6 +306,7 @@ export interface ElectronAPI {
   setTerminalFontFamily(fontFamily: string): Promise<boolean>
   getDefaultTerminalFontFamily(): Promise<string>
   setTerminalFontSize(fontSize: number): Promise<boolean>
+  setTerminalLinkClickMode(mode: 'always' | 'cmd-required'): Promise<boolean>
   setOnboardingQuest(quest: QuestStep): Promise<boolean>
   setWorktreeScripts(scripts: { setup: string; teardown: string }): Promise<boolean>
   setRepoConfig(repoRoot: string, next: Partial<RepoConfig>): Promise<RepoConfig | null>
