@@ -1740,7 +1740,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                   <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Default snooze duration</h3>
                   <p className="text-xs text-dim mb-3">
                     How many days a plain click on a worktree's snooze button
-                    sleeps it for. Shift-click the snooze button to pick a
+                    sleeps it for. Option-click the snooze button to pick a
                     specific date or "Never" instead.
                   </p>
                   <div className="flex items-center gap-2">

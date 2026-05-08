@@ -1,6 +1,7 @@
 import { GitPullRequest, RotateCw, Trash2, Loader2, Moon } from 'lucide-react'
 import type { Worktree, PtyStatus, PendingTool, PRStatus } from '../types'
 import { isPRMerged } from '../../shared/state/prs'
+import { formatWakeAt } from '../../shared/state/snooze'
 import { Tooltip } from './Tooltip'
 import { repoNameColor } from './RepoIcon'
 import { formatPendingTool } from '../pending-tool'
@@ -26,12 +27,15 @@ interface WorktreeTabProps {
    * inert spinner + dim the row, hide action buttons. */
   deleting?: boolean
   isSnoozed?: boolean
+  /** Wake-up timestamp (ms). Only meaningful when isSnoozed is true; used
+   *  to render a "Wakes …" tooltip. */
+  snoozeWakeAt?: number
   onClick: () => void
   onDelete?: () => void
   onContinue?: () => void
-  /** Plain click → snooze for default duration. Shift-click → open calendar
+  /** Plain click → snooze for default duration. Option-click → open calendar
    *  popover at the row. The handler receives the original event so the
-   *  caller can decide based on shiftKey. */
+   *  caller can decide based on altKey. */
   onSnooze?: (e: React.MouseEvent) => void
   onUnsnooze?: () => void
 }
@@ -66,7 +70,7 @@ const PR_STATE_COLOR: Record<string, string> = {
   closed: 'text-danger'
 }
 
-export function WorktreeTab({ worktree, isActive, status, pendingTool, shellActive, prStatus, isMerged, repoLabel, cmdOrdinal, deleting, isSnoozed, onClick, onDelete, onContinue, onSnooze, onUnsnooze }: WorktreeTabProps): JSX.Element {
+export function WorktreeTab({ worktree, isActive, status, pendingTool, shellActive, prStatus, isMerged, repoLabel, cmdOrdinal, deleting, isSnoozed, snoozeWakeAt, onClick, onDelete, onContinue, onSnooze, onUnsnooze }: WorktreeTabProps): JSX.Element {
   const metaHeld = useMetaHeld()
   const displayStatus: PtyStatus | 'merged' = isMerged ? 'merged' : status
   const showPendingTool = displayStatus === 'needs-approval' && pendingTool
@@ -175,7 +179,16 @@ export function WorktreeTab({ worktree, isActive, status, pendingTool, shellActi
         </span>
       )}
       {(onSnooze || onUnsnooze) && !worktree.isMain && (
-        <Tooltip label={isSnoozed ? 'Wake up' : 'Snooze'} side="left">
+        <Tooltip
+          label={
+            isSnoozed
+              ? typeof snoozeWakeAt === 'number'
+                ? `Wakes ${formatWakeAt(snoozeWakeAt)} — click to wake up`
+                : 'Wake up'
+              : 'Snooze'
+          }
+          side="left"
+        >
           <button
             onClick={(e) => {
               e.stopPropagation()

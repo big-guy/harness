@@ -158,7 +158,7 @@ export function Sidebar({
 
   const onSnoozeRow = useCallback(
     (path: string, e: React.MouseEvent) => {
-      if (e.shiftKey) {
+      if (e.altKey) {
         const target = e.currentTarget as HTMLElement
         const rect = target.getBoundingClientRect()
         setCalendarFor({
@@ -359,6 +359,7 @@ export function Sidebar({
                   prStatus={prStatuses[wt.path]}
                   isMerged={group.key === 'merged'}
                   isSnoozed={!!snoozedPaths?.[wt.path]}
+                  snoozeWakeAt={snoozeByPath?.[wt.path]?.wakeAt}
                   repoLabel={showRepoLabelsOnTabs ? repoLabelFor(wt.repoRoot) : undefined}
                   cmdOrdinal={cmdOrdinals.get(wt.path)}
                   deleting={deletingPaths.has(wt.path)}
