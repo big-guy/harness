@@ -56,6 +56,38 @@ export type SignalHandler = (ctx: ConnectionContext, ...args: any[]) => void
 export type ClientSignalHandler = (...args: any[]) => void
 export type StateEventListener = (event: StateEvent, seq: number) => void
 
+/** Plain-object ClientTransport shape, exposed by the preload (and
+ *  the web-client shim) for the local backend. The renderer's
+ *  BackendsRegistry treats this as one of N transports and wires it
+ *  directly to the local backend's mirrored ClientStore.
+ *
+ *  Duck-typed because it crosses the contextBridge as a serialized
+ *  object; the original class instance isn't preserved across the
+ *  bridge. Lives in shared/ so both `src/preload/index.ts` (limited
+ *  to tsconfig.node.json) and `src/renderer/store.ts` can import it. */
+export interface LocalTransportHandle {
+  getStateSnapshot(): Promise<StateSnapshot>
+  onStateEvent(cb: StateEventListener): () => void
+  request(name: string, ...args: unknown[]): Promise<unknown>
+  send(name: string, ...args: unknown[]): void
+  onSignal(name: string, handler: ClientSignalHandler): () => void
+  getClientId(): Promise<string>
+}
+
+/** Electron-only helpers exposed by the preload that genuinely can't
+ *  live in the renderer: webUtils.getPathForFile (for resolving paths
+ *  of dropped files) + ipcRenderer.send for window controls (the local
+ *  BrowserWindow is what's being controlled, regardless of which
+ *  backend is active). Null in the web-client. Same cross-context
+ *  shape rationale as LocalTransportHandle — kept in shared/ so the
+ *  preload (tsconfig.node.json) and the renderer can both import it. */
+export interface ElectronOnlyHelpers {
+  getFilePath(file: File): string
+  windowMinimize(): void
+  windowToggleMaximize(): void
+  windowClose(): void
+}
+
 export interface ServerTransport {
   /** Broadcast a state event to every connected client. */
   broadcastStateEvent(event: StateEvent, seq: number): void

@@ -3,6 +3,7 @@ import { Profiler, type ProfilerOnRenderCallback } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import { initStore } from './store'
+import { getBackend } from './backend'
 import { defineHarnessTheme } from './monaco-setup'
 import { renderMetrics } from './render-metrics'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -13,7 +14,7 @@ const SLOW_COMMIT_MS = 16
 const onRender: ProfilerOnRenderCallback = (id, phase, actualDuration) => {
   renderMetrics.record(actualDuration)
   if (actualDuration >= SLOW_COMMIT_MS) {
-    window.api.perfLogSlowRender(id, actualDuration, phase)
+    getBackend().perfLogSlowRender(id, actualDuration, phase)
   }
 }
 
@@ -30,13 +31,12 @@ initStore()
     )
   })
   .catch((err) => {
-    // initStore awaits the first WS request when running against a
-    // remote backend (preload swapped in WebSocketClientTransport
-    // because --harness-remote-url= was in argv). A connection failure
-    // surfaces here as a rejected promise. In local Electron mode the
-    // ElectronClientTransport's getStateSnapshot is an in-process IPC
-    // call and only fails if main itself is broken — same fallback UI
-    // is fine for both paths.
+    // initStore awaits the first WS request in the web client (the
+    // single backend's transport is WebSocketClientTransport). A
+    // connection failure surfaces here as a rejected promise. In local
+    // Electron mode the ElectronClientTransport's getStateSnapshot is
+    // an in-process IPC call and only fails if main itself is broken —
+    // same fallback UI is fine for both paths.
     showBootError(err)
   })
 

@@ -398,23 +398,33 @@ hard dependency on `gh`.
   message. The headless renderer (web client) renders a polled JPEG
   via `RemoteBrowserView` instead of a native overlay — live screencast
   is a follow-up.
-- **Electron remote mode** — when launched with `HARNESS_REMOTE_URL` set,
-  `src/main/index.ts` short-circuits at the top: it dynamic-requires
-  `desktop-shell-remote.ts` and skips the entire `bootLocal()` body
-  (no store, no PtyManager, no JsonClaudeManager, no transports, no IPC
-  handlers, no FSMs, no PR poller, no control server). The remote shell
-  just opens a BrowserWindow with `webPreferences.additionalArguments =
-  ['--harness-remote-url=<url>']`. The preload (`src/preload/index.ts`)
-  reads that arg via `findRemoteUrl(process.argv)` and constructs a
-  `WebSocketClientTransport` (now in `src/shared/transport/`) instead
-  of `ElectronClientTransport`. It also sets `window.__HARNESS_WEB__ =
-  true` via contextBridge — the same flag the web client uses, so
-  every renderer branch that already gates on `__HARNESS_WEB__`
-  (RemoteFilePicker, polled browser screenshot view, etc.) works in
-  remote-Electron mode without knowing about it. Connection failures
-  surface as a rejected promise from `initStore()`; `main.tsx`'s
-  `.catch` renders a static error screen with the URL. There's no
-  reconnect-on-disconnect logic; restart the app for v1.
+- **Multi-backend (Tier 1)** — a single Electron Harness can connect
+  to N backends (the in-process local one + remote `harness-server`
+  instances), with a chip strip at the bottom of the sidebar to switch.
+  See `plans/tier-1-multi-backend-ux.md` for the full design.
+  Architecturally: `src/renderer/store.ts` holds a `BackendsRegistry`
+  of `(transport, ClientStore)` pairs; the local entry uses
+  `ElectronClientTransport` (via the preload's `__harness_local_transport`
+  handle), remotes use `WebSocketClientTransport` directly in renderer
+  context. Each transport's `onStateEvent` is wired to its own store at
+  registration time, so there's no central event router — per-backend
+  channels are naturally segregated. `window.api` is built in the
+  RENDERER (`src/renderer/build-backend.ts`, exported via
+  `src/renderer/backend.ts` as `getBackend()` / `useBackend()`),
+  with each method calling `registry.getActiveTransport().request(...)`
+  lazily. For local active that's the preload-bridged handle (1
+  contextBridge crossing); for remote active it's the WS transport
+  directly (0 crossings — same wire path as the standalone web client).
+  The preload itself is tiny — only exposes the local transport handle
+  and a few electron-only helpers (`webUtils.getPathForFile`, window
+  controls). `connections:*` methods always go to the local transport
+  (renderer-shell-owned per design §C/§G). Menu signals
+  (`onOpenSettings`, etc.) likewise bind to the local transport since
+  only the local Electron has a Menu. The legacy `HARNESS_REMOTE_URL`
+  env-var mode was removed in Tier 1 — adding a remote backend now
+  happens via the chip strip's `+` button (or `File → Add Backend…`
+  if/when wired). Tokens encrypted in `secrets.enc` keyed
+  `backend-token:<id>`; connections list lives in `userData/config.json`.
 - **Dual-claude model** — Harness ships two Claude Code binaries. **xterm
   Claude tabs** spawn `/bin/zsh -ilc claude` so the user's PATH `claude`
   is what runs (lets bleeding-edge / beta testers stay on their own

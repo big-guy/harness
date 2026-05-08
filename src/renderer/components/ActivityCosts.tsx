@@ -8,6 +8,7 @@ import {
   type ContentBreakdown
 } from '../../shared/state/costs'
 import { useWorktrees } from '../store'
+import { useBackend } from '../backend'
 import iconUrl from '../../../resources/icon.png'
 
 type Range = '24h' | '7d' | '30d' | 'all'
@@ -84,6 +85,7 @@ interface RepoGroup {
 }
 
 export function ActivityCosts(): JSX.Element {
+  const backend = useBackend()
   const [range, setRange] = useState<Range>('7d')
   const [data, setData] = useState<SessionCostSummary[] | null>(null)
   const [loading, setLoading] = useState(false)
@@ -94,7 +96,7 @@ export function ActivityCosts(): JSX.Element {
 
   useEffect(() => {
     let cancelled = false
-    void window.api
+    void backend
       .getClaudeAuthStatus()
       .then((info) => {
         if (!cancelled) setAuth(info)
@@ -114,7 +116,7 @@ export function ActivityCosts(): JSX.Element {
     setExpanded(new Set())
     const ms = RANGES.find((r) => r.id === range)!.ms
     const sinceMs = ms == null ? undefined : Date.now() - ms
-    void window.api
+    void backend
       .getAllSessionCosts(sinceMs)
       .then((rows) => {
         if (cancelled) return

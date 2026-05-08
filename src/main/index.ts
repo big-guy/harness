@@ -1,5 +1,6 @@
 import { existsSync, lstatSync, readFileSync } from 'fs'
 import { createRequire } from 'module'
+import { randomUUID } from 'crypto'
 import { join } from 'path'
 import { PtyManager } from './pty-manager'
 import { ApprovalBridge } from './approval-bridge'
@@ -37,7 +38,7 @@ import { getLeaves, mapLeaves } from '../shared/state/terminals'
 import { listWorktrees, listBranches, continueWorktree, isWorktreeDirty, defaultWorktreeDir, getChangedFiles, getFileDiff, getBranchCommits, getCommitDiff, getCommitChangedFiles, getCommitFileDiffSides, getMainWorktreeStatus, prepareMainForMerge, mergeWorktreeLocally, getBranchSha, previewMergeConflicts, getBranchDiffStats, listAllFiles, readWorktreeFile, readWorktreeFileBinary, writeWorktreeFile, getFileDiffSides, getCurrentBranch, symlinkClaudeSettings, type MergeStrategy } from './worktree'
 import { getPRStatus, testToken, starRepo, unstarRepo, isRepoStarred, mergePR, getRepoInfo, type GitHubMergeMethod, type MergePRResult } from './github'
 import { AVAILABLE_EDITORS, DEFAULT_EDITOR_ID, openInEditor } from './editor'
-import { setSecret, hasSecret, deleteSecret } from './secrets'
+import { setSecret, getSecret, hasSecret, deleteSecret } from './secrets'
 import { resolveGitHubToken, getTokenSource, invalidateTokenCache, getCachedToken } from './github-auth'
 import {
   loadConfig,
@@ -54,6 +55,8 @@ import {
   DEFAULT_HARNESS_SYSTEM_PROMPT,
   DEFAULT_HARNESS_SYSTEM_PROMPT_MAIN,
   pruneTerminalHistory,
+  LOCAL_BACKEND_ID,
+  type BackendConnection,
   type PersistedPaneNode,
   type QuestStep
 } from './persistence'
@@ -86,38 +89,29 @@ function toAgentKind(value: string | undefined): AgentKind {
 // override to fight with.
 const runtime = detectRuntime()
 
-// Remote-mode short-circuit: when launched with HARNESS_REMOTE_URL, the
-// renderer talks to a remote harness-server over WebSocket and we skip
-// every local backend service (store, PtyManager, transports, IPC
-// handlers, FSMs, pollers, …). Hand off to the remote shell module via
-// dynamic require — the bundler can't see this path so the headless
-// build never drags Electron in. Once bootRemote() returns we're done;
-// it owns app.whenReady, the menu, the window, and the auto-updater.
-if (runtime === 'electron' && process.env['HARNESS_REMOTE_URL']) {
-  const remoteUrl = process.env['HARNESS_REMOTE_URL']
+// Boot the local backend. The HARNESS_REMOTE_URL "process-wide remote"
+// path was removed in Tier 1 — the chip strip / add-backend modal is
+// the only way to reach a remote backend now (see
+// plans/tier-1-multi-backend-ux.md §J).
+//
+// Apply the dev-mode userData override BEFORE fixPathFromLoginShell
+// runs. path-fix can call log() (on PATH change / timeout / missing
+// sentinels), and log() reads userDataDir() which caches its first
+// result — without this, the production userData path gets cached
+// and the override inside bootLocal arrives too late. bootLocal also
+// calls applyDevModeOverride; app.setPath is idempotent, so the
+// second call is a no-op.
+if (runtime === 'electron') {
   const dynamicRequire = createRequire(__filename)
-  const remoteShellMod = dynamicRequire('./desktop-shell-remote') as typeof import('./desktop-shell-remote')
-  remoteShellMod.bootRemote(remoteUrl)
-} else {
-  // Apply the dev-mode userData override BEFORE fixPathFromLoginShell
-  // runs. path-fix can call log() (on PATH change / timeout / missing
-  // sentinels), and log() reads userDataDir() which caches its first
-  // result — without this, the production userData path gets cached
-  // and the override inside bootLocal arrives too late. bootLocal also
-  // calls applyDevModeOverride; app.setPath is idempotent, so the
-  // second call is a no-op.
-  if (runtime === 'electron') {
-    const dynamicRequire = createRequire(__filename)
-    const ds = dynamicRequire('./desktop-shell') as typeof import('./desktop-shell')
-    ds.applyDevModeOverride()
-  }
-  // PATH fix runs before bootLocal so PtyManager / JsonClaudeManager are
-  // constructed with an environment that includes Homebrew/nvm/etc.
-  // Covers both Electron-from-Dock and headless-via-ssh/systemd, both of
-  // which can start with a stripped PATH. No-op outside of macOS today;
-  // see path-fix.ts.
-  void fixPathFromLoginShell().then(bootLocal)
+  const ds = dynamicRequire('./desktop-shell') as typeof import('./desktop-shell')
+  ds.applyDevModeOverride()
 }
+// PATH fix runs before bootLocal so PtyManager / JsonClaudeManager are
+// constructed with an environment that includes Homebrew/nvm/etc.
+// Covers both Electron-from-Dock and headless-via-ssh/systemd, both of
+// which can start with a stripped PATH. No-op outside of macOS today;
+// see path-fix.ts.
+void fixPathFromLoginShell().then(bootLocal)
 
 // Wrap the entire local-mode boot in a function so the remote-mode
 // branch above can early-exit cleanly. Function declarations are
@@ -1992,9 +1986,9 @@ function registerIpcHandlers(): void {
   })
 
   // updater:getVersion is mode-agnostic — both Electron windows and WS
-  // clients (web client, HARNESS_REMOTE_URL Electron) ask for it. Reads
-  // from package.json / VERSION rather than Electron's app.getVersion()
-  // so the headless server can answer without an `app`.
+  // clients (web client, multi-backend Electron remotes) ask for it.
+  // Reads from package.json / VERSION rather than Electron's
+  // app.getVersion() so the headless server can answer without an `app`.
   transport.onRequest('updater:getVersion', (_ctx) => getHarnessVersion())
 
   // updater:checkForUpdates / updater:quitAndInstall: the real
@@ -2481,6 +2475,107 @@ function registerIpcHandlers(): void {
       payload: rounded
     })
     return true
+  })
+
+  // ---- Multi-backend connections list (Tier 1) -----------------------
+  // The connections list is renderer-shell-owned (per plans/tier-1-multi-
+  // backend-ux.md §C/§G) — it lives in the local Electron's config.json,
+  // not in any backend's slice, and is ONLY exposed by the local backend's
+  // transport. Remote backends don't manage other backends. Tokens for
+  // remote connections live in secrets.enc keyed `backend-token:<id>`.
+  //
+  // Renderer-shell handlers are stateless wrt the store — they just read/
+  // write `config` and persist via saveConfig. There's no slice for
+  // connections by design (nothing else needs to subscribe).
+  transport.onRequest('connections:list', () => {
+    return config.connections ?? []
+  })
+
+  transport.onRequest(
+    'connections:add',
+    (
+      _ctx,
+      input: { label: string; url: string; kind: 'remote'; color?: string; initials?: string },
+      token: string
+    ) => {
+      if (!input || input.kind !== 'remote') throw new Error('connections:add only accepts remote connections')
+      if (typeof input.url !== 'string' || !input.url) throw new Error('url is required')
+      if (typeof input.label !== 'string' || !input.label) throw new Error('label is required')
+      if (typeof token !== 'string' || !token) throw new Error('token is required')
+      const id = randomUUID()
+      const conn: BackendConnection = {
+        id,
+        label: input.label,
+        url: input.url,
+        kind: 'remote',
+        addedAt: Date.now(),
+        ...(input.color ? { color: input.color } : {}),
+        ...(input.initials ? { initials: input.initials } : {})
+      }
+      const list = (config.connections ?? []).slice()
+      list.push(conn)
+      config.connections = list
+      setSecret(`backend-token:${id}`, token)
+      saveConfig(config)
+      return conn
+    }
+  )
+
+  transport.onRequest('connections:remove', (_ctx, id: string) => {
+    if (id === LOCAL_BACKEND_ID) throw new Error('cannot remove the local backend')
+    const list = config.connections ?? []
+    const next = list.filter((c) => c.id !== id)
+    if (next.length === list.length) return false
+    config.connections = next
+    if (config.activeBackendId === id) config.activeBackendId = LOCAL_BACKEND_ID
+    deleteSecret(`backend-token:${id}`)
+    saveConfig(config)
+    return true
+  })
+
+  transport.onRequest('connections:rename', (_ctx, id: string, label: string) => {
+    if (typeof label !== 'string' || !label.trim()) throw new Error('label is required')
+    const list = config.connections ?? []
+    const idx = list.findIndex((c) => c.id === id)
+    if (idx < 0) return false
+    const next = list.slice()
+    next[idx] = { ...next[idx], label: label.trim() }
+    config.connections = next
+    saveConfig(config)
+    return true
+  })
+
+  transport.onRequest('connections:setActive', (_ctx, id: string) => {
+    const list = config.connections ?? []
+    if (!list.some((c) => c.id === id)) throw new Error(`unknown backend id: ${id}`)
+    config.activeBackendId = id
+    saveConfig(config)
+    return true
+  })
+
+  transport.onRequest('connections:getActive', () => {
+    return config.activeBackendId ?? LOCAL_BACKEND_ID
+  })
+
+  transport.onRequest('connections:setLastConnected', (_ctx, id: string, when?: number) => {
+    const list = config.connections ?? []
+    const idx = list.findIndex((c) => c.id === id)
+    if (idx < 0) return false
+    const next = list.slice()
+    next[idx] = { ...next[idx], lastConnectedAt: typeof when === 'number' ? when : Date.now() }
+    config.connections = next
+    saveConfig(config)
+    return true
+  })
+
+  transport.onRequest('connections:getToken', (_ctx, id: string) => {
+    if (id === LOCAL_BACKEND_ID) return null
+    return getSecret(`backend-token:${id}`)
+  })
+
+  transport.onRequest('connections:hasToken', (_ctx, id: string) => {
+    if (id === LOCAL_BACKEND_ID) return false
+    return hasSecret(`backend-token:${id}`)
   })
 
   transport.onSignal('terminal:join', (ctx, id: string) => {

@@ -1,19 +1,28 @@
 // Renderer-side mirror of the main-process store. This is intentionally
 // a passive view: the renderer NEVER originates a mutation here. Every
-// change comes from a `state:event` IPC message that we apply via the
+// change comes from a `state:event` message that we apply via the
 // SHARED reducer (the same code main runs), guaranteeing the two stay
 // in sync without any custom diffing.
 //
-// To mutate state, call the corresponding window.api method (e.g.
-// `window.api.setTheme(...)`). That goes to main, which dispatches
-// through its store, which broadcasts the event back here, which
-// re-renders any component reading via `useSettings()` etc.
+// Multi-backend (Tier 1): the renderer holds a `BackendsRegistry` of
+// `(transport, ClientStore)` pairs — one per configured backend. Each
+// transport is naturally scoped to one backend (each `state:event`
+// channel only ever delivers events from its own server), so no
+// per-event routing is required: at registration time we wire each
+// transport's `onStateEvent` directly to its own store. The hooks
+// below (`useSettings`, `usePrs`, `usePanes`, …) read from the
+// **active** backend's store via `useSyncExternalStore`, with the
+// subscribe callback firing on either (a) inner-store events or (b)
+// active-id changes — so switching backends triggers a re-render that
+// reads from the new active store.
 //
-// The hooks below (`useSettings`, `usePrs`, `usePanes`, …) are how
-// components read state. They use `useSyncExternalStore` so React's
-// concurrent rendering sees a consistent snapshot per render. If you
-// need a new slice's value, add a hook here following the same
-// pattern; don't reach into the store directly.
+// To mutate state, call the corresponding `useBackend()` method (e.g.
+// `useBackend().setTheme(...)`). That goes to whichever backend the
+// registry currently routes to (active backend for most surfaces;
+// always-local for connections-list mutations). Main dispatches
+// through its store, broadcasts the event back here, the matching
+// per-backend store applies it, and any component reading via the
+// active backend's hooks re-renders.
 
 import { useSyncExternalStore } from 'react'
 import {
@@ -22,74 +31,436 @@ import {
   type AppState,
   type StateEvent
 } from '../shared/state'
+import type { LocalTransportHandle, BackendConnection } from './types'
+import { WebSocketClientTransport } from '../shared/transport/transport-websocket'
+import { initBackend, getBackend } from './backend'
 
-let state: AppState = initialState
-const listeners = new Set<() => void>()
+/** Stable id for the in-process Electron backend. Mirrors the value in
+ *  src/main/persistence.ts; duplicated here because main isn't
+ *  importable from renderer code. */
+export const LOCAL_BACKEND_ID = 'local'
 
-function notify(): void {
-  for (const l of listeners) l()
-}
+/** Per-backend client-side mirror. One instance per configured backend.
+ *  Owns the AppState mirror, the listener set, and the cached client
+ *  id. Constructed by the registry at backend-add time. */
+class ClientStore {
+  private state: AppState = initialState
+  private listeners = new Set<() => void>()
+  private clientIdValue: string | null = null
 
-function subscribe(cb: () => void): () => void {
-  listeners.add(cb)
-  return () => {
-    listeners.delete(cb)
+  applyEvent(event: StateEvent): void {
+    this.state = rootReducer(this.state, event)
+    for (const l of this.listeners) l()
+  }
+
+  setSnapshot(state: AppState): void {
+    this.state = state
+    for (const l of this.listeners) l()
+  }
+
+  setClientId(id: string): void {
+    this.clientIdValue = id
+  }
+
+  getClientId(): string | null {
+    return this.clientIdValue
+  }
+
+  getState(): AppState {
+    return this.state
+  }
+
+  subscribe(cb: () => void): () => void {
+    this.listeners.add(cb)
+    return () => {
+      this.listeners.delete(cb)
+    }
   }
 }
 
-// Server-assigned identity for this renderer. Hydrated once at boot so
-// synchronous reads (e.g. in useMemo selectors that compare
-// controllerClientId to "me") don't need to await an RPC. Stays constant
-// for the life of the window — if the transport reconnects under us, a
-// full reload is required and this is re-requested at the top of init.
-let clientId: string | null = null
+/** Holds N `(transport, store)` pairs and tracks which one is active.
+ *  The "routing by backend" is structural — each transport's event
+ *  channel only delivers its own backend's events, so wiring each
+ *  transport's `onStateEvent` to its own store at registration is the
+ *  whole story. There is no central event dispatcher.
+ *
+ *  Active selection is renderer-shell-owned (per
+ *  plans/tier-1-multi-backend-ux.md §C). For Tier 1 v1 the registry
+ *  starts with only the local backend; remote backends are added in
+ *  later steps when the chip strip / add-backend modal lands. */
+/** Per-backend connection status (Tier 1 §I). KISS: two states only.
+ *  The local backend is hardcoded to 'connected' since it has no
+ *  socket to drop. Reasons populate the chip tooltip on disconnect. */
+export interface BackendStatus {
+  state: 'connected' | 'disconnected'
+  reason?: string
+}
 
+interface BackendEntry {
+  connection: BackendConnection
+  transport: LocalTransportHandle
+  store: ClientStore
+  status: BackendStatus
+}
+
+/** Stable snapshot returned for ids the registry doesn't know about,
+ *  shared across calls so useSyncExternalStore selectors stay
+ *  reference-stable for missing entries. */
+const DEFAULT_BACKEND_STATUS: BackendStatus = { state: 'connected' }
+
+class BackendsRegistry {
+  private entries = new Map<string, BackendEntry>()
+  private activeId: string = LOCAL_BACKEND_ID
+  private activeIdListeners = new Set<() => void>()
+  private listListeners = new Set<() => void>()
+  private statusListeners = new Set<() => void>()
+  // Cached return values for the read-only hooks. We rebuild the
+  // cached array / status map ONLY when the underlying data changes;
+  // useSyncExternalStore requires getSnapshot to be reference-stable
+  // for unchanged data (otherwise React keeps detecting "new state"
+  // and infinite-loops). Invalidated by the mutators below.
+  private connectionsCache: readonly BackendConnection[] | null = null
+
+  add(
+    connection: BackendConnection,
+    transport: LocalTransportHandle,
+    initialStatus: BackendStatus = DEFAULT_BACKEND_STATUS
+  ): ClientStore {
+    if (this.entries.has(connection.id)) {
+      throw new Error(`backend already registered: ${connection.id}`)
+    }
+    const store = new ClientStore()
+    this.entries.set(connection.id, {
+      connection,
+      transport,
+      store,
+      status: initialStatus
+    })
+    transport.onStateEvent((event, _seq) => store.applyEvent(event as StateEvent))
+    this.connectionsCache = null
+    for (const l of this.listListeners) l()
+    return store
+  }
+
+  setStatus(id: string, status: BackendStatus): void {
+    const entry = this.entries.get(id)
+    if (!entry) return
+    if (entry.status.state === status.state && entry.status.reason === status.reason) return
+    entry.status = status
+    for (const l of this.statusListeners) l()
+  }
+
+  getStatus(id: string): BackendStatus {
+    return this.entries.get(id)?.status ?? DEFAULT_BACKEND_STATUS
+  }
+
+  subscribeStatus(cb: () => void): () => void {
+    this.statusListeners.add(cb)
+    return () => {
+      this.statusListeners.delete(cb)
+    }
+  }
+
+  remove(id: string): void {
+    if (id === LOCAL_BACKEND_ID) {
+      throw new Error('cannot remove local backend')
+    }
+    const entry = this.entries.get(id)
+    if (!entry) return
+    // Close the underlying transport if it has a close method. The
+    // remote WebSocketClientTransport exposes one; the local handle
+    // (a plain object wrapper around ElectronClientTransport) doesn't,
+    // and we wouldn't want to drop the local IPC channel anyway.
+    const closer = (entry.transport as { close?: () => void }).close
+    if (typeof closer === 'function') {
+      try {
+        closer.call(entry.transport)
+      } catch {
+        /* swallow — we're tearing down regardless */
+      }
+    }
+    this.entries.delete(id)
+    if (this.activeId === id) this.setActive(LOCAL_BACKEND_ID)
+    this.connectionsCache = null
+    for (const l of this.listListeners) l()
+  }
+
+  updateConnection(id: string, patch: Partial<BackendConnection>): void {
+    const entry = this.entries.get(id)
+    if (!entry) return
+    entry.connection = { ...entry.connection, ...patch }
+    this.connectionsCache = null
+    for (const l of this.listListeners) l()
+  }
+
+  has(id: string): boolean {
+    return this.entries.has(id)
+  }
+
+  getStore(id: string): ClientStore | undefined {
+    return this.entries.get(id)?.store
+  }
+
+  getTransport(id: string): LocalTransportHandle | undefined {
+    return this.entries.get(id)?.transport
+  }
+
+  getConnection(id: string): BackendConnection | undefined {
+    return this.entries.get(id)?.connection
+  }
+
+  listConnections(): readonly BackendConnection[] {
+    if (this.connectionsCache) return this.connectionsCache
+    const list: BackendConnection[] = []
+    for (const e of this.entries.values()) list.push(e.connection)
+    this.connectionsCache = list
+    return list
+  }
+
+  getActiveStore(): ClientStore {
+    const e = this.entries.get(this.activeId)
+    if (!e) throw new Error(`no store for active backend ${this.activeId}`)
+    return e.store
+  }
+
+  getActiveTransport(): LocalTransportHandle {
+    const e = this.entries.get(this.activeId)
+    if (!e) throw new Error(`no transport for active backend ${this.activeId}`)
+    return e.transport
+  }
+
+  getActiveConnection(): BackendConnection {
+    const e = this.entries.get(this.activeId)
+    if (!e) throw new Error(`no connection for active backend ${this.activeId}`)
+    return e.connection
+  }
+
+  getActiveId(): string {
+    return this.activeId
+  }
+
+  getAllIds(): string[] {
+    return Array.from(this.entries.keys())
+  }
+
+  setActive(id: string): void {
+    if (this.activeId === id) return
+    if (!this.entries.has(id)) throw new Error(`unknown backend ${id}`)
+    this.activeId = id
+    // No preload-side router to notify any more — the backend is
+    // built in the renderer (see src/renderer/backend.ts) and reads
+    // the active transport lazily on each call, so flipping `activeId`
+    // here is the entire commit. Listeners below let the hooks
+    // subscribed via useSyncExternalStore re-render with the new
+    // active store's slice values.
+    for (const l of this.activeIdListeners) l()
+  }
+
+  subscribeActiveId(cb: () => void): () => void {
+    this.activeIdListeners.add(cb)
+    return () => {
+      this.activeIdListeners.delete(cb)
+    }
+  }
+
+  subscribeList(cb: () => void): () => void {
+    this.listListeners.add(cb)
+    return () => {
+      this.listListeners.delete(cb)
+    }
+  }
+}
+
+const registry = new BackendsRegistry()
+
+/** Subscribe to "anything that would change what the slice hooks read"
+ *  — fires on either active-store events or active-id changes. The
+ *  active-id branch swaps the inner subscription so listeners stay
+ *  tracking whichever store is currently active, without callers
+ *  having to re-subscribe. */
+function subscribeActive(cb: () => void): () => void {
+  let storeUnsub = registry.getActiveStore().subscribe(cb)
+  const idUnsub = registry.subscribeActiveId(() => {
+    storeUnsub()
+    storeUnsub = registry.getActiveStore().subscribe(cb)
+    cb()
+  })
+  return () => {
+    storeUnsub()
+    idUnsub()
+  }
+}
+
+/** Server-assigned identity for this renderer wrt the active backend.
+ *  Per-backend — when active flips, this value can change. Components
+ *  using `useSyncExternalStore` (via the slice hooks below) re-render
+ *  on the swap and would naturally pick up the new id. Synchronous
+ *  callers (selectors comparing `controllerClientId` to "me") get the
+ *  active value at call time. */
 export function getClientId(): string | null {
-  return clientId
+  return registry.getActiveStore().getClientId()
 }
 
 export async function initStore(): Promise<void> {
+  const localTransport = window.__harness_local_transport
+  if (!localTransport) {
+    throw new Error(
+      'preload did not expose __harness_local_transport — Tier 1 multi-backend wiring missing'
+    )
+  }
+  // Wire the local backend first; for v1 it's the only one in the
+  // registry. Remote backends from `connections[]` get added by the
+  // chip-strip controller in a later commit.
+  //
+  // The connection's `kind` follows the runtime: in the browser web
+  // client, `__HARNESS_WEB__` is true and the underlying transport is
+  // a WebSocketClientTransport — semantically remote, even though the
+  // registry id is still `local` (it's the always-present default the
+  // user can't remove). UI gating reads `kind`, not the id.
+  const isWeb = typeof window !== 'undefined' && window.__HARNESS_WEB__ === true
+  const localConnection: BackendConnection = {
+    id: LOCAL_BACKEND_ID,
+    label: 'Local',
+    url: '',
+    kind: isWeb ? 'remote' : 'local',
+    addedAt: 0
+  }
+  const localStore = registry.add(localConnection, localTransport)
+
+  // Build the `useBackend()` singleton now that the registry knows
+  // about the local backend. Each method routes lazily through the registry's
+  // active transport (local handle for local, WS direct for remotes —
+  // the latter bypasses the preload entirely so remote RPCs are as fast
+  // as the standalone web client).
+  initBackend({
+    getActiveTransport: () => registry.getActiveTransport(),
+    getLocalTransport: () => localTransport
+  })
+
   const [snapshot, id] = await Promise.all([
-    window.api.getStateSnapshot(),
-    window.api.getClientId()
+    localTransport.getStateSnapshot(),
+    localTransport.getClientId()
   ])
-  state = snapshot.state
-  clientId = id
+  localStore.setSnapshot(snapshot.state)
+  localStore.setClientId(id)
   // eslint-disable-next-line no-console
-  console.log(`[take-control] initStore myClientId=${id}`)
-  window.api.onStateEvent((event, _seq) => {
-    state = rootReducer(state, event)
-    // Diagnostic for the controller/spectator flow. If the UI is ever
-    // stuck on the wrong controller, grep console for `[take-control]`
-    // — the renderer should log one of these for every roster event
-    // that lands, with the post-reducer controllerClientId.
+  console.log(`[take-control] initStore localClientId=${id}`)
+
+  // Diagnostic logging for the controller/spectator flow. If the UI is
+  // ever stuck on the wrong controller, grep console for
+  // `[take-control]` — every roster event hitting the local backend's
+  // store is logged with the post-reducer controllerClientId.
+  localTransport.onStateEvent((event) => {
+    const e = event as StateEvent
     if (
-      event.type === 'terminals/controlTaken' ||
-      event.type === 'terminals/controlReleased' ||
-      event.type === 'terminals/clientJoined' ||
-      event.type === 'terminals/clientDisconnected'
+      e.type === 'terminals/controlTaken' ||
+      e.type === 'terminals/controlReleased' ||
+      e.type === 'terminals/clientJoined' ||
+      e.type === 'terminals/clientDisconnected'
     ) {
-      const payload = event.payload as { terminalId?: string }
+      const payload = e.payload as { terminalId?: string }
       const tid = payload.terminalId
-      const session = tid ? state.terminals.sessions[tid] : undefined
+      const session = tid ? localStore.getState().terminals.sessions[tid] : undefined
       // eslint-disable-next-line no-console
       console.log(
-        `[take-control] applied event=${event.type} payload=${JSON.stringify(event.payload)} myClientId=${clientId} postController=${session?.controllerClientId ?? 'null'}`
+        `[take-control] applied event=${e.type} payload=${JSON.stringify(e.payload)} myClientId=${id} postController=${session?.controllerClientId ?? 'null'}`
       )
     }
-    notify()
   })
-  notify()
+
+  // Hydrate any saved remote backends (Tier 1 multi-backend UX). Each
+  // remote becomes its own (transport, store) pair in the registry; the
+  // user can flip between them via the chip strip. WS connect failures
+  // are swallowed here — the registry entry still gets added so the
+  // chip renders (greyed-disconnected styling lands in step 8) and the
+  // user can retry.
+  //
+  // Skipped in the web client: backend.connectionsList returns an
+  // empty stub there, so the loop is a no-op. Multi-backend is an
+  // Electron-only feature in Tier 1.
+  try {
+    const backend = getBackend()
+    const connections = await backend.connectionsList()
+    for (const conn of connections) {
+      if (conn.kind !== 'remote') continue
+      void hydrateRemoteBackend(conn)
+    }
+    const savedActive = await backend.connectionsGetActive()
+    if (savedActive && registry.has(savedActive)) {
+      registry.setActive(savedActive)
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[harness] failed to hydrate remote backends', err)
+  }
 }
 
-function getState(): AppState {
-  return state
+/** Construct a WS transport for a saved remote, fetch its token from
+ *  secrets, connect, and register the pair. Errors are logged but
+ *  non-fatal — the user can retry from the chip strip. */
+async function hydrateRemoteBackend(conn: BackendConnection): Promise<void> {
+  try {
+    const token = await getBackend().connectionsGetToken(conn.id)
+    if (!token) {
+      // eslint-disable-next-line no-console
+      console.warn(`[harness] no token stored for backend ${conn.id} — skipping`)
+      return
+    }
+    // BackendConnection.url is the wire URL with ws://-or-wss:// prefix
+    // (parseConnectionUrl preserves the TLS choice from what the user
+    // pasted). The token is held separately in secrets.enc. The
+    // onConnectionChange callback feeds into the registry's per-backend
+    // status, which the chip strip reads to grey disconnected entries.
+    //
+    // onSnapshot fires after every (re)connect — we seed the registry's
+    // ClientStore with each fresh snapshot so an inactive backend that
+    // briefly drops + reconnects in the background catches up cleanly
+    // when the user switches to it.
+    const ws = new WebSocketClientTransport({
+      url: conn.url,
+      token,
+      onConnectionChange: (connected, reason) => {
+        registry.setStatus(conn.id, {
+          state: connected ? 'connected' : 'disconnected',
+          reason
+        })
+      },
+      onSnapshot: (snapshot) => {
+        const store = registry.getStore(conn.id)
+        if (store) store.setSnapshot(snapshot.state)
+      }
+    })
+    await ws.connect()
+    if (registry.has(conn.id)) return
+    // Seed the new ClientStore with the initial snapshot + client id
+    // before registering so the user sees existing worktrees / panes
+    // the instant they switch backends, instead of the onboarding
+    // screen that fires off `initialState`'s empty repoRoots.
+    const [snapshot, clientId] = await Promise.all([
+      ws.getStateSnapshot(),
+      ws.getClientId()
+    ])
+    const store = registry.add(conn, ws)
+    store.setSnapshot(snapshot.state)
+    store.setClientId(clientId)
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(`[harness] failed to connect to backend ${conn.id}`, err)
+  }
 }
 
+function getActiveState(): AppState {
+  return registry.getActiveStore().getState()
+}
+
+/** Selector hook reading from the **active** backend's store. Re-fires
+ *  on inner-store events AND on active-backend changes (so switching
+ *  backends triggers a re-render that reads fresh state from the new
+ *  active store). */
 export function useAppState<T>(selector: (s: AppState) => T): T {
   return useSyncExternalStore(
-    subscribe,
-    () => selector(getState()),
+    subscribeActive,
+    () => selector(getActiveState()),
     () => selector(initialState)
   )
 }
@@ -168,6 +539,91 @@ export function useJsonClaudeSession(sessionId: string) {
  *  so subscribers here skip the streaming hot path entirely. */
 export function useJsonClaudePendingApprovals() {
   return useAppState((s) => s.jsonClaude.pendingApprovals)
+}
+
+/** Stable empty-array reference returned by the SSR / pre-init hook
+ *  paths so `useSyncExternalStore`'s reference comparison doesn't
+ *  detect a "change" on every render and fall into an infinite update
+ *  loop. */
+const EMPTY_CONNECTIONS: readonly BackendConnection[] = []
+
+/** Stable fallback for `useActiveBackend`'s server-side render path. */
+const FALLBACK_ACTIVE_BACKEND: BackendConnection = {
+  id: LOCAL_BACKEND_ID,
+  label: 'Local',
+  url: '',
+  kind: 'local',
+  addedAt: 0
+}
+
+const subscribeConnectionsList = (cb: () => void): (() => void) =>
+  registry.subscribeList(cb)
+const getConnectionsSnapshot = (): readonly BackendConnection[] =>
+  registry.listConnections()
+const getConnectionsServerSnapshot = (): readonly BackendConnection[] =>
+  EMPTY_CONNECTIONS
+
+/** Returns the list of registered backends (local + any added remotes).
+ *  Re-renders on backend add/remove/rename. The chip strip uses this to
+ *  render avatars; UI gating uses `useActiveBackend()` instead.
+ *
+ *  Returns a registry-cached array — invalidated only on real
+ *  add/remove/updateConnection — so reference identity is stable
+ *  across renders that don't change the list. */
+export function useConnections(): readonly BackendConnection[] {
+  return useSyncExternalStore(
+    subscribeConnectionsList,
+    getConnectionsSnapshot,
+    getConnectionsServerSnapshot
+  )
+}
+
+const subscribeStatus = (cb: () => void): (() => void) =>
+  registry.subscribeStatus(cb)
+const getStatusServerSnapshot = (): BackendStatus => DEFAULT_BACKEND_STATUS
+
+/** Per-backend connection status. Re-renders only on transitions for
+ *  the specific id. Local always returns 'connected' since the
+ *  in-process transport has no socket to drop. The stored status
+ *  reference is mutated only when a real transition happens, so
+ *  reference identity is stable across non-transition renders. */
+export function useBackendStatus(id: string): BackendStatus {
+  return useSyncExternalStore(
+    subscribeStatus,
+    () => registry.getStatus(id),
+    getStatusServerSnapshot
+  )
+}
+
+const subscribeActiveBackend = (cb: () => void): (() => void) => {
+  const offList = registry.subscribeList(cb)
+  const offId = registry.subscribeActiveId(cb)
+  return () => {
+    offList()
+    offId()
+  }
+}
+const getActiveBackendSnapshot = (): BackendConnection =>
+  registry.getActiveConnection()
+const getActiveBackendServerSnapshot = (): BackendConnection => FALLBACK_ACTIVE_BACKEND
+
+/** Returns the currently-active backend's connection metadata. Re-renders
+ *  on either the active id changing OR the active backend's metadata
+ *  being patched (e.g. rename). The most-used field is `kind` — gating
+ *  things like RemoteFilePicker vs native dialog (per design §L). */
+export function useActiveBackend(): BackendConnection {
+  return useSyncExternalStore(
+    subscribeActiveBackend,
+    getActiveBackendSnapshot,
+    getActiveBackendServerSnapshot
+  )
+}
+
+/** Test-only / advanced: get a handle to the registry. Lets the chip
+ *  strip and add-backend flow add/switch backends. Never call from
+ *  hooks — they should always use the slice hooks above. */
+export function getBackendsRegistry(): BackendsRegistry {
+  return registry
 }
 
 export type { AppState, StateEvent }

@@ -9,6 +9,7 @@ import type {
   PRStatus
 } from '../types'
 import { isPRMerged } from '../../shared/state/prs'
+import { useBackend } from '../backend'
 import { ActivityCosts } from './ActivityCosts'
 
 interface ActivityProps {
@@ -103,6 +104,7 @@ function isLiveMerged(
 type ActivityTab = 'timeline' | 'costs'
 
 export function Activity({ onClose, onOpenMyWeek, worktrees, prStatuses, mergedPaths }: ActivityProps): JSX.Element {
+  const backend = useBackend()
   const [tab, setTab] = useState<ActivityTab>('timeline')
   const [log, setLog] = useState<ActivityLog>({})
   const [range, setRange] = useState<Range>('24h')
@@ -112,7 +114,7 @@ export function Activity({ onClose, onOpenMyWeek, worktrees, prStatuses, mergedP
   const loadLog = async (): Promise<void> => {
     setLoading(true)
     try {
-      const data = await window.api.getActivityLog()
+      const data = await backend.getActivityLog()
       setLog(data)
     } finally {
       setLoading(false)
@@ -249,7 +251,7 @@ export function Activity({ onClose, onOpenMyWeek, worktrees, prStatuses, mergedP
 
   const handleReset = async (): Promise<void> => {
     if (!confirm('Clear all activity history? This cannot be undone.')) return
-    await window.api.clearActivityLog()
+    await backend.clearActivityLog()
     await loadLog()
   }
 
