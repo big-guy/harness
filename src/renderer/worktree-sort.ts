@@ -1,7 +1,7 @@
 import type { Worktree, PRStatus } from './types'
 import { isPRMerged } from '../shared/state/prs'
 
-export type GroupKey = 'needs-attention' | 'active' | 'no-pr' | 'merged'
+export type GroupKey = 'needs-attention' | 'reviewing' | 'active' | 'no-pr' | 'merged'
 
 export interface WorktreeGroup {
   key: GroupKey
@@ -12,19 +12,27 @@ export interface WorktreeGroup {
 export function getGroupKey(
   wt: Worktree,
   pr: PRStatus | null | undefined,
-  locallyMerged?: boolean
+  locallyMerged?: boolean,
+  viewerLogin?: string | null
 ): GroupKey {
+  void wt
   if (locallyMerged) return 'merged'
   if (!pr) return 'no-pr'
   if (isPRMerged(pr)) return 'merged'
+  // PR is open: if we know the viewer's login and this PR was authored
+  // by somebody else, it's something we're reviewing. The 'needs-attention'
+  // signals (failing checks, conflicts, changes requested) apply to PRs
+  // we own — for reviews the user doesn't have to fix anything.
+  if (viewerLogin && pr.author && pr.author.login !== viewerLogin) return 'reviewing'
   if (pr.checksOverall === 'failure' || pr.hasConflict === true || pr.reviewDecision === 'changes_requested') return 'needs-attention'
   return 'active'
 }
 
-export const GROUP_ORDER: GroupKey[] = ['needs-attention', 'active', 'no-pr', 'merged']
+export const GROUP_ORDER: GroupKey[] = ['needs-attention', 'reviewing', 'active', 'no-pr', 'merged']
 
 export const GROUP_LABELS: Record<GroupKey, string> = {
   'needs-attention': 'Needs Attention',
+  reviewing: 'Reviewing',
   active: 'Open PRs',
   'no-pr': 'Active',
   merged: 'Merged / Closed'
@@ -42,17 +50,19 @@ function sortByCreatedAt(worktrees: Worktree[]): Worktree[] {
 export function groupWorktrees(
   worktrees: Worktree[],
   prStatuses: Record<string, PRStatus | null>,
-  mergedPaths?: Record<string, boolean>
+  mergedPaths?: Record<string, boolean>,
+  viewerLogin?: string | null
 ): WorktreeGroup[] {
   const grouped: Record<GroupKey, Worktree[]> = {
     'needs-attention': [],
+    reviewing: [],
     active: [],
     'no-pr': [],
     merged: []
   }
 
   for (const wt of worktrees) {
-    const key = getGroupKey(wt, prStatuses[wt.path], mergedPaths?.[wt.path])
+    const key = getGroupKey(wt, prStatuses[wt.path], mergedPaths?.[wt.path], viewerLogin)
     grouped[key].push(wt)
   }
 
@@ -69,7 +79,8 @@ export function groupWorktrees(
 export function sortedWorktrees(
   worktrees: Worktree[],
   prStatuses: Record<string, PRStatus | null>,
-  mergedPaths?: Record<string, boolean>
+  mergedPaths?: Record<string, boolean>,
+  viewerLogin?: string | null
 ): Worktree[] {
-  return groupWorktrees(worktrees, prStatuses, mergedPaths).flatMap((g) => g.worktrees)
+  return groupWorktrees(worktrees, prStatuses, mergedPaths, viewerLogin).flatMap((g) => g.worktrees)
 }

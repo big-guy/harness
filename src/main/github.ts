@@ -3,8 +3,9 @@ import { promisify } from 'util'
 import { log } from './debug'
 import { getCachedToken, invalidateTokenCache, resolveGitHubToken } from './github-auth'
 import type { CheckStatus, PRReview, PRStatus } from '../shared/state/prs'
+import type { PRSummary, PRMetadata } from '../shared/github-types'
 
-export type { CheckStatus, PRReview, PRStatus }
+export type { CheckStatus, PRReview, PRStatus, PRSummary, PRMetadata }
 
 const execFileAsync = promisify(execFile)
 
@@ -75,21 +76,67 @@ async function githubFetch(url: string): Promise<unknown> {
   return res.json()
 }
 
-interface ApiPR {
+interface ApiPRListItem {
   number: number
   title: string
   state: 'open' | 'closed'
   draft: boolean
   merged_at: string | null
   html_url: string
-  head: { ref: string; sha: string }
+  user: { login: string; avatar_url: string } | null
+  base: { ref: string; repo: { full_name: string } | null } | null
+  head: {
+    ref: string
+    sha: string
+    repo: { full_name: string } | null
+  }
+  updated_at: string
 }
 
-interface ApiPRDetail extends ApiPR {
+interface ApiPRDetail extends ApiPRListItem {
   mergeable: boolean | null
   mergeable_state: string
   additions: number
   deletions: number
+}
+
+/** Normalized PR list item used by the poller's match-by-ref/sha logic.
+ *  Flattened from the GitHub API shape so callers don't have to chase
+ *  optional nested fields. */
+export interface PRListItem {
+  number: number
+  title: string
+  state: 'open' | 'closed'
+  draft: boolean
+  mergedAt: string | null
+  url: string
+  headRef: string
+  headSha: string
+  /** owner/repo of the head — null when the head repo is gone (rare). */
+  headRepoFullName: string | null
+  baseRef: string
+  baseRepoFullName: string | null
+  /** Login + avatar for the PR author. Null when GitHub redacts (rare). */
+  author: { login: string; avatarUrl: string } | null
+  updatedAt: string
+}
+
+function flattenListItem(it: ApiPRListItem): PRListItem {
+  return {
+    number: it.number,
+    title: it.title,
+    state: it.state,
+    draft: it.draft,
+    mergedAt: it.merged_at,
+    url: it.html_url,
+    headRef: it.head?.ref ?? '',
+    headSha: it.head?.sha ?? '',
+    headRepoFullName: it.head?.repo?.full_name ?? null,
+    baseRef: it.base?.ref ?? '',
+    baseRepoFullName: it.base?.repo?.full_name ?? null,
+    author: it.user ? { login: it.user.login, avatarUrl: it.user.avatar_url } : null,
+    updatedAt: it.updated_at
+  }
 }
 
 interface ApiCheckRun {
@@ -172,115 +219,134 @@ function computeOverall(checks: CheckStatus[]): PRStatus['checksOverall'] {
   return 'success'
 }
 
-/** Get PR status for the branch checked out in a worktree. Returns null if no PR or no token. */
-export async function getPRStatus(worktreePath: string): Promise<PRStatus | null> {
+/** List the 100 most-recently-updated PRs for a repo, in any state.
+ *  Caller matches each worktree against this list (by head ref / sha)
+ *  instead of doing one API call per worktree.
+ *
+ *  Returns null on auth/network failure (poller treats this as "no
+ *  matches" and reports nulls for every worktree in the repo). */
+export async function listPullRequests(repoRoot: string): Promise<PRListItem[] | null> {
   const token = getCachedToken()
   if (!token) return null
-
-  const repoInfo = await getRepoInfo(worktreePath)
+  const repoInfo = await getRepoInfo(repoRoot)
   if (!repoInfo) return null
-
-  const branchName = await getCurrentBranch(worktreePath)
-  if (!branchName) return null
-
   const { owner, repo } = repoInfo
-
   try {
-    // Find the PR(s) for this branch. head filter format: "owner:branch"
-    const prList = await githubFetch(
-      `https://api.github.com/repos/${owner}/${repo}/pulls?head=${owner}:${encodeURIComponent(branchName)}&state=all&per_page=1`
-    ) as ApiPR[]
-
-    if (!Array.isArray(prList) || prList.length === 0) return null
-
-    const pr = prList[0]
-    const sha = pr.head.sha
-
-    // Fetch check runs, status contexts, and PR detail (for mergeable) in parallel.
-    // The /pulls/{n} endpoint triggers GitHub's background mergeability computation
-    // and returns the result if it's ready — otherwise mergeable is null.
-    const [checkRunsRes, combinedRes, prDetail, reviewsRes] = await Promise.all([
-      githubFetch(`https://api.github.com/repos/${owner}/${repo}/commits/${sha}/check-runs?per_page=100`) as Promise<ApiCheckRunsResponse>,
-      githubFetch(`https://api.github.com/repos/${owner}/${repo}/commits/${sha}/status`) as Promise<ApiCombinedStatus>,
-      githubFetch(`https://api.github.com/repos/${owner}/${repo}/pulls/${pr.number}`) as Promise<ApiPRDetail>,
-      githubFetch(`https://api.github.com/repos/${owner}/${repo}/pulls/${pr.number}/reviews?per_page=100`) as Promise<ApiReview[]>
-    ])
-
-    // mergeable_state 'dirty' is the definitive conflict signal. mergeable===false
-    // alone can also indicate conflicts. Null/unknown means GitHub hasn't finished
-    // computing yet, so we report null and the UI hides the conflict indicator.
-    let hasConflict: boolean | null
-    if (prDetail.mergeable_state === 'dirty') hasConflict = true
-    else if (prDetail.mergeable === false) hasConflict = true
-    else if (prDetail.mergeable === true) hasConflict = false
-    else hasConflict = null
-
-    const checks: CheckStatus[] = []
-    for (const run of checkRunsRes.check_runs || []) {
-      checks.push({
-        name: run.name,
-        state: normalizeCheckState(run.status, run.conclusion),
-        description: run.output?.title || '',
-        summary: run.output?.summary || undefined,
-        detailsUrl: run.html_url || run.details_url || undefined
-      })
-    }
-    for (const s of combinedRes.statuses || []) {
-      checks.push({
-        name: s.context,
-        state: normalizeStatusState(s.state),
-        description: s.description || '',
-        detailsUrl: s.target_url || undefined
-      })
-    }
-
-    // Process reviews — keep all reviews, dedupe to latest per user for decision
-    const reviews: PRReview[] = (Array.isArray(reviewsRes) ? reviewsRes : [])
-      .filter((r) => r.user && r.state !== 'PENDING')
-      .map((r) => ({
-        user: r.user.login,
-        avatarUrl: r.user.avatar_url,
-        state: r.state,
-        body: r.body || '',
-        submittedAt: r.submitted_at,
-        htmlUrl: r.html_url
-      }))
-
-    // Compute overall review decision from the latest review per user
-    const latestByUser = new Map<string, PRReview['state']>()
-    for (const r of reviews) {
-      latestByUser.set(r.user, r.state)
-    }
-    const latestStates = [...latestByUser.values()]
-    let reviewDecision: PRStatus['reviewDecision'] = 'none'
-    if (latestStates.some((s) => s === 'CHANGES_REQUESTED')) reviewDecision = 'changes_requested'
-    else if (latestStates.some((s) => s === 'APPROVED')) reviewDecision = 'approved'
-    else if (latestStates.length > 0) reviewDecision = 'review_required'
-
-    // Determine PR state
-    let state: PRStatus['state']
-    if (pr.merged_at) state = 'merged'
-    else if (pr.state === 'closed') state = 'closed'
-    else if (pr.draft) state = 'draft'
-    else state = 'open'
-
-    return {
-      number: pr.number,
-      title: pr.title,
-      state,
-      url: pr.html_url,
-      branch: branchName,
-      checks,
-      checksOverall: computeOverall(checks),
-      hasConflict,
-      reviews,
-      reviewDecision,
-      additions: prDetail.additions,
-      deletions: prDetail.deletions
-    }
+    const list = (await githubFetch(
+      `https://api.github.com/repos/${owner}/${repo}/pulls?state=all&sort=updated&direction=desc&per_page=100`
+    )) as ApiPRListItem[]
+    if (!Array.isArray(list)) return null
+    return list.map(flattenListItem)
   } catch (err) {
-    log('github', `getPRStatus failed for ${branchName}`, err instanceof Error ? err.message : err)
+    log('github', `listPullRequests failed for ${owner}/${repo}`, err instanceof Error ? err.message : err)
     return null
+  }
+}
+
+/** Build a full PRStatus for a known PR (item from listPullRequests).
+ *  Fans out check-runs / status / reviews / mergeability in parallel,
+ *  then assembles. `localBranch` is the worktree's current branch (just
+ *  carried through into PRStatus.branch for the UI). */
+export async function loadPRStatusForItem(
+  worktreePath: string,
+  item: PRListItem,
+  baseRepo: { owner: string; repo: string }
+): Promise<PRStatus | null> {
+  const token = getCachedToken()
+  if (!token) return null
+  const localBranch = (await getCurrentBranch(worktreePath)) ?? item.headRef
+  try {
+    return await fanOutPRDetails(baseRepo.owner, baseRepo.repo, item, localBranch)
+  } catch (err) {
+    log(
+      'github',
+      `loadPRStatusForItem failed for ${baseRepo.owner}/${baseRepo.repo}#${item.number}`,
+      err instanceof Error ? err.message : err
+    )
+    return null
+  }
+}
+
+async function fanOutPRDetails(
+  owner: string,
+  repo: string,
+  item: PRListItem,
+  branchName: string
+): Promise<PRStatus | null> {
+  const sha = item.headSha
+  const [prDetail, checkRunsRes, combinedRes, reviewsRes] = await Promise.all([
+    githubFetch(`https://api.github.com/repos/${owner}/${repo}/pulls/${item.number}`) as Promise<ApiPRDetail>,
+    githubFetch(`https://api.github.com/repos/${owner}/${repo}/commits/${sha}/check-runs?per_page=100`) as Promise<ApiCheckRunsResponse>,
+    githubFetch(`https://api.github.com/repos/${owner}/${repo}/commits/${sha}/status`) as Promise<ApiCombinedStatus>,
+    githubFetch(`https://api.github.com/repos/${owner}/${repo}/pulls/${item.number}/reviews?per_page=100`) as Promise<ApiReview[]>
+  ])
+
+  if (!prDetail || typeof prDetail.number !== 'number') return null
+
+  let hasConflict: boolean | null
+  if (prDetail.mergeable_state === 'dirty') hasConflict = true
+  else if (prDetail.mergeable === false) hasConflict = true
+  else if (prDetail.mergeable === true) hasConflict = false
+  else hasConflict = null
+
+  const checks: CheckStatus[] = []
+  for (const run of checkRunsRes.check_runs || []) {
+    checks.push({
+      name: run.name,
+      state: normalizeCheckState(run.status, run.conclusion),
+      description: run.output?.title || '',
+      summary: run.output?.summary || undefined,
+      detailsUrl: run.html_url || run.details_url || undefined
+    })
+  }
+  for (const s of combinedRes.statuses || []) {
+    checks.push({
+      name: s.context,
+      state: normalizeStatusState(s.state),
+      description: s.description || '',
+      detailsUrl: s.target_url || undefined
+    })
+  }
+
+  const reviews: PRReview[] = (Array.isArray(reviewsRes) ? reviewsRes : [])
+    .filter((r) => r.user && r.state !== 'PENDING')
+    .map((r) => ({
+      user: r.user.login,
+      avatarUrl: r.user.avatar_url,
+      state: r.state,
+      body: r.body || '',
+      submittedAt: r.submitted_at,
+      htmlUrl: r.html_url
+    }))
+
+  const latestByUser = new Map<string, PRReview['state']>()
+  for (const r of reviews) latestByUser.set(r.user, r.state)
+  const latestStates = [...latestByUser.values()]
+  let reviewDecision: PRStatus['reviewDecision'] = 'none'
+  if (latestStates.some((s) => s === 'CHANGES_REQUESTED')) reviewDecision = 'changes_requested'
+  else if (latestStates.some((s) => s === 'APPROVED')) reviewDecision = 'approved'
+  else if (latestStates.length > 0) reviewDecision = 'review_required'
+
+  let state: PRStatus['state']
+  if (item.mergedAt) state = 'merged'
+  else if (item.state === 'closed') state = 'closed'
+  else if (item.draft) state = 'draft'
+  else state = 'open'
+
+  return {
+    number: item.number,
+    title: item.title,
+    state,
+    url: item.url,
+    branch: branchName,
+    author: item.author,
+    checks,
+    checksOverall: computeOverall(checks),
+    hasConflict,
+    reviews,
+    reviewDecision,
+    additions: prDetail.additions,
+    deletions: prDetail.deletions
   }
 }
 
@@ -433,6 +499,66 @@ export async function mergePR(
     ok: false,
     error: apiMessage || `${res.status} ${res.statusText}`,
     errorCode: 'unknown'
+  }
+}
+
+function toPRSummary(pr: ApiPRListItem): PRSummary {
+  const baseRepo = pr.base?.repo?.full_name ?? null
+  const headRepo = pr.head?.repo?.full_name ?? null
+  return {
+    number: pr.number,
+    title: pr.title,
+    author: pr.user
+      ? { login: pr.user.login, avatarUrl: pr.user.avatar_url }
+      : null,
+    baseBranch: pr.base?.ref ?? '',
+    headBranch: pr.head?.ref ?? '',
+    headSha: pr.head?.sha ?? '',
+    headRepoFullName: headRepo,
+    isFork: !!baseRepo && !!headRepo && baseRepo !== headRepo,
+    updatedAt: pr.updated_at,
+    url: pr.html_url,
+    draft: pr.draft
+  }
+}
+
+/** List the most recently updated open PRs for the given local repo.
+ *  Returns null on auth/network failure so callers can show a graceful
+ *  empty/error state. Capped at 50 to keep the modal fast. */
+export async function listOpenPRs(repoRoot: string): Promise<PRSummary[] | null> {
+  const repoInfo = await getRepoInfo(repoRoot)
+  if (!repoInfo) return null
+  const { owner, repo } = repoInfo
+  try {
+    const list = (await githubFetch(
+      `https://api.github.com/repos/${owner}/${repo}/pulls?state=open&per_page=50&sort=updated&direction=desc`
+    )) as ApiPRListItem[]
+    if (!Array.isArray(list)) return null
+    return list.map(toPRSummary)
+  } catch (err) {
+    log('github', `listOpenPRs failed for ${owner}/${repo}`, err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
+/** Fetch a single PR's metadata (head SHA + base branch). Used as a
+ *  cheap freshness check immediately before creating a worktree. */
+export async function getPRMetadata(
+  repoRoot: string,
+  prNumber: number
+): Promise<PRMetadata | null> {
+  const repoInfo = await getRepoInfo(repoRoot)
+  if (!repoInfo) return null
+  const { owner, repo } = repoInfo
+  try {
+    const pr = (await githubFetch(
+      `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`
+    )) as ApiPRListItem
+    if (!pr || typeof pr.number !== 'number') return null
+    return toPRSummary(pr)
+  } catch (err) {
+    log('github', `getPRMetadata failed for ${owner}/${repo}#${prNumber}`, err instanceof Error ? err.message : err)
+    return null
   }
 }
 

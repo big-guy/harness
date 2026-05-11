@@ -114,6 +114,9 @@ export type { PerfMetrics, PerfSample }
 import type { CheckStatus, PRReview, PRStatus } from '../shared/state/prs'
 export type { CheckStatus, PRReview, PRStatus }
 
+import type { PRSummary, PRMetadata } from '../shared/github-types'
+export type { PRSummary, PRMetadata }
+
 import type { BrowserState, BrowserTabState } from '../shared/state/browser'
 export type { BrowserState, BrowserTabState }
 
@@ -163,6 +166,15 @@ export interface ElectronAPI {
     branchName: string
     initialPrompt?: string
     teleportSessionId?: string
+  }): Promise<
+    | { id: string; outcome: 'success'; createdPath: string }
+    | { id: string; outcome: 'setup-failed'; createdPath: string }
+    | { id: string; outcome: 'error'; error: string }
+  >
+  runPendingPRWorktree(params: {
+    id: string
+    repoRoot: string
+    prNumber: number
   }): Promise<
     | { id: string; outcome: 'success'; createdPath: string }
     | { id: string; outcome: 'setup-failed'; createdPath: string }
@@ -219,6 +231,7 @@ export interface ElectronAPI {
   refreshPRsAllIfStale(): Promise<boolean>
   refreshPRsOne(worktreePath: string): Promise<boolean>
   refreshPRsOneIfStale(worktreePath: string): Promise<boolean>
+  listRepoPRs(repoRoot: string): Promise<PRSummary[] | null>
   mergePR(
     worktreePath: string,
     method: GitHubMergeMethod

@@ -36,7 +36,7 @@ import { getWeeklyStats } from './weekly-stats'
 import type { TerminalTab, PaneNode, PaneLeaf } from '../shared/state/terminals'
 import { getLeaves, mapLeaves } from '../shared/state/terminals'
 import { listWorktrees, listBranches, continueWorktree, isWorktreeDirty, defaultWorktreeDir, getChangedFiles, getFileDiff, getBranchCommits, getCommitDiff, getCommitChangedFiles, getCommitFileDiffSides, getMainWorktreeStatus, prepareMainForMerge, mergeWorktreeLocally, getBranchSha, previewMergeConflicts, getBranchDiffStats, listAllFiles, readWorktreeFile, readWorktreeFileBinary, writeWorktreeFile, getFileDiffSides, getCurrentBranch, symlinkClaudeSettings, type MergeStrategy } from './worktree'
-import { getPRStatus, testToken, starRepo, unstarRepo, isRepoStarred, mergePR, getRepoInfo, type GitHubMergeMethod, type MergePRResult } from './github'
+import { listOpenPRs, testToken, starRepo, unstarRepo, isRepoStarred, mergePR, getRepoInfo, type GitHubMergeMethod, type MergePRResult } from './github'
 import { AVAILABLE_EDITORS, DEFAULT_EDITOR_ID, openInEditor } from './editor'
 import { setSecret, getSecret, hasSecret, deleteSecret } from './secrets'
 import { resolveGitHubToken, getTokenSource, invalidateTokenCache, getCachedToken } from './github-auth'
@@ -489,6 +489,24 @@ store.subscribe((event) => {
 const jsonClaudeStatusDeriver = new JsonClaudeStatusDeriver(store)
 jsonClaudeStatusDeriver.start()
 
+/** Resolve the GitHub login of whoever owns the configured token, and
+ *  dispatch it so the sidebar can route PRs they didn't author into the
+ *  Reviewing group. Best-effort: any failure leaves the slice at null,
+ *  which falls back to the pre-Reviewing grouping. Safe to call after
+ *  any token resolution. */
+async function refreshViewerLogin(): Promise<void> {
+  const token = getCachedToken()
+  if (!token) {
+    store.dispatch({ type: 'settings/viewerLoginChanged', payload: null })
+    return
+  }
+  const result = await testToken(token)
+  store.dispatch({
+    type: 'settings/viewerLoginChanged',
+    payload: result.ok && result.username ? result.username : null
+  })
+}
+
 /** Query the harness star state, dispatch it to the slice, and auto-star
  *  exactly once per user (sticky so manual unstars survive reboots). Safe
  *  to call after any token resolution — boot, PAT save, etc. */
@@ -874,6 +892,7 @@ store.subscribe((event) => {
   }
 })
 
+
 function registerIpcHandlers(): void {
   // Worktree handlers — every call takes an explicit repoRoot, since a single
   // window now shows worktrees from multiple repos at once.
@@ -904,6 +923,12 @@ function registerIpcHandlers(): void {
       teleportSessionId?: string
     }) => {
       return worktreesFSM.runPending(params)
+    }
+  )
+  transport.onRequest(
+    'worktrees:runPendingPR',
+    async (_ctx, params: { id: string; repoRoot: string; prNumber: number }) => {
+      return worktreesFSM.runPendingPR(params)
     }
   )
   transport.onRequest('worktrees:retryPending', async (_ctx, id: string) => {
@@ -1166,6 +1191,14 @@ function registerIpcHandlers(): void {
     return true
   })
 
+  // Used by the "Open PR" tab in New Worktree to populate the picker.
+  // Returns null on auth/network failure so the UI can show a graceful
+  // error state.
+  transport.onRequest('prs:listOpen', async (_ctx, repoRoot: string) => {
+    if (!repoRoot) return null
+    return listOpenPRs(repoRoot)
+  })
+
   transport.onRequest(
     'pr:merge',
     async (_ctx, worktreePath: string, method: GitHubMergeMethod): Promise<MergePRResult> => {
@@ -1188,8 +1221,12 @@ function registerIpcHandlers(): void {
       const cached = store.getSnapshot().state.prs.byPath[worktreePath]
       let prNumber = cached?.number
       if (typeof prNumber !== 'number') {
-        const fetched = await getPRStatus(worktreePath)
-        prNumber = fetched?.number
+        // Force a refresh through the poller so the slice is populated
+        // for the next click; the merge will use the freshly cached
+        // number then. UX-wise this just makes the first click after a
+        // long-stale state require a second click — acceptable.
+        await prPoller.refreshOne(worktreePath)
+        prNumber = store.getSnapshot().state.prs.byPath[worktreePath]?.number
       }
       if (typeof prNumber !== 'number') {
         return {
@@ -1959,6 +1996,7 @@ function registerIpcHandlers(): void {
     invalidateTokenCache()
     await resolveGitHubToken()
     store.dispatch({ type: 'settings/githubAuthSourceChanged', payload: getTokenSource() })
+    void refreshViewerLogin()
     await refreshHarnessStarState()
     return { ok: true, username: test.username }
   })
@@ -1969,6 +2007,7 @@ function registerIpcHandlers(): void {
     invalidateTokenCache()
     await resolveGitHubToken()
     store.dispatch({ type: 'settings/githubAuthSourceChanged', payload: getTokenSource() })
+    void refreshViewerLogin()
     await refreshHarnessStarState()
     return true
   })
@@ -2660,6 +2699,9 @@ async function runBoot(): Promise<void> {
     await resolveGitHubToken()
     const source = getTokenSource()
     store.dispatch({ type: 'settings/githubAuthSourceChanged', payload: source })
+    // Fetch the viewer's GitHub login so worktree-sort can route any PR
+    // not authored by us into the Reviewing group. One /user call.
+    void refreshViewerLogin()
     prPoller.start()
     void prPoller.refreshAll()
 

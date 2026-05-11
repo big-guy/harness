@@ -87,6 +87,63 @@ export async function listWorktrees(repoRoot: string): Promise<WorktreeInfo[]> {
   return worktrees
 }
 
+/** Fetch a PR's head ref into a named local branch. Force so a
+ *  re-opened review picks up new commits without complaining about
+ *  non-fast-forward.
+ *
+ *  Also points `refs/remotes/origin/<localBranch>` at the fetched SHA
+ *  so the unpushed-commit detector (which reads `origin/<branch>` to
+ *  figure out what's been published) treats the PR head as the
+ *  upstream of record. Without this, every commit in a PR-review
+ *  worktree shows up as "unpushed" in the Commits sidebar. */
+export async function fetchPullRequestRef(
+  repoRoot: string,
+  prNumber: number,
+  localBranch: string
+): Promise<void> {
+  log('worktree', `fetching pull/${prNumber}/head into ${localBranch}`)
+  await execFileAsync(
+    'git',
+    ['fetch', 'origin', `+refs/pull/${prNumber}/head:refs/heads/${localBranch}`],
+    { cwd: repoRoot }
+  )
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['rev-parse', '--verify', `refs/heads/${localBranch}`],
+      { cwd: repoRoot }
+    )
+    const sha = stdout.trim()
+    if (sha) {
+      await execFileAsync(
+        'git',
+        ['update-ref', `refs/remotes/origin/${localBranch}`, sha],
+        { cwd: repoRoot }
+      )
+    }
+  } catch (err) {
+    // Best-effort. The worst case is the Commits sidebar mislabels
+    // existing PR commits as unpushed — annoying but not blocking.
+    log(
+      'worktree',
+      `failed to update remote-tracking ref for ${localBranch}`,
+      err instanceof Error ? err.message : err
+    )
+  }
+}
+
+/** True if a local branch with this name already exists in the repo. */
+export async function localBranchExists(repoRoot: string, branchName: string): Promise<boolean> {
+  try {
+    await execFileAsync('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${branchName}`], {
+      cwd: repoRoot
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function listBranches(repoRoot: string): Promise<string[]> {
   const { stdout } = await execFileAsync(
     'git',
@@ -103,6 +160,10 @@ export interface AddWorktreeOptions {
    * new worktree starts at the tip of the latest remote main. Falls back
    * to local HEAD if the fetch fails (e.g. offline). */
   fetchRemote?: boolean
+  /** When set, skip `-b` and check out the named branch as-is. Used by
+   * the open-PR flow, where the local branch was already created by a
+   * `git fetch origin pull/<N>/head:pr-<N>` ahead of this call. */
+  checkoutExisting?: boolean
 }
 
 /**
@@ -146,25 +207,33 @@ export async function addWorktree(
   }
 
   const worktreePath = join(worktreeDir, branchName)
-  const baseRef = await resolveBaseRef(repoRoot, options)
 
-  log('worktree', `creating worktree: branch=${branchName} path=${worktreePath} base=${baseRef || 'HEAD'}`)
+  if (options.checkoutExisting) {
+    log('worktree', `creating worktree from existing branch: branch=${branchName} path=${worktreePath}`)
+    await execFileAsync('git', ['worktree', 'add', worktreePath, branchName], {
+      cwd: repoRoot
+    })
+  } else {
+    const baseRef = await resolveBaseRef(repoRoot, options)
 
-  const args = ['worktree', 'add', worktreePath, '-b', branchName]
-  if (baseRef) {
-    args.push(baseRef)
-  }
+    log('worktree', `creating worktree: branch=${branchName} path=${worktreePath} base=${baseRef || 'HEAD'}`)
 
-  try {
-    await execFileAsync('git', args, { cwd: repoRoot })
-  } catch (err) {
-    // If branch already exists, try checking it out instead of creating
-    if (err instanceof Error && err.message.includes('already exists')) {
-      await execFileAsync('git', ['worktree', 'add', worktreePath, branchName], {
-        cwd: repoRoot
-      })
-    } else {
-      throw err
+    const args = ['worktree', 'add', worktreePath, '-b', branchName]
+    if (baseRef) {
+      args.push(baseRef)
+    }
+
+    try {
+      await execFileAsync('git', args, { cwd: repoRoot })
+    } catch (err) {
+      // If branch already exists, try checking it out instead of creating
+      if (err instanceof Error && err.message.includes('already exists')) {
+        await execFileAsync('git', ['worktree', 'add', worktreePath, branchName], {
+          cwd: repoRoot
+        })
+      } else {
+        throw err
+      }
     }
   }
 

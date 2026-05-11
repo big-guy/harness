@@ -500,6 +500,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
     handleRemoveRepo,
     handleRefreshWorktrees,
     handleSubmitNewWorktree,
+    handleSubmitNewPRWorktree,
     handleRetryPendingWorktree,
     handleDismissPendingWorktree,
     handleContinuePendingWorktree,
@@ -1084,6 +1085,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
             shellActivity={worktreeShellActivity}
             prStatuses={prStatuses}
             mergedPaths={mergedPaths}
+            viewerLogin={settings.viewerLogin}
             prLoading={prLoading}
             agentCount={agentWorktreeCount}
             onSelectWorktree={(path) => {
@@ -1180,6 +1182,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
         {showNewWorktree && (
           <NewWorktreeScreen
             onSubmit={handleSubmitNewWorktree}
+            onPRSubmit={handleSubmitNewPRWorktree}
             onCancel={() => setShowNewWorktree(false)}
             repoRoots={repoRoots}
             defaultRepoRoot={activeWorktreeId ? worktreeRepoByPath[activeWorktreeId] : undefined}
