@@ -109,6 +109,9 @@ export function RightColumn({
             loading={prLoading}
             onRefresh={onRefreshPRs}
             onConnectGithub={onOpenGithubSettings}
+            onSendToAgent={
+              activeWorktreeId ? (text) => onSendToAgent(activeWorktreeId, text) : undefined
+            }
           />
         )
       case 'todos':

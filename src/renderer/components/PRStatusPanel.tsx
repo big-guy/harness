@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ExternalLink, GitMerge, ChevronDown, Check, GitPullRequest, RefreshCw, Loader2 } from 'lucide-react'
+import { ExternalLink, GitMerge, ChevronDown, Check, GitPullRequest, RefreshCw, Loader2, Sparkles } from 'lucide-react'
 import { useRepoConfigs, useSettings } from '../store'
 import { useBackend } from '../backend'
 import type {
@@ -639,6 +639,7 @@ interface PRStatusPanelProps {
   loading?: boolean
   onRefresh?: () => void | Promise<void>
   onConnectGithub?: () => void
+  onSendToAgent?: (text: string) => void
 }
 
 export function PRStatusPanel({
@@ -647,7 +648,8 @@ export function PRStatusPanel({
   hasGithubToken,
   loading,
   onRefresh,
-  onConnectGithub
+  onConnectGithub,
+  onSendToAgent
 }: PRStatusPanelProps): JSX.Element {
   const backend = useBackend()
   const [expanded, setExpanded] = useState(false)
@@ -798,6 +800,22 @@ export function PRStatusPanel({
                         >
                           {check.name}
                         </span>
+                        {onSendToAgent && check.detailsUrl && (
+                          <Tooltip label="Ask Claude about this check" side="left">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onSendToAgent(
+                                  `What happened with the ${check.name} check? ${check.detailsUrl} `
+                                )
+                              }}
+                              className="shrink-0 opacity-0 group-hover:opacity-100 text-faint hover:text-fg transition-all cursor-pointer"
+                              aria-label="Ask Claude about this check"
+                            >
+                              <Sparkles size={10} />
+                            </button>
+                          </Tooltip>
+                        )}
                         {clickable && (
                           <ExternalLink
                             size={10}
