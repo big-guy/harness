@@ -54,7 +54,11 @@ class ClientStore {
   }
 
   setSnapshot(state: AppState): void {
-    this.state = state
+    // Merge with initialState so a remote backend on an older harness-server
+    // version (missing recently-added slices like snooze, repoConfigs, etc.)
+    // doesn't surface as renderer crashes on the first selector access of
+    // an undefined slice. New renderer + old server is the common skew.
+    this.state = { ...initialState, ...state }
     for (const l of this.listeners) l()
   }
 
