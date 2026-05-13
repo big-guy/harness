@@ -380,6 +380,32 @@ const TOOLS = [
     }
   },
   {
+    name: 'pr_status',
+    description:
+      "Return the PR status for the caller's worktree, sourced from Harness's cached GitHub poll (no network call). Use this instead of `gh pr checks` when you want a quick summary of where the PR stands. Returns { state, prNumber?, prUrl?, checks: {total, passing, pending, failing}, hasConflict, reviewDecision? }. `state` is one of 'no-pr' | 'no-checks' | 'pending' | 'failing' | 'passing' | 'draft' | 'merged' | 'closed'. `hasConflict` is null while GitHub is still computing mergeability.",
+    inputSchema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'pr_find_checks',
+    description:
+      "List individual PR checks for the caller's worktree, optionally filtered by status or name substring. Returns an array of {name, state, description, detailsUrl}. Use this to find which specific check failed (e.g. {status: 'failing'}) and grab its detailsUrl for the log page. Returns [] when there's no PR or nothing matches.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: {
+          type: 'string',
+          enum: ['failing', 'pending', 'passing', 'any'],
+          description: "Filter by check status bucket. Default 'any'."
+        },
+        namePattern: {
+          type: 'string',
+          description:
+            'Case-insensitive substring to match against check names (not a regex).'
+        }
+      }
+    }
+  },
+  {
     name: 'kill_shell',
     description:
       "Terminate the process in a shell tab AND close the tab. Use this as explicit cleanup when you're done with a shell. If you still need the final output, call read_shell_output first — it works up until kill_shell closes the tab. Natural exits (the process finishing on its own) leave the tab open for inspection; only explicit kill_shell closes it.",
@@ -623,6 +649,18 @@ async function handleToolCall(name, args) {
         : `[${r.matchCount} matches]`
     }
     return output
+  }
+  if (name === 'pr_status') {
+    const r = await callControl('GET', '/pr/status')
+    return JSON.stringify(r, null, 2)
+  }
+  if (name === 'pr_find_checks') {
+    const q = new URLSearchParams()
+    if (args && args.status) q.set('status', String(args.status))
+    if (args && args.namePattern) q.set('namePattern', String(args.namePattern))
+    const qs = q.toString()
+    const r = await callControl('GET', '/pr/find-checks' + (qs ? '?' + qs : ''))
+    return JSON.stringify(r, null, 2)
   }
   if (name === 'kill_shell') {
     if (!args || !args.shell_id) throw new Error('shell_id is required')

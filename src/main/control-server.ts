@@ -2,6 +2,7 @@ import { createServer, IncomingMessage, ServerResponse } from 'http'
 import { randomBytes } from 'crypto'
 import { addWorktree, listWorktrees, defaultWorktreeDir, WorktreeInfo } from './worktree'
 import { log } from './debug'
+import type { PRStatus } from '../shared/state/prs'
 
 export interface BrowserTabSummary {
   id: string
@@ -95,6 +96,10 @@ export interface ControlServerDeps {
   /** Current browser-tool permissions. Re-read on every request so user
    * toggles take effect mid-session without restarting the bridge. */
   getBrowserPerms: () => BrowserPerms
+  /** Read the cached PR status for a worktree path. Returns `null` when
+   * the poller has determined there's no PR for the branch, `undefined`
+   * when the poller hasn't observed this path yet. */
+  getPRStatusForWorktree: (worktreePath: string) => PRStatus | null | undefined
   browser: BrowserQueries
   shell: ShellQueries
 }
@@ -478,6 +483,89 @@ async function handleRequest(
     return
   }
 
+  // PR status endpoints — read-only reflection of the cached prs slice for
+  // the caller's worktree. Lets agents answer "what's failing on my PR?"
+  // without shelling out to `gh pr checks`.
+  if (req.method === 'GET' && (path === '/pr/status' || path === '/pr/find-checks')) {
+    const { scope, terminalId } = resolveScope(req, deps)
+    if (!terminalId) {
+      return sendJson(res, 400, { error: 'X-Harness-Terminal-Id header required' })
+    }
+    if (!scope) {
+      return sendJson(res, 404, {
+        error: 'caller terminal is not associated with a worktree'
+      })
+    }
+    const pr = deps.getPRStatusForWorktree(scope.worktreePath)
+
+    if (path === '/pr/status') {
+      if (pr === null) {
+        return sendJson(res, 200, {
+          state: 'no-pr',
+          checks: { total: 0, passing: 0, pending: 0, failing: 0 },
+          hasConflict: null
+        })
+      }
+      if (pr === undefined) {
+        return sendJson(res, 200, {
+          state: 'no-pr',
+          checks: { total: 0, passing: 0, pending: 0, failing: 0 },
+          hasConflict: null,
+          note: 'PR status not yet loaded for this worktree'
+        })
+      }
+      const counts = countChecks(pr.checks)
+      let coarse: string
+      if (pr.state === 'merged' || pr.state === 'closed' || pr.state === 'draft') {
+        coarse = pr.state
+      } else if (pr.checks.length === 0) {
+        coarse = 'no-checks'
+      } else if (counts.failing > 0) {
+        coarse = 'failing'
+      } else if (counts.pending > 0) {
+        coarse = 'pending'
+      } else {
+        coarse = 'passing'
+      }
+      const body: Record<string, unknown> = {
+        state: coarse,
+        prNumber: pr.number,
+        prUrl: pr.url,
+        checks: counts,
+        hasConflict: pr.hasConflict
+      }
+      if (pr.reviewDecision && pr.reviewDecision !== 'none') {
+        body.reviewDecision = pr.reviewDecision
+      }
+      return sendJson(res, 200, body)
+    }
+
+    // /pr/find-checks
+    if (!pr) {
+      return sendJson(res, 200, [])
+    }
+    const statusFilter = (url.searchParams.get('status') || 'any').toLowerCase()
+    const namePattern = (url.searchParams.get('namePattern') || '').toLowerCase()
+    const matches = pr.checks.filter((c) => {
+      if (statusFilter !== 'any') {
+        const bucket = bucketOf(c.state)
+        if (bucket !== statusFilter) return false
+      }
+      if (namePattern && !c.name.toLowerCase().includes(namePattern)) return false
+      return true
+    })
+    return sendJson(
+      res,
+      200,
+      matches.map((c) => ({
+        name: c.name,
+        state: c.state,
+        description: c.description,
+        detailsUrl: c.detailsUrl
+      }))
+    )
+  }
+
   // /scope — returns the caller's current scope. The MCP bridge calls this
   // once at startup so it can adapt tool descriptions (e.g. signalling
   // "create_worktree defaults to this repo" for feature callers) and filter
@@ -492,6 +580,27 @@ async function handleRequest(
 
   res.writeHead(404)
   res.end('not found')
+}
+
+function bucketOf(state: PRStatus['checks'][number]['state']): 'passing' | 'pending' | 'failing' {
+  if (state === 'success' || state === 'neutral' || state === 'skipped') return 'passing'
+  if (state === 'pending') return 'pending'
+  return 'failing'
+}
+
+function countChecks(
+  checks: PRStatus['checks']
+): { total: number; passing: number; pending: number; failing: number } {
+  let passing = 0
+  let pending = 0
+  let failing = 0
+  for (const c of checks) {
+    const b = bucketOf(c.state)
+    if (b === 'passing') passing++
+    else if (b === 'pending') pending++
+    else failing++
+  }
+  return { total: checks.length, passing, pending, failing }
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {

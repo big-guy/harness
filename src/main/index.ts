@@ -2799,6 +2799,7 @@ async function runBoot(): Promise<void> {
       enabled: config.browserToolsEnabled !== false,
       mode: config.browserToolsMode === 'view' ? 'view' : 'full'
     }),
+    getPRStatusForWorktree: (wtPath) => store.getSnapshot().state.prs.byPath[wtPath],
     browser: {
       listTabsForWorktree: (wtPath) => {
         const ids = browserManager.listTabsForWorktree(wtPath)
