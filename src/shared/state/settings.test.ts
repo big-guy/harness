@@ -419,6 +419,20 @@ describe('settingsReducer', () => {
     expect(next.snoozeDefaultDays).toBe(3)
   })
 
+  it('dockBadgeEnabledChanged toggles the dock badge counter', () => {
+    expect(initialSettings.dockBadgeEnabled).toBe(false)
+    const on = apply(initialSettings, {
+      type: 'settings/dockBadgeEnabledChanged',
+      payload: true
+    })
+    expect(on.dockBadgeEnabled).toBe(true)
+    const off = apply(on, {
+      type: 'settings/dockBadgeEnabledChanged',
+      payload: false
+    })
+    expect(off.dockBadgeEnabled).toBe(false)
+  })
+
   it('returns a new object reference (no mutation)', () => {
     const next = apply(initialSettings, { type: 'settings/themeChanged', payload: 'x' })
     expect(next).not.toBe(initialSettings)

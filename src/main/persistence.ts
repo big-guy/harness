@@ -187,6 +187,9 @@ export interface Config {
   // Minutes a json-mode tab can sit at 'waiting' before the auto-sleep
   // monitor tears its subprocess down. 0 disables auto-sleep. Default 30.
   autoSleepMinutes?: number
+  // Experimental: when true, the macOS dock icon shows a badge counting
+  // worktrees whose status is 'needs-approval'. Default off.
+  dockBadgeEnabled?: boolean
   // Configured backends (multi-backend UX, Tier 1). Auto-seeded on first
   // load with a single Local entry; the renderer's chip strip renders this
   // list and routes per-backend transports off `kind`. Tokens for remotes

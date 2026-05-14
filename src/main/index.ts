@@ -30,6 +30,7 @@ import { WorktreesFSM } from './worktrees-fsm'
 import { WorktreeDeletionFSM } from './worktree-deletion-fsm'
 import { PanesFSM, stripTransientTabFields } from './panes-fsm'
 import { ActivityDeriver } from './activity-deriver'
+import { DockBadge } from './dock-badge'
 import { AutoSleepMonitor } from './auto-sleep-monitor'
 import { WorktreeWatcher } from './worktree-watcher'
 import { SnoozeTimer } from './snooze-timer'
@@ -791,6 +792,7 @@ const worktreeDeletionFSM = new WorktreeDeletionFSM(store, {
 })
 
 const activityDeriver = new ActivityDeriver(store)
+const dockBadge = new DockBadge(store)
 
 // Tears down idle json-mode subprocesses (yellow-dot tabs older than
 // settings.autoSleepMinutes). Constructed after panesFSM since it
@@ -2474,6 +2476,20 @@ function registerIpcHandlers(): void {
     return true
   })
 
+  transport.onRequest('config:setDockBadgeEnabled', (_ctx, enabled: boolean) => {
+    if (enabled) {
+      config.dockBadgeEnabled = true
+    } else {
+      delete config.dockBadgeEnabled
+    }
+    saveConfig(config)
+    store.dispatch({
+      type: 'settings/dockBadgeEnabledChanged',
+      payload: enabled
+    })
+    return true
+  })
+
   transport.onRequest(
     'config:setDefaultClaudeTabType',
     (_ctx, value: 'xterm' | 'json') => {
@@ -2755,6 +2771,7 @@ async function runBoot(): Promise<void> {
   // Start the activity deriver — it observes terminals/prs/panes events
   // and writes recordActivity + lastActive without renderer involvement.
   activityDeriver.start()
+  dockBadge.start()
 
   autoSleepMonitor.start()
 

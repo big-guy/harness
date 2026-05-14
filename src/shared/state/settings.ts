@@ -93,6 +93,10 @@ export interface SettingsState {
    *  disables auto-sleep entirely. */
   autoSleepMinutes: number
   snoozeDefaultDays: number
+  /** Experimental: when true, the macOS dock icon shows a badge with the
+   *  count of worktrees whose aggregated status is 'needs-approval'.
+   *  Off by default. */
+  dockBadgeEnabled: boolean
 }
 
 export type SettingsEvent =
@@ -140,6 +144,7 @@ export type SettingsEvent =
     }
   | { type: 'settings/autoSleepMinutesChanged'; payload: number }
   | { type: 'settings/snoozeDefaultDaysChanged'; payload: number }
+  | { type: 'settings/dockBadgeEnabledChanged'; payload: boolean }
 
 // Client-side placeholder. Real values are seeded in the main-process Store
 // constructor from the on-disk config and secrets.
@@ -184,7 +189,8 @@ export const initialSettings: SettingsState = {
   jsonModeChatDensity: 'compact',
   jsonModeDefaultPermissionMode: 'acceptEdits',
   autoSleepMinutes: 30,
-  snoozeDefaultDays: 7
+  snoozeDefaultDays: 7,
+  dockBadgeEnabled: false
 }
 
 export function settingsReducer(state: SettingsState, event: SettingsEvent): SettingsState {
@@ -271,6 +277,8 @@ export function settingsReducer(state: SettingsState, event: SettingsEvent): Set
       return { ...state, autoSleepMinutes: event.payload }
     case 'settings/snoozeDefaultDaysChanged':
       return { ...state, snoozeDefaultDays: event.payload }
+    case 'settings/dockBadgeEnabledChanged':
+      return { ...state, dockBadgeEnabled: event.payload }
     default: {
       const _exhaustive: never = event
       void _exhaustive

@@ -239,6 +239,7 @@ export function buildBackend(
     setJsonModeDefaultPermissionMode: (value: 'default' | 'acceptEdits' | 'plan') =>
       req('config:setJsonModeDefaultPermissionMode', value),
     setAutoSleepMinutes: (value: number) => req('config:setAutoSleepMinutes', value),
+    setDockBadgeEnabled: (enabled: boolean) => req('config:setDockBadgeEnabled', enabled),
     setAutoUpdateEnabled: (enabled: boolean) => req('config:setAutoUpdateEnabled', enabled),
     setShareClaudeSettings: (enabled: boolean) => req('config:setShareClaudeSettings', enabled),
     setHarnessSystemPromptEnabled: (enabled: boolean) =>

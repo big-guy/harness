@@ -295,6 +295,7 @@ export interface ElectronAPI {
     value: 'default' | 'acceptEdits' | 'plan'
   ): Promise<boolean>
   setAutoSleepMinutes(value: number): Promise<boolean>
+  setDockBadgeEnabled(enabled: boolean): Promise<boolean>
   setAutoUpdateEnabled(enabled: boolean): Promise<boolean>
   setShareClaudeSettings(enabled: boolean): Promise<boolean>
   setHarnessSystemPromptEnabled(enabled: boolean): Promise<boolean>
