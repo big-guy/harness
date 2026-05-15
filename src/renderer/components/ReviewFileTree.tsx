@@ -1,6 +1,11 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { ChevronRight, Check } from 'lucide-react'
+import { ChevronRight, Check, Star, StarHalf, StarOff } from 'lucide-react'
 import type { ChangedFile } from '../types'
+import type {
+  Rank,
+  WorktreeFileRanks,
+  FileRankEntry
+} from '../../shared/state/file-ranks'
 
 export interface ReviewComment {
   id: string
@@ -10,15 +15,21 @@ export interface ReviewComment {
   timestamp: number
 }
 
+export type SortMode = 'path' | 'rank'
+
 interface ReviewFileTreeProps {
   files: ChangedFile[]
   selectedFile: string | null
   reviewedFiles: Set<string>
   comments: ReviewComment[]
   collapsedDirs: Set<string>
+  fileRanks: WorktreeFileRanks | undefined
+  sortMode: SortMode
   onSelectFile: (path: string) => void
   onToggleReviewed: (path: string) => void
   onToggleDir: (dir: string) => void
+  onCycleRank: (path: string, current: Rank) => void
+  onSetRank: (path: string, rank: Rank) => void
 }
 
 const STATUS_LABEL: Record<ChangedFile['status'], string> = {
@@ -37,12 +48,61 @@ const STATUS_COLOR: Record<ChangedFile['status'], string> = {
   untracked: 'text-dim'
 }
 
+const RANK_ORDER: Rank[] = ['important', 'normal', 'trivial', 'uninteresting']
+
+const RANK_GROUP_COLOR: Record<Rank, string> = {
+  important: 'text-warning',
+  normal: 'text-fg',
+  trivial: 'text-faint',
+  uninteresting: 'text-dim'
+}
+
+const RANK_GROUP_LABEL: Record<Rank, string> = {
+  important: 'Important',
+  normal: 'Normal',
+  trivial: 'Trivial',
+  uninteresting: 'Uninteresting'
+}
+
+const NEXT_RANK_ON_CYCLE: Record<Rank, Rank> = {
+  normal: 'important',
+  important: 'trivial',
+  trivial: 'uninteresting',
+  uninteresting: 'normal'
+}
+
+function effectiveRank(entry: FileRankEntry | undefined): Rank {
+  return entry?.rank ?? 'normal'
+}
+
 interface FileGroup {
-  dir: string
+  /** Key used by collapsedDirs. For rank groups it's `__rank:<rank>`. */
+  key: string
+  /** Display label for the group header. */
+  label: string
+  /** Tailwind class for the header label. */
+  labelClass?: string
+  /** Whether to render a header at all (path mode hides empty-string dir). */
+  showHeader: boolean
   files: ChangedFile[]
 }
 
-function groupAndSortFiles(files: ChangedFile[]): FileGroup[] {
+function compareFiles(a: ChangedFile, b: ChangedFile): number {
+  const statusOrder = (s: ChangedFile['status']): number => {
+    if (s === 'deleted') return 0
+    if (s === 'modified') return 1
+    return 2
+  }
+  const oa = statusOrder(a.status)
+  const ob = statusOrder(b.status)
+  if (oa !== ob) return oa - ob
+  const sizeA = (a.additions ?? 0) + (a.deletions ?? 0)
+  const sizeB = (b.additions ?? 0) + (b.deletions ?? 0)
+  if (sizeA !== sizeB) return sizeB - sizeA
+  return a.path.localeCompare(b.path)
+}
+
+function groupByPath(files: ChangedFile[]): FileGroup[] {
   const groups = new Map<string, ChangedFile[]>()
   for (const file of files) {
     const lastSlash = file.path.lastIndexOf('/')
@@ -51,33 +111,54 @@ function groupAndSortFiles(files: ChangedFile[]): FileGroup[] {
     list.push(file)
     groups.set(dir, list)
   }
-
   const result: FileGroup[] = []
   for (const [dir, dirFiles] of groups) {
-    dirFiles.sort((a, b) => {
-      const statusOrder = (s: ChangedFile['status']): number => {
-        if (s === 'deleted') return 0
-        if (s === 'modified') return 1
-        return 2
-      }
-      const oa = statusOrder(a.status)
-      const ob = statusOrder(b.status)
-      if (oa !== ob) return oa - ob
-      const sizeA = (a.additions ?? 0) + (a.deletions ?? 0)
-      const sizeB = (b.additions ?? 0) + (b.deletions ?? 0)
-      if (sizeA !== sizeB) return sizeB - sizeA
-      return a.path.localeCompare(b.path)
+    dirFiles.sort(compareFiles)
+    result.push({
+      key: dir,
+      label: dir,
+      showHeader: dir.length > 0,
+      files: dirFiles
     })
-    result.push({ dir, files: dirFiles })
   }
-  result.sort((a, b) => a.dir.localeCompare(b.dir))
+  result.sort((a, b) => a.key.localeCompare(b.key))
+  return result
+}
+
+function groupByRank(
+  files: ChangedFile[],
+  fileRanks: WorktreeFileRanks | undefined
+): FileGroup[] {
+  const buckets: Record<Rank, ChangedFile[]> = {
+    important: [],
+    normal: [],
+    trivial: [],
+    uninteresting: []
+  }
+  for (const file of files) {
+    const rank = effectiveRank(fileRanks?.entries[file.path])
+    buckets[rank].push(file)
+  }
+  const result: FileGroup[] = []
+  for (const rank of RANK_ORDER) {
+    const bucket = buckets[rank]
+    if (bucket.length === 0) continue
+    bucket.sort(compareFiles)
+    result.push({
+      key: `__rank:${rank}`,
+      label: RANK_GROUP_LABEL[rank],
+      labelClass: RANK_GROUP_COLOR[rank],
+      showHeader: true,
+      files: bucket
+    })
+  }
   return result
 }
 
 function flatFileList(groups: FileGroup[], collapsedDirs: Set<string>): ChangedFile[] {
   const result: ChangedFile[] = []
   for (const group of groups) {
-    if (!collapsedDirs.has(group.dir)) {
+    if (!collapsedDirs.has(group.key)) {
       result.push(...group.files)
     }
   }
@@ -106,18 +187,71 @@ function DiffStatBar({ additions, deletions }: { additions: number; deletions: n
   )
 }
 
+interface RankIconProps {
+  rank: Rank
+  source: 'user' | 'agent' | 'default'
+  onCycle: () => void
+  onShiftClick: () => void
+}
+
+function RankIcon({ rank, source, onCycle, onShiftClick }: RankIconProps): JSX.Element {
+  const isAgent = source === 'agent'
+  const title = isAgent
+    ? 'Agent suggestion — click to override'
+    : rank === 'normal' && source === 'default'
+      ? 'Rank: unranked. Click to cycle. Shift-click to mark uninteresting.'
+      : `Rank: ${RANK_GROUP_LABEL[rank].toLowerCase()}. Click to cycle. Shift-click to mark uninteresting.`
+
+  let iconEl: JSX.Element
+  if (rank === 'important') {
+    iconEl = <Star size={11} fill="currentColor" className="text-warning" />
+  } else if (rank === 'uninteresting') {
+    iconEl = <StarOff size={11} className="text-faint" />
+  } else if (rank === 'trivial') {
+    iconEl = <StarHalf size={11} className="text-faint -scale-x-100" />
+  } else {
+    // normal (ranked or default)
+    iconEl = <StarHalf size={11} className="text-faint" />
+  }
+
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={(e) => {
+        e.stopPropagation()
+        if (e.shiftKey) {
+          onShiftClick()
+        } else {
+          onCycle()
+        }
+      }}
+      className={`shrink-0 w-3.5 h-3.5 rounded flex items-center justify-center cursor-pointer transition-colors hover:bg-panel-raised ${
+        isAgent ? 'ring-1 ring-faint/50' : ''
+      }`}
+    >
+      {iconEl}
+    </button>
+  )
+}
+
 export function ReviewFileTree({
   files,
   selectedFile,
   reviewedFiles,
   comments,
   collapsedDirs,
+  fileRanks,
+  sortMode,
   onSelectFile,
   onToggleReviewed,
-  onToggleDir
+  onToggleDir,
+  onCycleRank,
+  onSetRank
 }: ReviewFileTreeProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
-  const groups = groupAndSortFiles(files)
+  const groups =
+    sortMode === 'rank' ? groupByRank(files, fileRanks) : groupByPath(files)
   const navigableFiles = flatFileList(groups, collapsedDirs)
 
   const commentCountByFile = new Map<string, number>()
@@ -182,7 +316,6 @@ export function ReviewFileTree({
           const wasReviewed = reviewedFiles.has(selectedFile)
           onToggleReviewed(selectedFile)
           if (!wasReviewed) {
-            // Auto-advance to next unreviewed file
             const unreviewed = navigableFiles.filter(
               (f) => !reviewedFiles.has(f.path) && f.path !== selectedFile
             )
@@ -204,27 +337,38 @@ export function ReviewFileTree({
   return (
     <div ref={containerRef} className="flex flex-col h-full overflow-y-auto text-xs select-none">
       {groups.map((group) => {
-        const isCollapsed = collapsedDirs.has(group.dir)
+        const isCollapsed = collapsedDirs.has(group.key)
         return (
-          <div key={group.dir}>
-            {group.dir && (
+          <div key={group.key}>
+            {group.showHeader && (
               <button
-                onClick={() => onToggleDir(group.dir)}
-                className="w-full flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-dim uppercase tracking-wider bg-panel-raised/50 hover:bg-panel-raised cursor-pointer"
+                onClick={() => onToggleDir(group.key)}
+                className={`w-full flex items-center gap-1 px-2 py-1 text-[10px] font-medium uppercase tracking-wider bg-panel-raised/50 hover:bg-panel-raised cursor-pointer ${
+                  group.labelClass ?? 'text-dim'
+                }`}
               >
                 <ChevronRight
                   size={10}
                   className={`transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
                 />
-                {group.dir}
+                {group.label}
               </button>
             )}
             {!isCollapsed &&
               group.files.map((file) => {
-                const name = file.path.slice(group.dir.length)
+                const displayName =
+                  sortMode === 'path' && group.key
+                    ? file.path.slice(group.key.length)
+                    : file.path
                 const isSelected = file.path === selectedFile
                 const isReviewed = reviewedFiles.has(file.path)
                 const commentCount = commentCountByFile.get(file.path) ?? 0
+                const entry = fileRanks?.entries[file.path]
+                const rank = effectiveRank(entry)
+                const source: 'user' | 'agent' | 'default' = entry
+                  ? entry.source
+                  : 'default'
+                const dimForUninteresting = rank === 'uninteresting'
                 return (
                   <div
                     key={file.path}
@@ -233,8 +377,15 @@ export function ReviewFileTree({
                       isSelected
                         ? 'bg-accent/15 border-l-2 border-accent'
                         : 'border-l-2 border-transparent hover:bg-panel-raised'
-                    } ${isReviewed ? 'opacity-50' : ''}`}
+                    } ${isReviewed || dimForUninteresting ? 'opacity-50' : ''}`}
                   >
+                    <RankIcon
+                      rank={rank}
+                      source={source}
+                      onCycle={() => onCycleRank(file.path, rank)}
+                      onShiftClick={() => onSetRank(file.path, 'uninteresting')}
+                    />
+
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
@@ -253,7 +404,7 @@ export function ReviewFileTree({
                       {STATUS_LABEL[file.status]}
                     </span>
 
-                    <span className="truncate flex-1 text-fg">{name}</span>
+                    <span className="truncate flex-1 text-fg">{displayName}</span>
 
                     {(file.additions !== undefined || file.deletions !== undefined) && (
                       <DiffStatBar additions={file.additions ?? 0} deletions={file.deletions ?? 0} />
@@ -273,3 +424,5 @@ export function ReviewFileTree({
     </div>
   )
 }
+
+export { NEXT_RANK_ON_CYCLE }

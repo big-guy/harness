@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { ChangedFile } from '../types'
-import type { ReviewComment } from './ReviewFileTree'
+import type { ReviewComment, SortMode } from './ReviewFileTree'
 import { ReviewSummaryBar } from './ReviewSummaryBar'
-import { ReviewFileTree } from './ReviewFileTree'
+import { ReviewFileTree, NEXT_RANK_ON_CYCLE } from './ReviewFileTree'
 import { ReviewDiffPane } from './ReviewDiffPane'
 import { useBackend } from '../backend'
+import { useFileRanks } from '../store'
+import type { Rank } from '../../shared/state/file-ranks'
 
 export interface ReviewCommit {
   hash: string
@@ -38,7 +40,11 @@ export function ReviewScreen({
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [reviewedFiles, setReviewedFiles] = useState<Set<string>>(new Set())
   const [comments, setComments] = useState<ReviewComment[]>([])
-  const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set())
+  const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(
+    () => new Set(['__rank:uninteresting'])
+  )
+  const [sortMode, setSortMode] = useState<SortMode>('path')
+  const fileRanks = useFileRanks(worktreePath)
 
   useEffect(() => {
     let cancelled = false
@@ -145,6 +151,25 @@ export function ReviewScreen({
     setComments((prev) => prev.filter((c) => c.id !== id))
   }, [])
 
+  const handleCycleRank = useCallback(
+    (path: string, current: Rank) => {
+      const next = NEXT_RANK_ON_CYCLE[current]
+      if (next === 'normal') {
+        backend.clearFileRank(worktreePath, path)
+      } else {
+        backend.setFileRank(worktreePath, path, next)
+      }
+    },
+    [backend, worktreePath]
+  )
+
+  const handleSetRank = useCallback(
+    (path: string, rank: Rank) => {
+      backend.setFileRank(worktreePath, path, rank)
+    },
+    [backend, worktreePath]
+  )
+
   const formatComments = useCallback((): string => {
     if (comments.length === 0) return ''
     const lines = ['Review feedback on your changes:', '']
@@ -177,6 +202,8 @@ export function ReviewScreen({
         deletions={totalDeletions}
         reviewedCount={reviewedFiles.size}
         pendingCommentCount={comments.length}
+        sortMode={sortMode}
+        onSortModeChange={setSortMode}
         onSendToAgent={handleSendToAgent}
         onCopyComments={handleCopyComments}
         onClose={onClose}
@@ -191,9 +218,13 @@ export function ReviewScreen({
             reviewedFiles={reviewedFiles}
             comments={comments}
             collapsedDirs={collapsedDirs}
+            fileRanks={fileRanks}
+            sortMode={sortMode}
             onSelectFile={setSelectedFile}
             onToggleReviewed={handleToggleReviewed}
             onToggleDir={handleToggleDir}
+            onCycleRank={handleCycleRank}
+            onSetRank={handleSetRank}
           />
         </div>
 

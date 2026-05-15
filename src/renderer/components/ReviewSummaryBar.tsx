@@ -2,6 +2,7 @@ import { ArrowLeft, MessageSquare, Send, Clipboard, Check, GitCommitHorizontal }
 import { Tooltip } from './Tooltip'
 import { repoNameColor } from './RepoIcon'
 import type { ReviewCommit } from './ReviewScreen'
+import type { SortMode } from './ReviewFileTree'
 
 interface ReviewSummaryBarProps {
   branchName: string
@@ -12,6 +13,8 @@ interface ReviewSummaryBarProps {
   deletions: number
   reviewedCount: number
   pendingCommentCount: number
+  sortMode: SortMode
+  onSortModeChange: (mode: SortMode) => void
   onSendToAgent: () => void
   onCopyComments: () => void
   onClose: () => void
@@ -26,6 +29,8 @@ export function ReviewSummaryBar({
   deletions,
   reviewedCount,
   pendingCommentCount,
+  sortMode,
+  onSortModeChange,
   onSendToAgent,
   onCopyComments,
   onClose
@@ -67,6 +72,31 @@ export function ReviewSummaryBar({
         </div>
 
         <div className="flex-1" />
+
+        <div className="no-drag flex items-center text-[11px] rounded border border-border overflow-hidden">
+          <button
+            type="button"
+            onClick={() => onSortModeChange('path')}
+            className={`px-2 py-0.5 cursor-pointer transition-colors ${
+              sortMode === 'path'
+                ? 'bg-accent/20 text-fg'
+                : 'text-faint hover:text-fg hover:bg-panel-raised'
+            }`}
+          >
+            Path
+          </button>
+          <button
+            type="button"
+            onClick={() => onSortModeChange('rank')}
+            className={`px-2 py-0.5 cursor-pointer transition-colors border-l border-border ${
+              sortMode === 'rank'
+                ? 'bg-accent/20 text-fg'
+                : 'text-faint hover:text-fg hover:bg-panel-raised'
+            }`}
+          >
+            Rank
+          </button>
+        </div>
 
         <div className="flex items-center gap-1.5 text-[11px] no-drag">
           {allReviewed ? (
