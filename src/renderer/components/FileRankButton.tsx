@@ -1,4 +1,4 @@
-import { Star, StarHalf, StarOff } from 'lucide-react'
+import { Octagon, OctagonAlert, OctagonMinus, OctagonX } from 'lucide-react'
 import type { Rank, RankSource } from '../../shared/state/file-ranks'
 
 export const NEXT_RANK_ON_CYCLE: Record<Rank, Rank> = {
@@ -39,13 +39,13 @@ export function FileRankButton({
 
   let iconEl: JSX.Element
   if (rank === 'important') {
-    iconEl = <Star size={size} fill="currentColor" className="text-warning" />
+    iconEl = <OctagonAlert size={size} className="text-warning" />
   } else if (rank === 'uninteresting') {
-    iconEl = <StarOff size={size} className="text-faint" />
+    iconEl = <OctagonX size={size} className="text-faint" />
   } else if (rank === 'trivial') {
-    iconEl = <StarHalf size={size} className="text-faint -scale-x-100" />
+    iconEl = <OctagonMinus size={size} className="text-faint" />
   } else {
-    iconEl = <StarHalf size={size} className="text-faint" />
+    iconEl = <Octagon size={size} className="text-faint" />
   }
 
   return (
