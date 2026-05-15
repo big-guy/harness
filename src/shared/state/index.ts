@@ -84,6 +84,12 @@ import {
   type SnoozeEvent,
   type SnoozeState
 } from './snooze'
+import {
+  initialFileRanks,
+  fileRanksReducer,
+  type FileRanksEvent,
+  type FileRanksState
+} from './file-ranks'
 
 export type { SettingsState, SettingsEvent }
 export type { UpdaterState, UpdaterEvent, UpdaterStatus } from './updater'
@@ -151,6 +157,14 @@ export type {
 } from './json-claude'
 export type { SnoozeState, SnoozeEvent, SnoozeEntry } from './snooze'
 export { MAX_WAKE } from './snooze'
+export type {
+  FileRanksState,
+  FileRanksEvent,
+  FileRankEntry,
+  WorktreeFileRanks,
+  Rank,
+  RankSource
+} from './file-ranks'
 
 export interface AppState {
   settings: SettingsState
@@ -165,6 +179,7 @@ export interface AppState {
   browser: BrowserState
   jsonClaude: JsonClaudeState
   snooze: SnoozeState
+  fileRanks: FileRanksState
 }
 
 export type StateEvent =
@@ -180,6 +195,7 @@ export type StateEvent =
   | BrowserEvent
   | JsonClaudeEvent
   | SnoozeEvent
+  | FileRanksEvent
 
 export const initialState: AppState = {
   settings: initialSettings,
@@ -193,7 +209,8 @@ export const initialState: AppState = {
   costs: initialCosts,
   browser: initialBrowser,
   jsonClaude: initialJsonClaude,
-  snooze: initialSnooze
+  snooze: initialSnooze,
+  fileRanks: initialFileRanks
 }
 
 export function rootReducer(state: AppState, event: StateEvent): AppState {
@@ -252,6 +269,12 @@ export function rootReducer(state: AppState, event: StateEvent): AppState {
     return {
       ...state,
       snooze: snoozeReducer(state.snooze, event as SnoozeEvent)
+    }
+  }
+  if (event.type.startsWith('fileRanks/')) {
+    return {
+      ...state,
+      fileRanks: fileRanksReducer(state.fileRanks, event as FileRanksEvent)
     }
   }
   return state
