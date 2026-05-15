@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { ChevronRight, Check, Star, StarHalf, StarOff } from 'lucide-react'
+import { ChevronRight, Check } from 'lucide-react'
 import type { ChangedFile } from '../types'
 import type {
   Rank,
@@ -28,8 +28,6 @@ interface ReviewFileTreeProps {
   onSelectFile: (path: string) => void
   onToggleReviewed: (path: string) => void
   onToggleDir: (dir: string) => void
-  onCycleRank: (path: string, current: Rank) => void
-  onSetRank: (path: string, rank: Rank) => void
 }
 
 const STATUS_LABEL: Record<ChangedFile['status'], string> = {
@@ -62,13 +60,6 @@ const RANK_GROUP_LABEL: Record<Rank, string> = {
   normal: 'Normal',
   trivial: 'Trivial',
   uninteresting: 'Uninteresting'
-}
-
-const NEXT_RANK_ON_CYCLE: Record<Rank, Rank> = {
-  normal: 'important',
-  important: 'trivial',
-  trivial: 'uninteresting',
-  uninteresting: 'normal'
 }
 
 function effectiveRank(entry: FileRankEntry | undefined): Rank {
@@ -187,54 +178,6 @@ function DiffStatBar({ additions, deletions }: { additions: number; deletions: n
   )
 }
 
-interface RankIconProps {
-  rank: Rank
-  source: 'user' | 'agent' | 'default'
-  onCycle: () => void
-  onShiftClick: () => void
-}
-
-function RankIcon({ rank, source, onCycle, onShiftClick }: RankIconProps): JSX.Element {
-  const isAgent = source === 'agent'
-  const title = isAgent
-    ? 'Agent suggestion — click to override'
-    : rank === 'normal' && source === 'default'
-      ? 'Rank: unranked. Click to cycle. Shift-click to mark uninteresting.'
-      : `Rank: ${RANK_GROUP_LABEL[rank].toLowerCase()}. Click to cycle. Shift-click to mark uninteresting.`
-
-  let iconEl: JSX.Element
-  if (rank === 'important') {
-    iconEl = <Star size={11} fill="currentColor" className="text-warning" />
-  } else if (rank === 'uninteresting') {
-    iconEl = <StarOff size={11} className="text-faint" />
-  } else if (rank === 'trivial') {
-    iconEl = <StarHalf size={11} className="text-faint -scale-x-100" />
-  } else {
-    // normal (ranked or default)
-    iconEl = <StarHalf size={11} className="text-faint" />
-  }
-
-  return (
-    <button
-      type="button"
-      title={title}
-      onClick={(e) => {
-        e.stopPropagation()
-        if (e.shiftKey) {
-          onShiftClick()
-        } else {
-          onCycle()
-        }
-      }}
-      className={`shrink-0 w-3.5 h-3.5 rounded flex items-center justify-center cursor-pointer transition-colors hover:bg-panel-raised ${
-        isAgent ? 'ring-1 ring-faint/50' : ''
-      }`}
-    >
-      {iconEl}
-    </button>
-  )
-}
-
 export function ReviewFileTree({
   files,
   selectedFile,
@@ -245,9 +188,7 @@ export function ReviewFileTree({
   sortMode,
   onSelectFile,
   onToggleReviewed,
-  onToggleDir,
-  onCycleRank,
-  onSetRank
+  onToggleDir
 }: ReviewFileTreeProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const groups =
@@ -365,9 +306,6 @@ export function ReviewFileTree({
                 const commentCount = commentCountByFile.get(file.path) ?? 0
                 const entry = fileRanks?.entries[file.path]
                 const rank = effectiveRank(entry)
-                const source: 'user' | 'agent' | 'default' = entry
-                  ? entry.source
-                  : 'default'
                 const dimForUninteresting = rank === 'uninteresting'
                 return (
                   <div
@@ -379,13 +317,6 @@ export function ReviewFileTree({
                         : 'border-l-2 border-transparent hover:bg-panel-raised'
                     } ${isReviewed || dimForUninteresting ? 'opacity-50' : ''}`}
                   >
-                    <RankIcon
-                      rank={rank}
-                      source={source}
-                      onCycle={() => onCycleRank(file.path, rank)}
-                      onShiftClick={() => onSetRank(file.path, 'uninteresting')}
-                    />
-
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
@@ -425,4 +356,3 @@ export function ReviewFileTree({
   )
 }
 
-export { NEXT_RANK_ON_CYCLE }

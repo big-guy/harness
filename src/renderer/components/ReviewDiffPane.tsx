@@ -7,6 +7,8 @@ import type { ReviewComment } from './ReviewFileTree'
 import { MonacoDiffEditor } from './MonacoDiffEditor'
 import { useSettings } from '../store'
 import { useBackend } from '../backend'
+import type { FileRankEntry, Rank } from '../../shared/state/file-ranks'
+import { FileRankButton } from './FileRankButton'
 
 interface ReviewDiffPaneProps {
   worktreePath: string
@@ -15,6 +17,9 @@ interface ReviewDiffPaneProps {
   commitHash?: string
   reviewed: boolean
   comments: ReviewComment[]
+  fileRankEntry: FileRankEntry | undefined
+  onCycleRank: (path: string, current: Rank) => void
+  onSetRank: (path: string, rank: Rank) => void
   onToggleReviewed: () => void
   onAddComment: (lineNumber: number, body: string) => void
   onDeleteComment: (id: string) => void
@@ -194,6 +199,9 @@ export function ReviewDiffPane({
   commitHash,
   reviewed,
   comments,
+  fileRankEntry,
+  onCycleRank,
+  onSetRank,
   onToggleReviewed,
   onAddComment,
   onDeleteComment
@@ -361,10 +369,21 @@ export function ReviewDiffPane({
     )
   }
 
+  const rank: Rank = fileRankEntry?.rank ?? 'normal'
+  const rankSource = fileRankEntry?.source ?? 'default'
+
   return (
     <div className="flex flex-col h-full">
       {/* File header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-panel shrink-0">
+        <FileRankButton
+          rank={rank}
+          source={rankSource}
+          size={14}
+          onCycle={() => onCycleRank(file.path, rank)}
+          onShiftClick={() => onSetRank(file.path, 'uninteresting')}
+        />
+
         <button
           onClick={onToggleReviewed}
           className={`shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer ${

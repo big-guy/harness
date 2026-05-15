@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { ChangedFile } from '../types'
 import type { ReviewComment, SortMode } from './ReviewFileTree'
 import { ReviewSummaryBar } from './ReviewSummaryBar'
-import { ReviewFileTree, NEXT_RANK_ON_CYCLE } from './ReviewFileTree'
+import { ReviewFileTree } from './ReviewFileTree'
 import { ReviewDiffPane } from './ReviewDiffPane'
 import { useBackend } from '../backend'
 import { useFileRanks } from '../store'
 import type { Rank } from '../../shared/state/file-ranks'
+import { NEXT_RANK_ON_CYCLE } from './FileRankButton'
 
 export interface ReviewCommit {
   hash: string
@@ -223,8 +224,6 @@ export function ReviewScreen({
             onSelectFile={setSelectedFile}
             onToggleReviewed={handleToggleReviewed}
             onToggleDir={handleToggleDir}
-            onCycleRank={handleCycleRank}
-            onSetRank={handleSetRank}
           />
         </div>
 
@@ -237,6 +236,11 @@ export function ReviewScreen({
             commitHash={commit?.hash}
             reviewed={selectedFile ? reviewedFiles.has(selectedFile) : false}
             comments={fileComments}
+            fileRankEntry={
+              selectedFile ? fileRanks?.entries[selectedFile] : undefined
+            }
+            onCycleRank={handleCycleRank}
+            onSetRank={handleSetRank}
             onToggleReviewed={() => {
               if (selectedFile) handleToggleReviewed(selectedFile)
             }}
