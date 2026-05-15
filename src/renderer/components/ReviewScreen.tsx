@@ -171,6 +171,17 @@ export function ReviewScreen({
     [backend, worktreePath]
   )
 
+  const handlePickRank = useCallback(
+    (path: string, rank: Rank) => {
+      if (rank === 'normal') {
+        backend.clearFileRank(worktreePath, path)
+      } else {
+        backend.setFileRank(worktreePath, path, rank)
+      }
+    },
+    [backend, worktreePath]
+  )
+
   const formatComments = useCallback((): string => {
     if (comments.length === 0) return ''
     const lines = ['Review feedback on your changes:', '']
@@ -241,6 +252,7 @@ export function ReviewScreen({
             }
             onCycleRank={handleCycleRank}
             onSetRank={handleSetRank}
+            onPickRank={handlePickRank}
             onToggleReviewed={() => {
               if (selectedFile) handleToggleReviewed(selectedFile)
             }}

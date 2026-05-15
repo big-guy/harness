@@ -20,6 +20,7 @@ interface ReviewDiffPaneProps {
   fileRankEntry: FileRankEntry | undefined
   onCycleRank: (path: string, current: Rank) => void
   onSetRank: (path: string, rank: Rank) => void
+  onPickRank: (path: string, rank: Rank) => void
   onToggleReviewed: () => void
   onAddComment: (lineNumber: number, body: string) => void
   onDeleteComment: (id: string) => void
@@ -202,6 +203,7 @@ export function ReviewDiffPane({
   fileRankEntry,
   onCycleRank,
   onSetRank,
+  onPickRank,
   onToggleReviewed,
   onAddComment,
   onDeleteComment
@@ -382,6 +384,7 @@ export function ReviewDiffPane({
           size={14}
           onCycle={() => onCycleRank(file.path, rank)}
           onShiftClick={() => onSetRank(file.path, 'uninteresting')}
+          onPickRank={(next) => onPickRank(file.path, next)}
         />
 
         <button
