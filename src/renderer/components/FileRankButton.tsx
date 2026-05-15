@@ -41,7 +41,7 @@ export function FileRankButton({
   if (rank === 'important') {
     iconEl = <OctagonAlert size={size} className="text-warning" />
   } else if (rank === 'uninteresting') {
-    iconEl = <OctagonX size={size} className="text-faint" />
+    iconEl = <OctagonX size={size} className="text-muted" />
   } else if (rank === 'trivial') {
     iconEl = <OctagonMinus size={size} className="text-faint" />
   } else {
