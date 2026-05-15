@@ -521,6 +521,10 @@ export function useBrowser() {
   return useAppState((s) => s.browser)
 }
 
+export function useFileRanks(worktreePath: string) {
+  return useAppState((s) => s.fileRanks.byWorktree[worktreePath])
+}
+
 /** Session roster (controller + spectators) for a given terminal id.
  *  Re-renders only when that terminal's entry changes. Returns null if
  *  the terminal hasn't been joined yet (e.g. right after pane create

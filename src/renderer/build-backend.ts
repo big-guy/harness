@@ -323,6 +323,11 @@ export function buildBackend(
     unsnooze: (path: string) => req('snooze:unsnooze', path),
     setSnoozeDefaultDays: (days: number) => req('config:setSnoozeDefaultDays', days),
 
+    setFileRank: (worktreePath: string, filePath: string, rank: string) =>
+      req('fileRanks:setUserRank', worktreePath, filePath, rank),
+    clearFileRank: (worktreePath: string, filePath: string) =>
+      req('fileRanks:clearUserRank', worktreePath, filePath),
+
     openInEditor: (worktreePath: string, filePath?: string) =>
       req('editor:open', worktreePath, filePath),
 

@@ -121,6 +121,25 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: {} }
   },
   {
+    name: 'adjust_rank_for_file',
+    description:
+      "Set a rank for a changed file in the current worktree's review. Use 'important' to flag risky/key changes for the reviewer; 'trivial'/'uninteresting' to deprioritize. If the user has already ranked the file, the call no-ops and the response notes that.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        file_path: {
+          type: 'string',
+          description: 'Repo-relative file path (matches ChangedFile.path).'
+        },
+        rank: {
+          type: 'string',
+          enum: ['important', 'normal', 'trivial', 'uninteresting']
+        }
+      },
+      required: ['file_path', 'rank']
+    }
+  },
+  {
     name: 'list_browser_tabs',
     description:
       'List the browser tabs currently open in the SAME worktree as the calling agent. Returns [{id, url, title}]. Use the returned ids with screenshot_tab, get_tab_dom, get_tab_url, and get_tab_console_logs.',
@@ -462,6 +481,15 @@ async function handleToolCall(name, args) {
   }
   if (name === 'list_repos') {
     const r = await callControl('GET', '/repos')
+    return JSON.stringify(r, null, 2)
+  }
+  if (name === 'adjust_rank_for_file') {
+    if (!args || !args.file_path) throw new Error('file_path is required')
+    if (!args.rank) throw new Error('rank is required')
+    const r = await callControl('POST', '/file-rank', {
+      filePath: args.file_path,
+      rank: args.rank
+    })
     return JSON.stringify(r, null, 2)
   }
   if (name === 'list_browser_tabs') {

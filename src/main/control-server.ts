@@ -70,6 +70,23 @@ export interface ShellQueries {
   killShell: (shellId: string) => void
 }
 
+export type FileRank = 'important' | 'normal' | 'trivial' | 'uninteresting'
+
+export interface FileRankAdjustResult {
+  applied: boolean
+  note?: string
+}
+
+export interface FileRankQueries {
+  /** Apply an agent-sourced rank. Returns `{applied:false, note}` if the
+   *  user has already ranked the file (sticky behavior). */
+  adjustRank: (
+    worktreePath: string,
+    filePath: string,
+    rank: FileRank
+  ) => FileRankAdjustResult
+}
+
 /** Scope derived from the caller's terminal id on every request. The
  * source of truth — env vars injected into the MCP bridge can go stale
  * (teleport sessions, deleted worktrees), so each tool call re-resolves. */
@@ -97,6 +114,7 @@ export interface ControlServerDeps {
   getBrowserPerms: () => BrowserPerms
   browser: BrowserQueries
   shell: ShellQueries
+  fileRanks: FileRankQueries
 }
 
 const FULL_CONTROL_BROWSER_PATHS = new Set([
@@ -476,6 +494,36 @@ async function handleRequest(
     res.writeHead(404)
     res.end('shell endpoint not found')
     return
+  }
+
+  // File-rank adjust — scoped to the caller's worktree. The control-server
+  // is the seam through which the bundled MCP bridge proposes agent ranks.
+  // User ranks take precedence; the response notes when an agent rank is
+  // suppressed.
+  if (req.method === 'POST' && path === '/file-rank') {
+    const { scope, terminalId } = resolveScope(req, deps)
+    if (!terminalId) {
+      return sendJson(res, 400, { error: 'X-Harness-Terminal-Id header required' })
+    }
+    if (!scope) {
+      return sendJson(res, 404, {
+        error: 'caller terminal is not associated with a worktree'
+      })
+    }
+    const body = await readJson(req)
+    const filePath = typeof body.filePath === 'string' ? body.filePath.trim() : ''
+    const rank = typeof body.rank === 'string' ? body.rank : ''
+    if (!filePath) return sendJson(res, 400, { error: 'filePath required' })
+    if (
+      rank !== 'important' &&
+      rank !== 'normal' &&
+      rank !== 'trivial' &&
+      rank !== 'uninteresting'
+    ) {
+      return sendJson(res, 400, { error: 'invalid rank' })
+    }
+    const result = deps.fileRanks.adjustRank(scope.worktreePath, filePath, rank)
+    return sendJson(res, 200, result)
   }
 
   // /scope — returns the caller's current scope. The MCP bridge calls this

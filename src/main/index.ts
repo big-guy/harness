@@ -65,6 +65,10 @@ import { loadRepoConfig, saveRepoConfig, type RepoConfig } from './repo-config'
 import { createNewProject, type GitignorePreset } from './repo-create'
 import { isWorktreeMerged } from '../shared/state/prs'
 import { MAX_WAKE } from '../shared/state/snooze'
+import type { Rank } from '../shared/state/file-ranks'
+import { applyFileRanksReset } from './file-ranks-reset'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { watchStatusDir } from './hooks'
 import { getAgent, type AgentKind } from './agents'
 import { buildClaudeLaunchSettings } from './claude-launch'
@@ -920,6 +924,18 @@ store.subscribe((event) => {
   }
 })
 
+// Drop file-rank entries for worktrees that no longer exist.
+store.subscribe((event) => {
+  if (event.type !== 'worktrees/listChanged') return
+  const live = new Set(store.getSnapshot().state.worktrees.list.map((w) => w.path))
+  const byWorktree = store.getSnapshot().state.fileRanks.byWorktree
+  for (const path of Object.keys(byWorktree)) {
+    if (!live.has(path)) {
+      store.dispatch({ type: 'fileRanks/worktreeRemoved', payload: { worktreePath: path } })
+    }
+  }
+})
+
 const snoozeTimer = new SnoozeTimer(store)
 snoozeTimer.start()
 
@@ -1109,7 +1125,13 @@ function registerIpcHandlers(): void {
 
   // Changed files
   transport.onRequest('worktree:changedFiles', async (_ctx, worktreePath: string, mode?: 'working' | 'branch') => {
-    return getChangedFiles(worktreePath, mode ?? 'working')
+    const resolved = mode ?? 'working'
+    await applyFileRanksReset(worktreePath, resolved, {
+      store,
+      revParseHead: fileRanksRevParseHead,
+      diffNames: fileRanksDiffNames
+    })
+    return getChangedFiles(worktreePath, resolved)
   })
 
   transport.onSignal('worktree:watchChangedFiles', (ctx, worktreePath: string) => {
@@ -2716,6 +2738,93 @@ function registerIpcHandlers(): void {
     store.dispatch({ type: 'settings/snoozeDefaultDaysChanged', payload: clamped })
     return true
   })
+
+  transport.onRequest(
+    'fileRanks:setUserRank',
+    (_ctx, worktreePath: string, filePath: string, rank: Rank) => {
+      if (!worktreePath || !filePath) return false
+      if (!isRank(rank)) return false
+      store.dispatch({
+        type: 'fileRanks/userRankSet',
+        payload: { worktreePath, filePath, rank }
+      })
+      return true
+    }
+  )
+
+  transport.onRequest(
+    'fileRanks:clearUserRank',
+    (_ctx, worktreePath: string, filePath: string) => {
+      if (!worktreePath || !filePath) return false
+      store.dispatch({
+        type: 'fileRanks/userRankCleared',
+        payload: { worktreePath, filePath }
+      })
+      return true
+    }
+  )
+
+  transport.onRequest(
+    'mcp:adjustRank',
+    (_ctx, worktreePath: string, filePath: string, rank: Rank) => {
+      if (!worktreePath || !filePath) {
+        return { applied: false, note: 'missing worktreePath or filePath' }
+      }
+      if (!isRank(rank)) {
+        return { applied: false, note: 'invalid rank' }
+      }
+      const wt = store.getSnapshot().state.fileRanks.byWorktree[worktreePath]
+      const existing = wt?.entries[filePath]
+      if (existing && existing.source === 'user') {
+        return { applied: false, note: 'user rank takes precedence' }
+      }
+      store.dispatch({
+        type: 'fileRanks/agentRankSet',
+        payload: { worktreePath, filePath, rank }
+      })
+      return { applied: true }
+    }
+  )
+}
+
+const fileRanksExecFile = promisify(execFile)
+
+async function fileRanksRevParseHead(worktreePath: string): Promise<string | null> {
+  try {
+    const { stdout } = await fileRanksExecFile('git', ['rev-parse', 'HEAD'], {
+      cwd: worktreePath
+    })
+    const sha = stdout.toString().trim()
+    return sha || null
+  } catch {
+    return null
+  }
+}
+
+async function fileRanksDiffNames(
+  worktreePath: string,
+  fromSha: string,
+  toSha: string
+): Promise<string[]> {
+  const { stdout } = await fileRanksExecFile(
+    'git',
+    ['diff', '--name-only', fromSha, toSha],
+    { cwd: worktreePath }
+  )
+  return stdout
+    .toString()
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+}
+
+function isRank(value: unknown): value is Rank {
+  return (
+    value === 'important' ||
+    value === 'normal' ||
+    value === 'trivial' ||
+    value === 'uninteresting'
+  )
 }
 
 function broadcastToAllWindows(channel: string, ...args: unknown[]): void {
@@ -2994,6 +3103,23 @@ async function runBoot(): Promise<void> {
         } else {
           ptyManager.kill(shellId)
         }
+      }
+    },
+    fileRanks: {
+      adjustRank: (worktreePath, filePath, rank) => {
+        if (!worktreePath || !filePath) {
+          return { applied: false, note: 'missing worktreePath or filePath' }
+        }
+        const wt = store.getSnapshot().state.fileRanks.byWorktree[worktreePath]
+        const existing = wt?.entries[filePath]
+        if (existing && existing.source === 'user') {
+          return { applied: false, note: 'user rank takes precedence' }
+        }
+        store.dispatch({
+          type: 'fileRanks/agentRankSet',
+          payload: { worktreePath, filePath, rank }
+        })
+        return { applied: true }
       }
     },
     broadcast: (channel, payload) => {
