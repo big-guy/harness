@@ -434,6 +434,18 @@ export class PanesFSM {
     this.commit(wtPath, updated)
   }
 
+  renameTab(wtPath: string, tabId: string, label: string): void {
+    const tree = this.getTree(wtPath)
+    if (!tree || !findLeafByTabId(tree, tabId)) return
+    const trimmed = label.trim()
+    if (!trimmed) return
+    this.store.dispatch({
+      type: 'terminals/tabLabelChanged',
+      payload: { worktreePath: wtPath, tabId, label: trimmed }
+    })
+    this.opts.persist(this.buildPersistPayload())
+  }
+
   selectTab(wtPath: string, paneId: string, tabId: string): void {
     const tree = this.getTree(wtPath)
     if (!tree || !findLeaf(tree, paneId)) return

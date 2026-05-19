@@ -86,6 +86,13 @@ interface TerminalPanelProps {
   onCloseTab: (tabId: string) => void
   onSplitRight: () => void
   onSplitDown: () => void
+  /** Per-client id of the tab whose label is being inline-edited.
+   *  Null when no tab is in edit mode. */
+  editingTabId?: string | null
+  /** Enter edit mode for a tab (Cmd+L on the active tab, or shift-click). */
+  onStartEditTab?: (tabId: string) => void
+  /** Commit (label != null) or cancel (label == null) the inline rename. */
+  onFinishEditTab?: (tabId: string, label: string | null) => void
   showExpandRightColumn: boolean
   onShowRightColumn: () => void
 }
@@ -114,9 +121,13 @@ interface SortableTabProps {
    *  the right-click menu shows a "Sleep" item. Sleeping tears down
    *  the subprocess but leaves the tab record intact. */
   onSleepTab?: () => void
+  /** True when this tab's label is being inline-edited. */
+  editing: boolean
+  onStartEdit?: () => void
+  onFinishEdit?: (label: string | null) => void
 }
 
-function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect, onClose, onConvertTabType, onSleepTab }: SortableTabProps): JSX.Element {
+function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect, onClose, onConvertTabType, onSleepTab, editing, onStartEdit, onFinishEdit }: SortableTabProps): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tab.id
   })
@@ -149,18 +160,45 @@ function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect
       window.removeEventListener('blur', close)
     }
   }, [menu])
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const [draft, setDraft] = useState(tab.label)
+  useEffect(() => {
+    if (editing) {
+      setDraft(tab.label)
+      // Defer focus + select to after the input mounts.
+      requestAnimationFrame(() => {
+        inputRef.current?.focus()
+        inputRef.current?.select()
+      })
+    }
+  }, [editing, tab.label])
+
   return (
     <div
       ref={setRefs}
       style={style}
       {...attributes}
-      {...listeners}
+      {...(editing ? {} : listeners)}
       className={`no-drag shrink-0 flex items-center gap-1.5 px-3 h-full text-xs cursor-pointer border-b-2 whitespace-nowrap transition-colors ${
         isActive
           ? 'border-muted text-fg-bright'
           : 'border-transparent text-dim hover:text-fg'
       }`}
-      onClick={onSelect}
+      onClick={(e) => {
+        if (editing) return
+        onSelect()
+        void e
+      }}
+      onDoubleClick={
+        onStartEdit
+          ? (e) => {
+              if (editing) return
+              e.stopPropagation()
+              e.preventDefault()
+              onStartEdit()
+            }
+          : undefined
+      }
       onContextMenu={
         onConvertTabType || onSleepTab
           ? (e) => {
@@ -183,7 +221,31 @@ function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect
       ) : tab.type !== 'diff' && tab.type !== 'file' ? (
         <span className={`w-1.5 h-1.5 rounded-full ${TAB_STATUS_DOT[status]}`} />
       ) : null}
-      <span>{tab.label}</span>
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              onFinishEdit?.(draft)
+            } else if (e.key === 'Escape') {
+              e.preventDefault()
+              onFinishEdit?.(null)
+            }
+          }}
+          onBlur={() => onFinishEdit?.(null)}
+          className="bg-panel-raised border border-border-strong rounded px-1 text-xs text-fg-bright outline-none min-w-[6rem]"
+          style={{ width: `${Math.max(6, draft.length + 1)}ch` }}
+        />
+      ) : (
+        <span>{tab.label}</span>
+      )}
       {showClose && (
         <Tooltip label="Close tab" action="closeTab">
           <button
@@ -267,6 +329,9 @@ export function TerminalPanel({
   onCloseTab,
   onSplitRight,
   onSplitDown,
+  editingTabId,
+  onStartEditTab,
+  onFinishEditTab,
   showExpandRightColumn,
   onShowRightColumn
 }: TerminalPanelProps): JSX.Element {
@@ -306,34 +371,15 @@ export function TerminalPanel({
             <span className="text-fg-bright font-medium">{branch}</span>
           </div>
         )}
-        <div className="flex items-center h-full overflow-x-auto scrollbar-hidden pl-2 flex-1 min-w-0">
-          <SortableContext items={pane.tabs.map((t) => t.id)} strategy={horizontalListSortingStrategy}>
-            {pane.tabs.map((tab) => {
-              const isClaudeAgent = tab.type === 'agent' && tab.agentKind === 'claude'
-              const isJsonClaude = tab.type === 'json-claude'
-              const convertible = !!onConvertTabType && (isClaudeAgent || isJsonClaude)
-              return (
-                <SortableTab
-                  key={tab.id}
-                  tab={tab}
-                  isActive={tab.id === pane.activeTabId}
-                  status={statuses[tab.id] || 'idle'}
-                  shellActivity={shellActivity[tab.id]}
-                  showClose={pane.tabs.length > 1 || paneCount > 1}
-                  onSelect={() => onSelectTab(tab.id)}
-                  onClose={() => onCloseTab(tab.id)}
-                  onConvertTabType={
-                    convertible
-                      ? (newType) => onConvertTabType!(tab.id, newType)
-                      : undefined
-                  }
-                  onSleepTab={
-                    isJsonClaude ? () => onSleepTab(tab.id) : undefined
-                  }
-                />
-              )
-            })}
-          </SortableContext>
+        <div className="flex items-center h-full shrink-0 pl-2">
+          <Tooltip label="Open worktree in editor" action="openInEditor">
+            <button
+              onClick={() => backend.openInEditor(worktreePath)}
+              className="no-drag shrink-0 px-2 h-full text-faint hover:text-fg transition-colors cursor-pointer"
+            >
+              <Code2 size={12} />
+            </button>
+          </Tooltip>
           <Tooltip
             label={(() => {
               const jsonIsDefault = !!onAddJsonClaudeTab && defaultClaudeTabType === 'json'
@@ -396,6 +442,7 @@ export function TerminalPanel({
               <Globe size={12} />
             </button>
           </Tooltip>
+          <div className="shrink-0 w-px h-4 bg-border mx-1" />
           <Tooltip label="Split pane right" action="splitPaneRight">
             <button
               onClick={onSplitRight}
@@ -412,16 +459,42 @@ export function TerminalPanel({
               <SplitSquareVertical size={12} />
             </button>
           </Tooltip>
+        </div>
+        <div className="flex items-center h-full overflow-x-auto scrollbar-hidden flex-1 min-w-0">
+          <SortableContext items={pane.tabs.map((t) => t.id)} strategy={horizontalListSortingStrategy}>
+            {pane.tabs.map((tab) => {
+              const isClaudeAgent = tab.type === 'agent' && tab.agentKind === 'claude'
+              const isJsonClaude = tab.type === 'json-claude'
+              const convertible = !!onConvertTabType && (isClaudeAgent || isJsonClaude)
+              return (
+                <SortableTab
+                  key={tab.id}
+                  tab={tab}
+                  isActive={tab.id === pane.activeTabId}
+                  status={statuses[tab.id] || 'idle'}
+                  shellActivity={shellActivity[tab.id]}
+                  showClose={pane.tabs.length > 1 || paneCount > 1}
+                  onSelect={() => onSelectTab(tab.id)}
+                  onClose={() => onCloseTab(tab.id)}
+                  onConvertTabType={
+                    convertible
+                      ? (newType) => onConvertTabType!(tab.id, newType)
+                      : undefined
+                  }
+                  onSleepTab={
+                    tab.type === 'json-claude' ? () => onSleepTab(tab.id) : undefined
+                  }
+                  editing={editingTabId === tab.id}
+                  onStartEdit={onStartEditTab ? () => onStartEditTab(tab.id) : undefined}
+                  onFinishEdit={
+                    onFinishEditTab ? (label) => onFinishEditTab(tab.id, label) : undefined
+                  }
+                />
+              )
+            })}
+          </SortableContext>
           {showSpectatorChip && activeTab && <SpectatorChip terminalId={activeTab.id} />}
         </div>
-        <Tooltip label="Open worktree in editor" action="openInEditor" side="left">
-          <button
-            onClick={() => backend.openInEditor(worktreePath)}
-            className="no-drag shrink-0 px-3 h-full text-faint hover:text-fg transition-colors cursor-pointer"
-          >
-            <Code2 size={13} />
-          </button>
-        </Tooltip>
         {showExpandRightColumn && (
           <Tooltip label="Show right column" action="toggleRightColumn" side="left">
             <button

@@ -274,6 +274,8 @@ export function buildBackend(
       tabId: string,
       newType: 'agent' | 'json-claude'
     ) => req('panes:convertTabType', wtPath, tabId, newType),
+    panesRenameTab: (wtPath: string, tabId: string, label: string) =>
+      req('panes:renameTab', wtPath, tabId, label),
     panesSelectTab: (wtPath: string, paneId: string, tabId: string) =>
       req('panes:selectTab', wtPath, paneId, tabId),
     panesReorderTabs: (wtPath: string, paneId: string, fromId: string, toId: string) =>

@@ -53,6 +53,13 @@ interface WorkspaceViewProps {
   onMoveTabToPane: (worktreePath: string, tabId: string, toPaneId: string, toIndex?: number) => void
   onSplitPane: (worktreePath: string, fromPaneId: string, direction?: 'horizontal' | 'vertical') => void
   onSendToAgent?: (worktreePath: string, text: string) => void
+  /** Per-client id of the tab whose label is being inline-edited.
+   *  Null when no tab is in edit mode. */
+  editingTabId?: string | null
+  onStartEditTab?: (tabId: string) => void
+  /** Called with the typed label on commit, or null on cancel.
+   *  Either way, the parent clears editingTabId. */
+  onFinishEditTab?: (tabId: string, label: string | null) => void
   rightColumnHidden: boolean
   onShowRightColumn: () => void
   crashedTabIds?: ReadonlySet<string>
@@ -149,7 +156,10 @@ function SplitRenderer({
   onCloseTab,
   onSplitRight,
   onSplitDown,
-  onResizeEnd
+  onResizeEnd,
+  editingTabId,
+  onStartEditTab,
+  onFinishEditTab
 }: {
   node: PaneNode
   worktreePath: string
@@ -178,6 +188,9 @@ function SplitRenderer({
   onSplitRight: (paneId: string) => void
   onSplitDown: (paneId: string) => void
   onResizeEnd: (splitId: string, delta: number, containerSize: number) => void
+  editingTabId?: string | null
+  onStartEditTab?: (tabId: string) => void
+  onFinishEditTab?: (tabId: string, label: string | null) => void
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -210,6 +223,9 @@ function SplitRenderer({
           onCloseTab={onCloseTab}
           onSplitRight={() => onSplitRight(node.id)}
           onSplitDown={() => onSplitDown(node.id)}
+          editingTabId={editingTabId}
+          onStartEditTab={onStartEditTab}
+          onFinishEditTab={onFinishEditTab}
           showExpandRightColumn={showExpandRightColumn && node.id === topRightLeafId}
           onShowRightColumn={onShowRightColumn}
         />
@@ -259,6 +275,9 @@ function SplitRenderer({
           onSplitRight={onSplitRight}
           onSplitDown={onSplitDown}
           onResizeEnd={onResizeEnd}
+          editingTabId={editingTabId}
+          onStartEditTab={onStartEditTab}
+          onFinishEditTab={onFinishEditTab}
         />
       </div>
       <PaneDivider
@@ -299,6 +318,9 @@ function SplitRenderer({
           onSplitRight={onSplitRight}
           onSplitDown={onSplitDown}
           onResizeEnd={onResizeEnd}
+          editingTabId={editingTabId}
+          onStartEditTab={onStartEditTab}
+          onFinishEditTab={onFinishEditTab}
         />
       </div>
     </div>
@@ -328,6 +350,9 @@ export function WorkspaceView({
   onMoveTabToPane,
   onSplitPane,
   onSendToAgent,
+  editingTabId,
+  onStartEditTab,
+  onFinishEditTab,
   repoLabel,
   branch,
   rightColumnHidden,
@@ -521,6 +546,9 @@ export function WorkspaceView({
           onSplitRight={(paneId) => onSplitPane(worktreePath, paneId, 'horizontal')}
           onSplitDown={(paneId) => onSplitPane(worktreePath, paneId, 'vertical')}
           onResizeEnd={handleResizeEnd}
+          editingTabId={editingTabId}
+          onStartEditTab={onStartEditTab}
+          onFinishEditTab={onFinishEditTab}
         />
       </div>
 

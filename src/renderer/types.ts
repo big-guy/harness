@@ -341,6 +341,7 @@ export interface ElectronAPI {
     tabId: string,
     newType: 'agent' | 'json-claude'
   ): Promise<boolean>
+  panesRenameTab(wtPath: string, tabId: string, label: string): Promise<boolean>
   panesSelectTab(wtPath: string, paneId: string, tabId: string): Promise<boolean>
   panesReorderTabs(
     wtPath: string,
