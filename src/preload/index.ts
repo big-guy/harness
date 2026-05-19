@@ -116,6 +116,9 @@ contextBridge.exposeInMainWorld('api', {
   refreshInboxAll: () => req('inbox:refreshAll'),
   refreshInboxAllIfStale: () => req('inbox:refreshAllIfStale'),
   refreshInboxOne: (queryId: string) => req('inbox:refreshOne', queryId),
+  createInboxWorktree: (
+    ref: { kind: 'issue' | 'pr'; owner: string; repo: string; number: number; title: string }
+  ) => req('inbox:createWorktree', ref),
 
   getWeeklyStats: () => req('stats:getWeekly'),
 

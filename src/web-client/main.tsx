@@ -124,6 +124,8 @@ function buildApi(transport: WebSocketClientTransport): ElectronAPI {
     refreshInboxAll: () => req('inbox:refreshAll') as Promise<boolean>,
     refreshInboxAllIfStale: () => req('inbox:refreshAllIfStale') as Promise<boolean>,
     refreshInboxOne: (queryId) => req('inbox:refreshOne', queryId) as Promise<boolean>,
+    createInboxWorktree: (ref) =>
+      req('inbox:createWorktree', ref) as ReturnType<ElectronAPI['createInboxWorktree']>,
 
     getWeeklyStats: () => req('stats:getWeekly') as ReturnType<ElectronAPI['getWeeklyStats']>,
 

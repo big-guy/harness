@@ -18,6 +18,10 @@ import type { InboxItem } from '../../shared/state/inbox'
 interface InboxScreenProps {
   onClose: () => void
   onOpenSettings: () => void
+  /** Switch to a worktree (pending id for in-flight creations, or a real
+   *  worktree path for existing checkouts). The screen calls this after
+   *  the user successfully kicks off a "create worktree" action. */
+  onSelectWorktree: (idOrPath: string) => void
 }
 
 type SortKey = 'updated' | 'created' | 'comments'
@@ -82,9 +86,19 @@ interface ItemRowProps {
   item: InboxItem
   expanded: boolean
   onToggle: () => void
+  onCreateWorktree: () => void
+  createWorktreePending: boolean
+  createWorktreeError: string | null
 }
 
-function ItemRow({ item, expanded, onToggle }: ItemRowProps): JSX.Element {
+function ItemRow({
+  item,
+  expanded,
+  onToggle,
+  onCreateWorktree,
+  createWorktreePending,
+  createWorktreeError
+}: ItemRowProps): JSX.Element {
   return (
     <div className="border-b border-border">
       <button
@@ -154,12 +168,18 @@ function ItemRow({ item, expanded, onToggle }: ItemRowProps): JSX.Element {
           )}
           <div className="mt-3 flex items-center gap-2">
             <button
-              disabled
-              title="Coming soon"
-              className="text-xs bg-surface text-dim rounded px-2 py-1 cursor-not-allowed opacity-60"
+              onClick={onCreateWorktree}
+              disabled={createWorktreePending}
+              className="text-xs bg-accent text-app rounded px-2 py-1 font-semibold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
             >
-              {item.kind === 'pr' ? 'Check out for review' : 'Start working on this'}
+              {createWorktreePending && <Loader2 size={11} className="animate-spin" />}
+              <span>
+                {item.kind === 'pr' ? 'Check out for review' : 'Start working on this'}
+              </span>
             </button>
+            {createWorktreeError && (
+              <span className="text-xs text-danger">{createWorktreeError}</span>
+            )}
           </div>
         </div>
       )}
@@ -167,7 +187,11 @@ function ItemRow({ item, expanded, onToggle }: ItemRowProps): JSX.Element {
   )
 }
 
-export function InboxScreen({ onClose, onOpenSettings }: InboxScreenProps): JSX.Element {
+export function InboxScreen({
+  onClose,
+  onOpenSettings,
+  onSelectWorktree
+}: InboxScreenProps): JSX.Element {
   const inbox = useInbox()
   const settings = useSettings()
   const queries = settings.inboxQueries
@@ -178,6 +202,9 @@ export function InboxScreen({ onClose, onOpenSettings }: InboxScreenProps): JSX.
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<SortKey>('updated')
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  /** itemKey → in-flight; cleared on success or surface as an error. */
+  const [creating, setCreating] = useState<Record<string, boolean>>({})
+  const [createError, setCreateError] = useState<Record<string, string>>({})
 
   // Keep activeQueryId valid as the configured list changes.
   useEffect(() => {
@@ -210,6 +237,40 @@ export function InboxScreen({ onClose, onOpenSettings }: InboxScreenProps): JSX.
   }
 
   const itemKey = (it: InboxItem): string => `${it.kind}:${it.owner}/${it.repo}#${it.number}`
+
+  const handleCreateWorktree = async (it: InboxItem): Promise<void> => {
+    const key = itemKey(it)
+    setCreating((prev) => ({ ...prev, [key]: true }))
+    setCreateError((prev) => {
+      const { [key]: _, ...rest } = prev
+      return rest
+    })
+    try {
+      const result = await window.api.createInboxWorktree({
+        kind: it.kind,
+        owner: it.owner,
+        repo: it.repo,
+        number: it.number,
+        title: it.title
+      })
+      onClose()
+      if (result.kind === 'pending') {
+        onSelectWorktree(result.pendingId)
+      } else {
+        onSelectWorktree(result.worktreePath)
+      }
+    } catch (err) {
+      setCreateError((prev) => ({
+        ...prev,
+        [key]: err instanceof Error ? err.message : String(err)
+      }))
+    } finally {
+      setCreating((prev) => {
+        const { [key]: _, ...rest } = prev
+        return rest
+      })
+    }
+  }
 
   return (
     <div className="flex-1 min-w-0 flex flex-col bg-app">
@@ -333,6 +394,9 @@ export function InboxScreen({ onClose, onOpenSettings }: InboxScreenProps): JSX.
                   onToggle={() =>
                     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
                   }
+                  onCreateWorktree={() => void handleCreateWorktree(it)}
+                  createWorktreePending={!!creating[key]}
+                  createWorktreeError={createError[key] ?? null}
                 />
               )
             })}

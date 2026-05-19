@@ -1195,6 +1195,10 @@ const setQuestStep = useCallback((next: QuestStep) => {
               setShowInbox(false)
               setShowSettings(true)
             }}
+            onSelectWorktree={(idOrPath) => {
+              setShowInbox(false)
+              setActiveWorktreeId(idOrPath)
+            }}
           />
         )}
         {showCommandCenter && (

@@ -191,6 +191,12 @@ export interface ElectronAPI {
   refreshInboxAll(): Promise<boolean>
   refreshInboxAllIfStale(): Promise<boolean>
   refreshInboxOne(queryId: string): Promise<boolean>
+  createInboxWorktree(
+    ref: { kind: 'issue' | 'pr'; owner: string; repo: string; number: number; title: string }
+  ): Promise<
+    | { kind: 'pending'; pendingId: string; repoRoot: string; branchName: string; initialPrompt: string }
+    | { kind: 'existing'; worktreePath: string }
+  >
 
   getWeeklyStats(): Promise<WeeklyStats>
   getBranchCommits(worktreePath: string): Promise<BranchCommit[]>

@@ -23,6 +23,8 @@ import type { BrowserManagerLike } from './browser-manager-types'
 import { PerfMonitor } from './perf-monitor'
 import { PRPoller } from './pr-poller'
 import { InboxPoller } from './inbox-poller'
+import { prepareInboxWorktree, type InboxCreateOutcome } from './inbox-create-worktree'
+import { getRepoOriginInfo } from './git-remote-info'
 import { WorktreesFSM } from './worktrees-fsm'
 import { WorktreeDeletionFSM } from './worktree-deletion-fsm'
 import { PanesFSM, stripTransientTabFields } from './panes-fsm'
@@ -943,6 +945,35 @@ function registerIpcHandlers(): void {
     await inboxPoller.refreshById(queryId)
     return true
   })
+
+  transport.onRequest(
+    'inbox:createWorktree',
+    async (
+      _ctx,
+      ref: { kind: 'issue' | 'pr'; owner: string; repo: string; number: number; title: string }
+    ): Promise<InboxCreateOutcome> => {
+      if (!ref || typeof ref !== 'object') {
+        throw new Error('Invalid inbox item reference')
+      }
+      const outcome = await prepareInboxWorktree(ref, {
+        getRepoRoots: () => config.repoRoots || [],
+        getOriginInfo: getRepoOriginInfo,
+        getWorktreeList: () => store.getSnapshot().state.worktrees.list,
+        generatePendingId: () => `pending-inbox-${ref.kind}-${ref.number}-${Date.now()}`
+      })
+      if (outcome.kind === 'pending') {
+        // Fire-and-forget; the renderer focuses pendingId and watches
+        // the pending state transitions via the usual store events.
+        void worktreesFSM.runPending({
+          id: outcome.pendingId,
+          repoRoot: outcome.repoRoot,
+          branchName: outcome.branchName,
+          initialPrompt: outcome.initialPrompt
+        })
+      }
+      return outcome
+    }
+  )
 
   transport.onRequest('stats:getWeekly', async (_ctx) => {
     const snap = store.getSnapshot().state
