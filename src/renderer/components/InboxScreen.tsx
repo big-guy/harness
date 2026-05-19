@@ -83,6 +83,26 @@ function StateIcon({ item }: { item: InboxItem }): JSX.Element {
   return <CircleDot size={14} className={stateColor(item)} />
 }
 
+function UserBadge({
+  user
+}: {
+  user: { login: string; avatarUrl: string }
+}): JSX.Element {
+  return (
+    <span className="inline-flex items-center gap-1">
+      {user.avatarUrl && (
+        <img
+          src={user.avatarUrl}
+          alt=""
+          loading="lazy"
+          className="w-3.5 h-3.5 rounded-full shrink-0"
+        />
+      )}
+      <span>{user.login}</span>
+    </span>
+  )
+}
+
 interface ItemRowProps {
   item: InboxItem
   expanded: boolean
@@ -121,7 +141,7 @@ function ItemRow({
             <span className="text-sm text-fg-bright truncate">{item.title}</span>
           </div>
           <div className="flex items-center gap-2 mt-0.5 text-[11px] text-dim">
-            {item.author && <span>{item.author.login}</span>}
+            {item.author && <UserBadge user={item.author} />}
             <span>updated {formatRelative(item.updatedAt)} ago</span>
             {item.commentCount > 0 && <span>· {item.commentCount} comments</span>}
             {item.milestone && (
@@ -172,8 +192,11 @@ function ItemRow({
             <div className="text-xs text-faint italic">No description.</div>
           )}
           {item.assignees.length > 0 && (
-            <div className="text-xs text-dim mt-2">
-              Assigned to {item.assignees.map((a) => a.login).join(', ')}
+            <div className="text-xs text-dim mt-2 flex items-center gap-1.5 flex-wrap">
+              <span>Assigned to</span>
+              {item.assignees.map((a) => (
+                <UserBadge key={a.login} user={a} />
+              ))}
             </div>
           )}
           <div className="mt-3 flex items-center gap-2">
