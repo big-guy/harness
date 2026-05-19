@@ -565,6 +565,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
     setRightColumnHidden,
     setShowNewWorktree,
     setShowCommandCenter,
+    setShowInbox,
     setShowCommandPalette,
     setCommandPaletteMode,
     setShowPerfMonitor,
