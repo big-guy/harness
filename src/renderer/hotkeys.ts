@@ -12,6 +12,7 @@ export type Action =
   | 'worktree9'
   | 'newShellTab'
   | 'closeTab'
+  | 'renameTab'
   | 'nextTab'
   | 'prevTab'
   | 'newWorktree'
@@ -56,6 +57,7 @@ export const DEFAULT_HOTKEYS: Record<Action, HotkeyBinding> = {
   worktree9: { key: '9', modifiers: { cmd: true } },
   newShellTab: { key: 't', modifiers: { cmd: true } },
   closeTab: { key: 'w', modifiers: { cmd: true } },
+  renameTab: { key: 'l', modifiers: { cmd: true } },
   nextTab: { key: 'Tab', modifiers: { ctrl: true } },
   prevTab: { key: 'Tab', modifiers: { ctrl: true, shift: true } },
   newWorktree: { key: 'n', modifiers: { cmd: true } },
@@ -164,6 +166,7 @@ export const ACTION_LABELS: Record<Action, string> = {
   worktree9: 'Switch to worktree 9',
   newShellTab: 'New shell tab',
   closeTab: 'Close tab',
+  renameTab: 'Rename tab',
   nextTab: 'Next tab',
   prevTab: 'Previous tab',
   newWorktree: 'New worktree',

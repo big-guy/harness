@@ -1517,6 +1517,13 @@ function registerIpcHandlers(): void {
     }
   )
   transport.onRequest(
+    'panes:renameTab',
+    (_ctx, wtPath: string, tabId: string, label: string) => {
+      panesFSM.renameTab(wtPath, tabId, label)
+      return true
+    }
+  )
+  transport.onRequest(
     'panes:selectTab',
     (_ctx, wtPath: string, paneId: string, tabId: string) => {
       panesFSM.selectTab(wtPath, paneId, tabId)

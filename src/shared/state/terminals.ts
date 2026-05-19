@@ -234,6 +234,10 @@ export type TerminalsEvent =
       payload: { terminalId: string; cols: number; rows: number }
     }
   | {
+      type: 'terminals/tabLabelChanged'
+      payload: { worktreePath: string; tabId: string; label: string }
+    }
+  | {
       type: 'terminals/tabTypeChanged'
       payload: {
         worktreePath: string
@@ -477,6 +481,23 @@ export function terminalsReducer(
         nextSessions[id] = next
       }
       return changed ? { ...state, sessions: nextSessions } : state
+    }
+    case 'terminals/tabLabelChanged': {
+      const { worktreePath, tabId, label } = event.payload
+      const tree = state.panes[worktreePath]
+      if (!tree) return state
+      let changed = false
+      const updated = mapLeaves(tree, (leaf) => {
+        if (!leaf.tabs.some((t) => t.id === tabId)) return leaf
+        const tabs = leaf.tabs.map((t) => {
+          if (t.id !== tabId || t.label === label) return t
+          changed = true
+          return { ...t, label }
+        })
+        return tabs === leaf.tabs ? leaf : { ...leaf, tabs }
+      })
+      if (!changed) return state
+      return { ...state, panes: { ...state.panes, [worktreePath]: updated } }
     }
     case 'terminals/tabTypeChanged': {
       const { worktreePath, tabId, newId, newType, newLabel } = event.payload

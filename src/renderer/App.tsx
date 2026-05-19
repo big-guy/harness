@@ -86,6 +86,10 @@ function DesktopApp(): JSX.Element {
   // still renderer-local — like activeWorktreeId.
   const panes = usePanes()
   const [activePaneId, setActivePaneId] = useState<Record<string, string>>({})
+  // Which tab is currently being inline-renamed. Per-client UI focus, not
+  // shared state: each client can edit their own tab without leaking the
+  // input box to other viewers.
+  const [editingTabId, setEditingTabId] = useState<string | null>(null)
 
   // Derived flat-tab views — preserved so the read-heavy parts of the app
   // (status aggregation, hotkeys, PR refresh) don't need pane awareness.
@@ -190,6 +194,12 @@ function DesktopApp(): JSX.Element {
     setRightPanelWidth((w) => Math.max(180, Math.min(600, w - delta)))
   }, [])
   const [showNewWorktree, setShowNewWorktree] = useState(false)
+  // Per-repo "Add worktree" buttons pre-select that repo in the modal.
+  // Null falls back to whatever the active worktree's repo is.
+  const [newWorktreeRepoRoot, setNewWorktreeRepoRoot] = useState<string | null>(null)
+  useEffect(() => {
+    if (!showNewWorktree) setNewWorktreeRepoRoot(null)
+  }, [showNewWorktree])
   // Worktrees whose git creation is still running (or has errored). They
   // show in the sidebar immediately on submit so the user sees the new entry
   // right away instead of waiting on the modal.
@@ -412,9 +422,11 @@ const setQuestStep = useCallback((next: QuestStep) => {
     if (!activeWorktreeId) return
     const tabId = activeTabId[activeWorktreeId]
     if (!tabId || tabId.startsWith('diff-')) return
+    // Don't steal focus from the inline rename input.
+    if (editingTabId) return
     const raf = requestAnimationFrame(() => focusTerminalById(tabId))
     return () => cancelAnimationFrame(raf)
-  }, [activeWorktreeId, activeTabId])
+  }, [activeWorktreeId, activeTabId, editingTabId])
 
   // When a worktree becomes active, refresh its PR status if stale. Hooks
   // installation and pane initialization both run in main now (see
@@ -554,7 +566,12 @@ const setQuestStep = useCallback((next: QuestStep) => {
     handleCloseTab,
     handleSelectTab,
     handleSplitPane,
-    handleRefreshWorktrees
+    handleRefreshWorktrees,
+    onRequestRenameActiveTab: () => {
+      if (!activeWorktreeId) return
+      const tabId = activeTabId[activeWorktreeId]
+      if (tabId) setEditingTabId(tabId)
+    }
   })
 
   // Compute aggregate status per worktree (worst status wins)
@@ -1020,7 +1037,10 @@ const setQuestStep = useCallback((next: QuestStep) => {
               setActiveWorktreeId(path)
             }}
             onDismissPendingWorktree={handleDismissPendingWorktree}
-            onNewWorktree={() => setShowNewWorktree(true)}
+            onNewWorktree={(repoRoot) => {
+              setNewWorktreeRepoRoot(repoRoot ?? null)
+              setShowNewWorktree(true)
+            }}
             onContinueWorktree={handleContinueWorktree}
             onDeleteWorktree={handleDeleteWorktree}
             onRefresh={handleRefreshWorktrees}
@@ -1030,6 +1050,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
             onOpenSettings={() => setShowSettings(true)}
             onOpenHotkeyCheatsheet={() => setShowHotkeyCheatsheet(true)}
             onOpenActivity={() => setShowActivity(true)}
+            onOpenMyWeek={() => setShowMyWeek(true)}
             onOpenCleanup={() => setShowCleanup(true)}
             onOpenCommandCenter={() => {
               setShowNewWorktree(false)
@@ -1094,6 +1115,14 @@ const setQuestStep = useCallback((next: QuestStep) => {
                   onMoveTabToPane={handleMoveTabToPane}
                   onSplitPane={handleSplitPane}
                   onSendToAgent={handleSendToAgent}
+                  editingTabId={editingTabId}
+                  onStartEditTab={(tabId) => setEditingTabId(tabId)}
+                  onFinishEditTab={(tabId, label) => {
+                    if (label !== null) {
+                      void window.api.panesRenameTab(wt.path, tabId, label)
+                    }
+                    setEditingTabId((cur) => (cur === tabId ? null : cur))
+                  }}
                   rightColumnHidden={rightColumnHidden}
                   onShowRightColumn={() => setRightColumnHidden(false)}
                 />
@@ -1106,7 +1135,10 @@ const setQuestStep = useCallback((next: QuestStep) => {
             onSubmit={handleSubmitNewWorktree}
             onCancel={() => setShowNewWorktree(false)}
             repoRoots={repoRoots}
-            defaultRepoRoot={activeWorktreeId ? worktreeRepoByPath[activeWorktreeId] : undefined}
+            defaultRepoRoot={
+              newWorktreeRepoRoot ??
+              (activeWorktreeId ? worktreeRepoByPath[activeWorktreeId] : undefined)
+            }
           />
         )}
         {reportIssueState !== null && (

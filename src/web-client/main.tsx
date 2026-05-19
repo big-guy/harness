@@ -269,6 +269,8 @@ function buildApi(transport: WebSocketClientTransport): ElectronAPI {
       req('panes:restartAgentTab', wtPath, tabId, newId) as Promise<boolean>,
     panesConvertTabType: (wtPath, tabId, newType) =>
       req('panes:convertTabType', wtPath, tabId, newType) as Promise<boolean>,
+    panesRenameTab: (wtPath, tabId, label) =>
+      req('panes:renameTab', wtPath, tabId, label) as Promise<boolean>,
     panesSelectTab: (wtPath, paneId, tabId) =>
       req('panes:selectTab', wtPath, paneId, tabId) as Promise<boolean>,
     panesReorderTabs: (wtPath, paneId, fromId, toId) =>
