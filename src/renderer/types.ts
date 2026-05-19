@@ -233,9 +233,7 @@ export interface ElectronAPI {
   setHarnessMcpEnabled(enabled: boolean): Promise<boolean>
   setAutoApprovePermissions(enabled: boolean): Promise<boolean>
   setAutoApproveSteerInstructions(text: string): Promise<boolean>
-  setInboxQueries(
-    queries: { id: string; name: string; query: string; milestoneRegex?: string }[]
-  ): Promise<boolean>
+  setInboxQueries(queries: { id: string; name: string; query: string }[]): Promise<boolean>
   setInboxBranchPrefixes(payload: {
     prBranchPrefix: string
     issueBranchPrefix: string

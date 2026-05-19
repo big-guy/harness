@@ -2463,37 +2463,18 @@ interface InboxQueryRow {
   id: string
   name: string
   query: string
-  milestoneRegex: string
 }
 
 const EXAMPLE_INBOX_QUERIES: InboxQueryRow[] = [
-  { id: 'review-requested', name: 'Review requested', query: 'is:open is:pr review-requested:@me archived:false', milestoneRegex: '' },
-  { id: 'my-prs', name: 'My PRs', query: 'is:open is:pr author:@me archived:false', milestoneRegex: '' },
-  { id: 'assigned', name: 'Assigned to me', query: 'is:open assignee:@me archived:false', milestoneRegex: '' }
+  { id: 'review-requested', name: 'Review requested', query: 'is:open is:pr review-requested:@me archived:false' },
+  { id: 'my-prs', name: 'My PRs', query: 'is:open is:pr author:@me archived:false' },
+  { id: 'assigned', name: 'Assigned to me', query: 'is:open assignee:@me archived:false' }
 ]
 
 function genId(): string {
   return `q_${Math.random().toString(36).slice(2, 10)}`
 }
 
-function toRow(q: { id: string; name: string; query: string; milestoneRegex?: string }): InboxQueryRow {
-  return {
-    id: q.id,
-    name: q.name,
-    query: q.query,
-    milestoneRegex: q.milestoneRegex ?? ''
-  }
-}
-
-function isValidRegex(source: string): boolean {
-  if (!source) return true
-  try {
-    new RegExp(source)
-    return true
-  } catch {
-    return false
-  }
-}
 
 const PREFIX_CHAR_RE = /^[A-Za-z0-9_./-]*$/
 
@@ -2598,12 +2579,12 @@ function InboxBranchPrefixesEditor(): JSX.Element {
 function InboxQueriesEditor(): JSX.Element {
   const settings = useSettings()
   const remote = settings.inboxQueries
-  const [rows, setRows] = useState<InboxQueryRow[]>(remote.map(toRow))
+  const [rows, setRows] = useState<InboxQueryRow[]>(remote)
   const [savedAt, setSavedAt] = useState<number | null>(null)
 
   // Pull in remote changes when another window updates the list.
   useEffect(() => {
-    setRows(remote.map(toRow))
+    setRows(remote)
   }, [remote])
 
   const dirty = useMemo(() => {
@@ -2611,21 +2592,10 @@ function InboxQueriesEditor(): JSX.Element {
     for (let i = 0; i < rows.length; i++) {
       const a = rows[i]
       const b = remote[i]
-      if (
-        a.id !== b.id ||
-        a.name !== b.name ||
-        a.query !== b.query ||
-        a.milestoneRegex !== (b.milestoneRegex ?? '')
-      )
-        return true
+      if (a.id !== b.id || a.name !== b.name || a.query !== b.query) return true
     }
     return false
   }, [rows, remote])
-
-  const anyInvalidRegex = useMemo(
-    () => rows.some((r) => !isValidRegex(r.milestoneRegex)),
-    [rows]
-  )
 
   const updateRow = (idx: number, patch: Partial<InboxQueryRow>): void => {
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
@@ -2638,21 +2608,12 @@ function InboxQueriesEditor(): JSX.Element {
       ...prev,
       preset
         ? { ...preset, id: preset.id + '_' + genId().slice(0, 4) }
-        : { id: genId(), name: '', query: '', milestoneRegex: '' }
+        : { id: genId(), name: '', query: '' }
     ])
   }
   const handleSave = (): void => {
     const cleaned = rows
-      .map((r) => {
-        const out: { id: string; name: string; query: string; milestoneRegex?: string } = {
-          id: r.id,
-          name: r.name.trim(),
-          query: r.query.trim()
-        }
-        const ms = r.milestoneRegex.trim()
-        if (ms) out.milestoneRegex = ms
-        return out
-      })
+      .map((r) => ({ id: r.id, name: r.name.trim(), query: r.query.trim() }))
       .filter((r) => r.name && r.query)
     void window.api.setInboxQueries(cleaned)
     setSavedAt(Date.now())
@@ -2674,9 +2635,11 @@ function InboxQueriesEditor(): JSX.Element {
         >
           issue search syntax
         </a>
-        . The optional milestone regex matches against milestone titles in the
-        repos referenced by the query (or all tracked repos if none are
-        named) — one search per matched milestone, capped at five.
+        . A <code>milestone:"…"</code> clause that contains regex
+        metacharacters (<code>. * + ? ( ) [ ] ^ $ \ |</code>) is automatically
+        interpreted as a regex against milestone titles — the poller looks
+        up matching milestones in the repos named by <code>repo:</code>
+        (or all tracked repos), capped at five matches.
       </p>
 
       <InboxBranchPrefixesEditor />
@@ -2686,57 +2649,37 @@ function InboxQueriesEditor(): JSX.Element {
         {rows.length === 0 && (
           <p className="text-xs text-faint italic">No queries configured.</p>
         )}
-        {rows.map((row, idx) => {
-          const regexValid = isValidRegex(row.milestoneRegex)
-          return (
-            <div
-              key={row.id}
-              className="flex items-start gap-2 bg-panel-raised rounded p-2 border border-border"
-            >
-              <div className="flex-1 min-w-0 space-y-1.5">
-                <input
-                  type="text"
-                  value={row.name}
-                  onChange={(e) => updateRow(idx, { name: e.target.value })}
-                  placeholder="Name (e.g. Review requested)"
-                  className="w-full bg-panel border border-border-strong rounded px-2 py-1 text-xs text-fg-bright placeholder-faint outline-none focus:border-accent"
-                />
-                <input
-                  type="text"
-                  value={row.query}
-                  onChange={(e) => updateRow(idx, { query: e.target.value })}
-                  placeholder="is:open is:pr review-requested:@me"
-                  spellCheck={false}
-                  className="w-full bg-panel border border-border-strong rounded px-2 py-1 text-xs text-fg-bright placeholder-faint outline-none focus:border-accent font-mono"
-                />
-                <div>
-                  <input
-                    type="text"
-                    value={row.milestoneRegex}
-                    onChange={(e) => updateRow(idx, { milestoneRegex: e.target.value })}
-                    placeholder="Optional milestone regex (e.g. release-.+)"
-                    spellCheck={false}
-                    className={`w-full bg-panel border rounded px-2 py-1 text-xs placeholder-faint outline-none font-mono ${
-                      regexValid
-                        ? 'border-border-strong text-fg focus:border-accent'
-                        : 'border-danger text-danger focus:border-danger'
-                    }`}
-                  />
-                  {!regexValid && (
-                    <p className="mt-1 text-[10px] text-danger">Invalid regular expression</p>
-                  )}
-                </div>
-              </div>
-              <button
-                onClick={() => removeRow(idx)}
-                title="Remove"
-                className="text-faint hover:text-danger p-1 rounded cursor-pointer"
-              >
-                <Trash2 size={12} />
-              </button>
+        {rows.map((row, idx) => (
+          <div
+            key={row.id}
+            className="flex items-start gap-2 bg-panel-raised rounded p-2 border border-border"
+          >
+            <div className="flex-1 min-w-0 space-y-1.5">
+              <input
+                type="text"
+                value={row.name}
+                onChange={(e) => updateRow(idx, { name: e.target.value })}
+                placeholder="Name (e.g. Review requested)"
+                className="w-full bg-panel border border-border-strong rounded px-2 py-1 text-xs text-fg-bright placeholder-faint outline-none focus:border-accent"
+              />
+              <input
+                type="text"
+                value={row.query}
+                onChange={(e) => updateRow(idx, { query: e.target.value })}
+                placeholder='is:open is:pr review-requested:@me milestone:"release-.+"'
+                spellCheck={false}
+                className="w-full bg-panel border border-border-strong rounded px-2 py-1 text-xs text-fg-bright placeholder-faint outline-none focus:border-accent font-mono"
+              />
             </div>
-          )
-        })}
+            <button
+              onClick={() => removeRow(idx)}
+              title="Remove"
+              className="text-faint hover:text-danger p-1 rounded cursor-pointer"
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        ))}
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -2761,7 +2704,7 @@ function InboxQueriesEditor(): JSX.Element {
       <div className="flex items-center gap-3">
         <button
           onClick={handleSave}
-          disabled={!dirty || anyInvalidRegex}
+          disabled={!dirty}
           className="px-3 py-1.5 bg-accent text-app rounded text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
         >
           Save inbox queries

@@ -15,16 +15,13 @@ export interface InboxQuery {
   id: string
   /** Display name shown as the tab label in the Inbox view. */
   name: string
-  /** GitHub search-issues query string. Passed verbatim to the API. */
+  /** GitHub search-issues query string. Passed mostly verbatim to the API,
+   *  except that `milestone:"<regex>"` clauses containing regex metacharacters
+   *  are intercepted: the poller enumerates the candidate repos' milestones,
+   *  regex-matches their titles, and issues one scoped search per match.
+   *  `milestone:"plain-name"` (no metacharacters) is left alone and treated
+   *  as GitHub's native exact-match. */
   query: string
-  /** Optional regex to filter results by milestone title. GitHub Search
-   *  itself only supports exact-match `milestone:"name"`; when this field
-   *  is set, the poller enumerates the candidate repos' milestones,
-   *  regex-matches their titles, and issues one scoped search per
-   *  matching milestone. The repo set comes from any `repo:owner/name`
-   *  clauses in `query`; otherwise it falls back to every tracked
-   *  repoRoot. */
-  milestoneRegex?: string
 }
 
 export interface SettingsState {

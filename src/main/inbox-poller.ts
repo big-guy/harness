@@ -105,8 +105,9 @@ export class InboxPoller {
       payload: { queryId: q.id, loading: true }
     })
     try {
-      const result = q.milestoneRegex
-        ? await this.runWithMilestoneRegex(q, q.milestoneRegex)
+      const inlineRegex = detectMilestoneRegex(q.query)
+      const result = inlineRegex
+        ? await this.runWithMilestoneRegex(q, inlineRegex)
         : await this.runSimple(q.query)
       if (result === null) {
         this.store.dispatch({
@@ -179,7 +180,7 @@ export class InboxPoller {
       }
       if (candidates.length === 0) {
         throw new Error(
-          'milestoneRegex needs a `repo:` clause in the query or at least one tracked repository'
+          'milestone:"…regex…" needs a `repo:` clause in the query or at least one tracked repository'
         )
       }
     }
@@ -234,6 +235,25 @@ export class InboxPoller {
     if (items.length > 100) items.length = 100
     return { items, totalCount }
   }
+}
+
+/** Walk the query for `milestone:` clauses. If any clause's value contains
+ *  regex metacharacters, return that value (the regex source); otherwise
+ *  return null and let GitHub's exact-match handle the literal clause. */
+export function detectMilestoneRegex(query: string): string | null {
+  const re = /\bmilestone:("[^"]*"|'[^']*'|\S+)/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(query)) !== null) {
+    let val = m[1]
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1)
+    }
+    if (/[.*+?()[\]^$\\|{}]/.test(val)) return val
+  }
+  return null
 }
 
 function toInboxItem(it: SearchIssuesItem): {

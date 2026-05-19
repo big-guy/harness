@@ -1355,7 +1355,7 @@ function registerIpcHandlers(): void {
   )
 
   transport.onRequest('config:setInboxQueries', (_ctx, queries: unknown) => {
-    const cleaned: { id: string; name: string; query: string; milestoneRegex?: string }[] = []
+    const cleaned: { id: string; name: string; query: string }[] = []
     if (Array.isArray(queries)) {
       for (const raw of queries) {
         if (!raw || typeof raw !== 'object') continue
@@ -1364,15 +1364,7 @@ function registerIpcHandlers(): void {
         const name = typeof r.name === 'string' ? r.name.trim() : ''
         const query = typeof r.query === 'string' ? r.query.trim() : ''
         if (!id || !name || !query) continue
-        const milestoneRegex =
-          typeof r.milestoneRegex === 'string' ? r.milestoneRegex.trim() : ''
-        const entry: { id: string; name: string; query: string; milestoneRegex?: string } = {
-          id,
-          name,
-          query
-        }
-        if (milestoneRegex) entry.milestoneRegex = milestoneRegex
-        cleaned.push(entry)
+        cleaned.push({ id, name, query })
       }
     }
     const prev = store.getSnapshot().state.settings.inboxQueries
@@ -1385,16 +1377,13 @@ function registerIpcHandlers(): void {
     store.dispatch({ type: 'settings/inboxQueriesChanged', payload: cleaned })
 
     // Drop stale per-query state for ids that were removed, then refresh
-    // queries that are newly added or whose query / milestoneRegex changed.
+    // queries that are newly added or whose query string changed.
     const keepIds = cleaned.map((q) => q.id)
     store.dispatch({ type: 'inbox/queriesPruned', payload: { keepIds } })
     inboxPoller.pruneTo(keepIds)
-    const prevById = new Map(
-      prev.map((q) => [q.id, `${q.query}${q.milestoneRegex ?? ''}`])
-    )
+    const prevById = new Map(prev.map((q) => [q.id, q.query]))
     for (const q of cleaned) {
-      const key = `${q.query}${q.milestoneRegex ?? ''}`
-      if (prevById.get(q.id) !== key) {
+      if (prevById.get(q.id) !== q.query) {
         void inboxPoller.refreshById(q.id)
       }
     }

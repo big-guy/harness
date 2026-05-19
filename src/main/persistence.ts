@@ -152,7 +152,7 @@ export interface Config {
   // autoApprovePermissions is on.
   autoApproveSteerInstructions?: string
   // Named GitHub search-issues queries that drive the Inbox view.
-  inboxQueries?: { id: string; name: string; query: string; milestoneRegex?: string }[]
+  inboxQueries?: { id: string; name: string; query: string }[]
   // Branch-name prefixes used when the Inbox creates a worktree.
   inboxPRBranchPrefix?: string
   inboxIssueBranchPrefix?: string
