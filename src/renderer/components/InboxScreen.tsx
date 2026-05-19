@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   ArrowLeft,
   RefreshCw,
@@ -185,8 +187,10 @@ function ItemRow({
       {expanded && (
         <div className="px-3 pb-3 pt-1 border-t border-border bg-panel-raised/30">
           {item.bodyPreview ? (
-            <div className="text-xs text-muted whitespace-pre-wrap line-clamp-6">
-              {item.bodyPreview}
+            <div className="markdown text-xs text-muted max-h-72 overflow-y-auto pr-1">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {item.bodyPreview}
+              </ReactMarkdown>
             </div>
           ) : (
             <div className="text-xs text-faint italic">No description.</div>

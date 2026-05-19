@@ -428,7 +428,7 @@ export async function searchIssues(
         createdAt: it.created_at,
         updatedAt: it.updated_at,
         commentCount: it.comments,
-        bodyPreview: it.body ? it.body.slice(0, 280) : null,
+        bodyPreview: it.body || null,
         milestone: it.milestone
           ? {
               title: it.milestone.title,
