@@ -188,6 +188,9 @@ export interface ElectronAPI {
   refreshPRsAllIfStale(): Promise<boolean>
   refreshPRsOne(worktreePath: string): Promise<boolean>
   refreshPRsOneIfStale(worktreePath: string): Promise<boolean>
+  refreshInboxAll(): Promise<boolean>
+  refreshInboxAllIfStale(): Promise<boolean>
+  refreshInboxOne(queryId: string): Promise<boolean>
 
   getWeeklyStats(): Promise<WeeklyStats>
   getBranchCommits(worktreePath: string): Promise<BranchCommit[]>
@@ -224,6 +227,7 @@ export interface ElectronAPI {
   setHarnessMcpEnabled(enabled: boolean): Promise<boolean>
   setAutoApprovePermissions(enabled: boolean): Promise<boolean>
   setAutoApproveSteerInstructions(text: string): Promise<boolean>
+  setInboxQueries(queries: { id: string; name: string; query: string }[]): Promise<boolean>
   setClaudeTuiFullscreen(enabled: boolean): Promise<boolean>
   setWsTransportEnabled(enabled: boolean): Promise<boolean>
   setWsTransportPort(port: number): Promise<number>

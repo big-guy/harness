@@ -77,8 +77,14 @@ import {
   type JsonClaudeEvent,
   type JsonClaudeState
 } from './json-claude'
+import {
+  initialInbox,
+  inboxReducer,
+  type InboxEvent,
+  type InboxState
+} from './inbox'
 
-export type { SettingsState, SettingsEvent }
+export type { SettingsState, SettingsEvent, InboxQuery } from './settings'
 export type { UpdaterState, UpdaterEvent, UpdaterStatus } from './updater'
 export type {
   RepoConfigsState,
@@ -142,6 +148,15 @@ export type {
   JsonClaudeMessageBlock,
   JsonClaudePendingApproval
 } from './json-claude'
+export type {
+  InboxState,
+  InboxEvent,
+  InboxItem,
+  InboxItemRef,
+  InboxKind,
+  InboxLabel,
+  InboxUser
+} from './inbox'
 
 export interface AppState {
   settings: SettingsState
@@ -155,6 +170,7 @@ export interface AppState {
   costs: CostsState
   browser: BrowserState
   jsonClaude: JsonClaudeState
+  inbox: InboxState
 }
 
 export type StateEvent =
@@ -169,6 +185,7 @@ export type StateEvent =
   | CostsEvent
   | BrowserEvent
   | JsonClaudeEvent
+  | InboxEvent
 
 export const initialState: AppState = {
   settings: initialSettings,
@@ -181,7 +198,8 @@ export const initialState: AppState = {
   repoConfigs: initialRepoConfigs,
   costs: initialCosts,
   browser: initialBrowser,
-  jsonClaude: initialJsonClaude
+  jsonClaude: initialJsonClaude,
+  inbox: initialInbox
 }
 
 export function rootReducer(state: AppState, event: StateEvent): AppState {
@@ -235,6 +253,9 @@ export function rootReducer(state: AppState, event: StateEvent): AppState {
       ...state,
       jsonClaude: jsonClaudeReducer(state.jsonClaude, event as JsonClaudeEvent)
     }
+  }
+  if (event.type.startsWith('inbox/')) {
+    return { ...state, inbox: inboxReducer(state.inbox, event as InboxEvent) }
   }
   return state
 }

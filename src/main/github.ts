@@ -284,6 +284,122 @@ export async function getPRStatus(worktreePath: string): Promise<PRStatus | null
   }
 }
 
+// ---------------------------------------------------------------------------
+// Search API — used by the Inbox view.
+//
+// Search has its own rate limit (30 req/min authenticated) and a hard 1000
+// result cap regardless of pagination. We always sort by updated desc so the
+// first page is the most recently active items — what you actually want in
+// an inbox. If `total_count > per_page` the UI surfaces a truncation banner.
+// ---------------------------------------------------------------------------
+
+interface ApiSearchUser {
+  login: string
+  avatar_url: string
+}
+
+interface ApiSearchLabel {
+  name: string
+  color: string
+}
+
+interface ApiSearchItem {
+  number: number
+  title: string
+  html_url: string
+  state: 'open' | 'closed'
+  user: ApiSearchUser | null
+  labels: ApiSearchLabel[]
+  assignees: ApiSearchUser[] | null
+  created_at: string
+  updated_at: string
+  comments: number
+  body: string | null
+  /** Present iff this item is a pull request rather than an issue. */
+  pull_request?: { url: string }
+  /** The repo URL — used to derive owner/repo. Format:
+   *  `https://api.github.com/repos/{owner}/{repo}`. */
+  repository_url: string
+}
+
+interface ApiSearchResult {
+  total_count: number
+  incomplete_results: boolean
+  items: ApiSearchItem[]
+}
+
+export interface SearchIssuesItem {
+  kind: 'issue' | 'pr'
+  owner: string
+  repo: string
+  number: number
+  title: string
+  url: string
+  state: 'open' | 'closed'
+  author: { login: string; avatarUrl: string } | null
+  labels: { name: string; color: string }[]
+  assignees: { login: string; avatarUrl: string }[]
+  createdAt: string
+  updatedAt: string
+  commentCount: number
+  bodyPreview: string | null
+}
+
+function parseRepoUrl(repositoryUrl: string): { owner: string; repo: string } | null {
+  // Format: https://api.github.com/repos/{owner}/{repo}
+  const m = repositoryUrl.match(/\/repos\/([^/]+)\/([^/]+?)\/?$/)
+  if (!m) return null
+  return { owner: m[1], repo: m[2] }
+}
+
+/** Run a GitHub issues/PR search. Returns up to 100 most-recently-updated
+ *  items plus the total_count GitHub reported (for truncation UI). */
+export async function searchIssues(
+  query: string
+): Promise<{ items: SearchIssuesItem[]; totalCount: number } | null> {
+  const token = getCachedToken()
+  if (!token) return null
+
+  const url =
+    'https://api.github.com/search/issues' +
+    `?q=${encodeURIComponent(query)}` +
+    '&sort=updated&order=desc&per_page=100'
+  try {
+    const res = (await githubFetch(url)) as ApiSearchResult
+    const items: SearchIssuesItem[] = []
+    for (const it of res.items || []) {
+      const parsed = parseRepoUrl(it.repository_url)
+      if (!parsed) continue
+      const kind: 'issue' | 'pr' = it.pull_request ? 'pr' : 'issue'
+      items.push({
+        kind,
+        owner: parsed.owner,
+        repo: parsed.repo,
+        number: it.number,
+        title: it.title,
+        url: it.html_url,
+        state: it.state,
+        author: it.user
+          ? { login: it.user.login, avatarUrl: it.user.avatar_url }
+          : null,
+        labels: (it.labels || []).map((l) => ({ name: l.name, color: l.color })),
+        assignees: (it.assignees || []).map((u) => ({
+          login: u.login,
+          avatarUrl: u.avatar_url
+        })),
+        createdAt: it.created_at,
+        updatedAt: it.updated_at,
+        commentCount: it.comments,
+        bodyPreview: it.body ? it.body.slice(0, 280) : null
+      })
+    }
+    return { items, totalCount: res.total_count }
+  } catch (err) {
+    log('github', 'searchIssues failed', err instanceof Error ? err.message : err)
+    throw err
+  }
+}
+
 /** Check whether the authenticated user has starred the repo. */
 export async function isRepoStarred(token: string, owner: string, repo: string): Promise<boolean | null> {
   try {
