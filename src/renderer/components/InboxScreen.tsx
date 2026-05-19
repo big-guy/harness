@@ -92,6 +92,21 @@ function StateIcon({
   return <CircleDot size={14} className={stateColor(item, inMergeQueue)} />
 }
 
+/** Extract referenced issue/PR numbers from the body. Matches `#NNN` and
+ *  `GH-NNN`; dedupes; excludes the PR's own number. */
+function extractIssueRefs(body: string | null, selfNumber: number): number[] {
+  if (!body) return []
+  const re = /(?:#|\bGH-)(\d+)\b/g
+  const seen = new Set<number>()
+  let m: RegExpExecArray | null
+  while ((m = re.exec(body)) !== null) {
+    const n = parseInt(m[1], 10)
+    if (!Number.isFinite(n) || n === selfNumber) continue
+    seen.add(n)
+  }
+  return [...seen].sort((a, b) => a - b)
+}
+
 function UserBadge({
   user
 }: {
@@ -200,6 +215,28 @@ function ItemRow({
       </button>
       {expanded && (
         <div className="px-3 pb-3 pt-1 border-t border-border bg-panel-raised/30">
+          {item.kind === 'pr' && (() => {
+            const refs = extractIssueRefs(item.bodyPreview, item.number)
+            if (refs.length === 0) return null
+            return (
+              <div className="text-xs text-dim mb-2 flex items-center gap-1.5 flex-wrap">
+                <span>References:</span>
+                {refs.map((n) => (
+                  <button
+                    key={n}
+                    onClick={() =>
+                      window.api.openExternal(
+                        `https://github.com/${item.owner}/${item.repo}/issues/${n}`
+                      )
+                    }
+                    className="rounded-sm bg-surface hover:bg-surface-hover text-fg px-1 text-[10px] cursor-pointer"
+                  >
+                    #{n}
+                  </button>
+                ))}
+              </div>
+            )
+          })()}
           {item.bodyPreview ? (
             <div className="markdown text-xs text-muted max-h-72 overflow-y-auto pr-1">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
