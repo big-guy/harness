@@ -428,7 +428,7 @@ export async function searchIssues(
         createdAt: it.created_at,
         updatedAt: it.updated_at,
         commentCount: it.comments,
-        bodyPreview: it.body ? it.body.slice(0, 280) : null,
+        bodyPreview: it.body || null,
         milestone: it.milestone
           ? {
               title: it.milestone.title,
@@ -522,6 +522,31 @@ export interface PRRef {
   baseRef: string
   baseRepoFullName: string
   isFork: boolean
+}
+
+interface ApiPRAutoMerge {
+  auto_merge: { merge_method?: string } | null
+}
+
+/** Lightweight per-PR fetch used to decorate Inbox rows. Returns true when
+ *  the PR has auto-merge enabled (which on repos with the GitHub merge
+ *  queue corresponds to "queued"). Null = no token or fetch error. */
+export async function getPRAutoMerge(
+  owner: string,
+  repo: string,
+  number: number
+): Promise<boolean | null> {
+  const token = getCachedToken()
+  if (!token) return null
+  try {
+    const pr = (await githubFetch(
+      `https://api.github.com/repos/${owner}/${repo}/pulls/${number}`
+    )) as ApiPRAutoMerge
+    return pr.auto_merge !== null
+  } catch (err) {
+    log('github', `getPRAutoMerge failed for ${owner}/${repo}#${number}`, err instanceof Error ? err.message : err)
+    return null
+  }
 }
 
 export async function getPRRef(

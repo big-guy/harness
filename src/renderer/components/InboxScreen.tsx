@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   ArrowLeft,
   RefreshCw,
@@ -67,20 +69,62 @@ function filterAndSort(items: InboxItem[], filter: string, sort: SortKey): Inbox
   return sorted
 }
 
-function stateColor(item: InboxItem): string {
+function stateColor(item: InboxItem, inMergeQueue: boolean): string {
   if (item.state === 'closed') return 'text-fg/40'
+  if (item.kind === 'pr' && inMergeQueue) return 'text-purple-400'
   if (item.kind === 'pr') return 'text-success'
   return 'text-accent'
 }
 
-function StateIcon({ item }: { item: InboxItem }): JSX.Element {
+function StateIcon({
+  item,
+  inMergeQueue
+}: {
+  item: InboxItem
+  inMergeQueue: boolean
+}): JSX.Element {
   if (item.kind === 'pr') {
-    return <GitPullRequest size={14} className={stateColor(item)} />
+    return <GitPullRequest size={14} className={stateColor(item, inMergeQueue)} />
   }
   if (item.state === 'closed') {
-    return <CircleX size={14} className={stateColor(item)} />
+    return <CircleX size={14} className={stateColor(item, inMergeQueue)} />
   }
-  return <CircleDot size={14} className={stateColor(item)} />
+  return <CircleDot size={14} className={stateColor(item, inMergeQueue)} />
+}
+
+/** Extract referenced issue/PR numbers from the body. Matches `#NNN` and
+ *  `GH-NNN`; dedupes; excludes the PR's own number. */
+function extractIssueRefs(body: string | null, selfNumber: number): number[] {
+  if (!body) return []
+  const re = /(?:#|\bGH-)(\d+)\b/g
+  const seen = new Set<number>()
+  let m: RegExpExecArray | null
+  while ((m = re.exec(body)) !== null) {
+    const n = parseInt(m[1], 10)
+    if (!Number.isFinite(n) || n === selfNumber) continue
+    seen.add(n)
+  }
+  return [...seen].sort((a, b) => a - b)
+}
+
+function UserBadge({
+  user
+}: {
+  user: { login: string; avatarUrl: string }
+}): JSX.Element {
+  return (
+    <span className="inline-flex items-center gap-1">
+      {user.avatarUrl && (
+        <img
+          src={user.avatarUrl}
+          alt=""
+          loading="lazy"
+          className="w-3.5 h-3.5 rounded-full shrink-0"
+        />
+      )}
+      <span>{user.login}</span>
+    </span>
+  )
 }
 
 interface ItemRowProps {
@@ -93,6 +137,7 @@ interface ItemRowProps {
   /** Existing worktree for this item, if any. When set, the action label
    *  switches from "Check out…" to "Open existing worktree". */
   existingWorktree: Worktree | null
+  inMergeQueue: boolean
 }
 
 function ItemRow({
@@ -102,7 +147,8 @@ function ItemRow({
   onCreateWorktree,
   createWorktreePending,
   createWorktreeError,
-  existingWorktree
+  existingWorktree,
+  inMergeQueue
 }: ItemRowProps): JSX.Element {
   return (
     <div className="border-b border-border">
@@ -111,7 +157,7 @@ function ItemRow({
         className="w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-panel-raised/40 transition-colors cursor-pointer"
       >
         <span className="mt-0.5">
-          <StateIcon item={item} />
+          <StateIcon item={item} inMergeQueue={inMergeQueue} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 min-w-0">
@@ -121,7 +167,7 @@ function ItemRow({
             <span className="text-sm text-fg-bright truncate">{item.title}</span>
           </div>
           <div className="flex items-center gap-2 mt-0.5 text-[11px] text-dim">
-            {item.author && <span>{item.author.login}</span>}
+            {item.author && <UserBadge user={item.author} />}
             <span>updated {formatRelative(item.updatedAt)} ago</span>
             {item.commentCount > 0 && <span>· {item.commentCount} comments</span>}
             {item.milestone && (
@@ -132,6 +178,11 @@ function ItemRow({
             {existingWorktree && (
               <span className="rounded-sm bg-accent/15 text-accent px-1 text-[10px]">
                 in worktree
+              </span>
+            )}
+            {inMergeQueue && (
+              <span className="rounded-sm bg-purple-400/15 text-purple-400 px-1 text-[10px]">
+                queued
               </span>
             )}
             {item.labels.length > 0 && (
@@ -164,16 +215,43 @@ function ItemRow({
       </button>
       {expanded && (
         <div className="px-3 pb-3 pt-1 border-t border-border bg-panel-raised/30">
+          {item.kind === 'pr' && (() => {
+            const refs = extractIssueRefs(item.bodyPreview, item.number)
+            if (refs.length === 0) return null
+            return (
+              <div className="text-xs text-dim mb-2 flex items-center gap-1.5 flex-wrap">
+                <span>References:</span>
+                {refs.map((n) => (
+                  <button
+                    key={n}
+                    onClick={() =>
+                      window.api.openExternal(
+                        `https://github.com/${item.owner}/${item.repo}/issues/${n}`
+                      )
+                    }
+                    className="rounded-sm bg-surface hover:bg-surface-hover text-fg px-1 text-[10px] cursor-pointer"
+                  >
+                    #{n}
+                  </button>
+                ))}
+              </div>
+            )
+          })()}
           {item.bodyPreview ? (
-            <div className="text-xs text-muted whitespace-pre-wrap line-clamp-6">
-              {item.bodyPreview}
+            <div className="markdown text-xs text-muted max-h-72 overflow-y-auto pr-1">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {item.bodyPreview}
+              </ReactMarkdown>
             </div>
           ) : (
             <div className="text-xs text-faint italic">No description.</div>
           )}
           {item.assignees.length > 0 && (
-            <div className="text-xs text-dim mt-2">
-              Assigned to {item.assignees.map((a) => a.login).join(', ')}
+            <div className="text-xs text-dim mt-2 flex items-center gap-1.5 flex-wrap">
+              <span>Assigned to</span>
+              {item.assignees.map((a) => (
+                <UserBadge key={a.login} user={a} />
+              ))}
             </div>
           )}
           <div className="mt-3 flex items-center gap-2">
@@ -467,6 +545,9 @@ export function InboxScreen({
                   createWorktreePending={!!creating[key]}
                   createWorktreeError={createError[key] ?? null}
                   existingWorktree={findExistingWorktree(it)}
+                  inMergeQueue={
+                    it.kind === 'pr' && !!inbox.mergeQueueByKey[`pr:${it.owner}/${it.repo}#${it.number}`]
+                  }
                 />
               )
             })}
