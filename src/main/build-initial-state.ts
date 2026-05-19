@@ -9,6 +9,7 @@ import { initialRepoConfigs } from '../shared/state/repo-configs'
 import { initialCosts, type CostsState } from '../shared/state/costs'
 import { initialBrowser } from '../shared/state/browser'
 import { initialJsonClaude } from '../shared/state/json-claude'
+import { initialInbox } from '../shared/state/inbox'
 import { initialSettings } from '../shared/state/settings'
 import {
   DEFAULT_CLAUDE_COMMAND,
@@ -41,6 +42,7 @@ export function buildInitialAppState(
     costs: config.costs ? { ...initialCosts, ...config.costs } : initialCosts,
     browser: initialBrowser,
     jsonClaude: initialJsonClaude,
+    inbox: initialInbox,
     settings: {
       ...initialSettings,
       theme: config.theme || DEFAULT_THEME,
@@ -78,7 +80,8 @@ export function buildInitialAppState(
       jsonModeClaudeTabs: config.jsonModeClaudeTabs === true,
       defaultClaudeTabType: config.defaultClaudeTabType === 'json' ? 'json' : 'xterm',
       autoApprovePermissions: config.autoApprovePermissions === true,
-      autoApproveSteerInstructions: config.autoApproveSteerInstructions || ''
+      autoApproveSteerInstructions: config.autoApproveSteerInstructions || '',
+      inboxQueries: Array.isArray(config.inboxQueries) ? config.inboxQueries : []
     }
   }
 }

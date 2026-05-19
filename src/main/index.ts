@@ -1245,6 +1245,29 @@ function registerIpcHandlers(): void {
     return true
   })
 
+  transport.onRequest('config:setInboxQueries', (_ctx, queries: unknown) => {
+    const cleaned: { id: string; name: string; query: string }[] = []
+    if (Array.isArray(queries)) {
+      for (const raw of queries) {
+        if (!raw || typeof raw !== 'object') continue
+        const r = raw as Record<string, unknown>
+        const id = typeof r.id === 'string' ? r.id.trim() : ''
+        const name = typeof r.name === 'string' ? r.name.trim() : ''
+        const query = typeof r.query === 'string' ? r.query.trim() : ''
+        if (!id || !name || !query) continue
+        cleaned.push({ id, name, query })
+      }
+    }
+    if (cleaned.length === 0) {
+      delete config.inboxQueries
+    } else {
+      config.inboxQueries = cleaned
+    }
+    saveConfig(config)
+    store.dispatch({ type: 'settings/inboxQueriesChanged', payload: cleaned })
+    return true
+  })
+
   transport.onRequest('mcp:prepareForTerminal', (_ctx, terminalId: string): string | null => {
     if (config.harnessMcpEnabled === false) return null
     if (!terminalId) return null

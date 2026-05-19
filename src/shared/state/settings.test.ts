@@ -351,6 +351,21 @@ describe('settingsReducer', () => {
     expect(cleared.autoApproveSteerInstructions).toBe('')
   })
 
+  it('inboxQueriesChanged replaces the queries array', () => {
+    expect(initialSettings.inboxQueries).toEqual([])
+    const next = apply(initialSettings, {
+      type: 'settings/inboxQueriesChanged',
+      payload: [
+        { id: 'a', name: 'Review requested', query: 'is:open is:pr review-requested:@me' },
+        { id: 'b', name: 'Assigned to me', query: 'is:open assignee:@me' }
+      ]
+    })
+    expect(next.inboxQueries).toHaveLength(2)
+    expect(next.inboxQueries[0].id).toBe('a')
+    const cleared = apply(next, { type: 'settings/inboxQueriesChanged', payload: [] })
+    expect(cleared.inboxQueries).toEqual([])
+  })
+
   it('returns a new object reference (no mutation)', () => {
     const next = apply(initialSettings, { type: 'settings/themeChanged', payload: 'x' })
     expect(next).not.toBe(initialSettings)

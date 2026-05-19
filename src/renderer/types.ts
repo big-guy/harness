@@ -224,6 +224,7 @@ export interface ElectronAPI {
   setHarnessMcpEnabled(enabled: boolean): Promise<boolean>
   setAutoApprovePermissions(enabled: boolean): Promise<boolean>
   setAutoApproveSteerInstructions(text: string): Promise<boolean>
+  setInboxQueries(queries: { id: string; name: string; query: string }[]): Promise<boolean>
   setClaudeTuiFullscreen(enabled: boolean): Promise<boolean>
   setWsTransportEnabled(enabled: boolean): Promise<boolean>
   setWsTransportPort(port: number): Promise<number>

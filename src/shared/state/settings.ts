@@ -10,6 +10,15 @@ export type AgentKindSetting = 'claude' | 'codex'
 
 export type BrowserToolsMode = 'view' | 'full'
 
+export interface InboxQuery {
+  /** Stable id used as a React key and as the key in `inbox.byQueryId`. */
+  id: string
+  /** Display name shown as the tab label in the Inbox view. */
+  name: string
+  /** GitHub search-issues query string. Passed verbatim to the API. */
+  query: string
+}
+
 export interface SettingsState {
   theme: string
   hotkeys: Record<string, string> | null
@@ -64,6 +73,9 @@ export interface SettingsState {
    *  Empty by default — the base policy is what runs. Has no effect
    *  unless autoApprovePermissions is on. */
   autoApproveSteerInstructions: string
+  /** Named GitHub search-issues queries that drive the Inbox view. Empty
+   *  array means the Inbox shows an empty/setup state. */
+  inboxQueries: InboxQuery[]
 }
 
 export type SettingsEvent =
@@ -102,6 +114,7 @@ export type SettingsEvent =
   | { type: 'settings/defaultClaudeTabTypeChanged'; payload: 'xterm' | 'json' }
   | { type: 'settings/autoApprovePermissionsChanged'; payload: boolean }
   | { type: 'settings/autoApproveSteerInstructionsChanged'; payload: string }
+  | { type: 'settings/inboxQueriesChanged'; payload: InboxQuery[] }
 
 // Client-side placeholder. Real values are seeded in the main-process Store
 // constructor from the on-disk config and secrets.
@@ -140,7 +153,8 @@ export const initialSettings: SettingsState = {
   jsonModeClaudeTabs: false,
   defaultClaudeTabType: 'xterm',
   autoApprovePermissions: false,
-  autoApproveSteerInstructions: ''
+  autoApproveSteerInstructions: '',
+  inboxQueries: []
 }
 
 export function settingsReducer(state: SettingsState, event: SettingsEvent): SettingsState {
@@ -215,6 +229,8 @@ export function settingsReducer(state: SettingsState, event: SettingsEvent): Set
       return { ...state, autoApprovePermissions: event.payload }
     case 'settings/autoApproveSteerInstructionsChanged':
       return { ...state, autoApproveSteerInstructions: event.payload }
+    case 'settings/inboxQueriesChanged':
+      return { ...state, inboxQueries: event.payload }
     default: {
       const _exhaustive: never = event
       void _exhaustive

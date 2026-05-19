@@ -151,6 +151,8 @@ export interface Config {
   // policy prompt. Empty by default. Has no effect unless
   // autoApprovePermissions is on.
   autoApproveSteerInstructions?: string
+  // Named GitHub search-issues queries that drive the Inbox view.
+  inboxQueries?: { id: string; name: string; query: string }[]
 }
 
 export const DEFAULT_WORKTREE_BASE: 'remote' | 'local' = 'remote'
