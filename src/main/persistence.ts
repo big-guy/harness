@@ -152,7 +152,7 @@ export interface Config {
   // autoApprovePermissions is on.
   autoApproveSteerInstructions?: string
   // Named GitHub search-issues queries that drive the Inbox view.
-  inboxQueries?: { id: string; name: string; query: string }[]
+  inboxQueries?: { id: string; name: string; query: string; milestoneRegex?: string }[]
 }
 
 export const DEFAULT_WORKTREE_BASE: 'remote' | 'local' = 'remote'

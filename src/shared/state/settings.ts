@@ -17,6 +17,14 @@ export interface InboxQuery {
   name: string
   /** GitHub search-issues query string. Passed verbatim to the API. */
   query: string
+  /** Optional regex to filter results by milestone title. GitHub Search
+   *  itself only supports exact-match `milestone:"name"`; when this field
+   *  is set, the poller enumerates the candidate repos' milestones,
+   *  regex-matches their titles, and issues one scoped search per
+   *  matching milestone. The repo set comes from any `repo:owner/name`
+   *  clauses in `query`; otherwise it falls back to every tracked
+   *  repoRoot. */
+  milestoneRegex?: string
 }
 
 export interface SettingsState {

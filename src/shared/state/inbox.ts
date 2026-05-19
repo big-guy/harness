@@ -30,6 +30,12 @@ export interface InboxUser {
   avatarUrl: string
 }
 
+export interface InboxMilestone {
+  title: string
+  state: 'open' | 'closed'
+  number: number
+}
+
 export interface InboxItem {
   kind: InboxKind
   owner: string
@@ -50,6 +56,8 @@ export interface InboxItem {
   /** Short text body preview from the search result (issue body, truncated
    *  server-side). Null when the body wasn't returned. */
   bodyPreview: string | null
+  /** Milestone the item belongs to, if any. */
+  milestone: InboxMilestone | null
 }
 
 export interface InboxState {

@@ -105,6 +105,11 @@ function ItemRow({ item, expanded, onToggle }: ItemRowProps): JSX.Element {
             {item.author && <span>{item.author.login}</span>}
             <span>updated {formatRelative(item.updatedAt)} ago</span>
             {item.commentCount > 0 && <span>· {item.commentCount} comments</span>}
+            {item.milestone && (
+              <span className="rounded-sm bg-surface text-fg px-1 text-[10px]">
+                {item.milestone.title}
+              </span>
+            )}
             {item.labels.length > 0 && (
               <span className="flex items-center gap-1 truncate">
                 {item.labels.slice(0, 4).map((l) => (

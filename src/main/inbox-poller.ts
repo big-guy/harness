@@ -1,7 +1,22 @@
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { log } from './debug'
-import { searchIssues } from './github'
+import {
+  searchIssues,
+  listMilestones,
+  parseRepoClauses,
+  stripMilestoneClauses,
+  type SearchIssuesItem
+} from './github'
 import type { Store } from './store'
 import type { InboxQuery } from '../shared/state/settings'
+
+const execFileAsync = promisify(execFile)
+
+// Cap on the number of matched milestones we'll fan out into per-milestone
+// searches. Each match is one Search API call; the 30 req/min limit means
+// we need to bound this. A user whose regex matches more should refine.
+const MAX_MILESTONES_PER_QUERY = 5
 
 // Search API is 30 req/min authenticated and has a hard 1000-result cap.
 // Two minutes between full sweeps keeps us comfortably under that even
@@ -11,6 +26,9 @@ const STALE_WINDOW_MS = 60 * 1000
 
 interface InboxPollerOptions {
   getQueries: () => InboxQuery[]
+  /** Tracked repo roots in the workspace. Used to enumerate milestone
+   *  candidates when a query with milestoneRegex has no `repo:` clause. */
+  getRepoRoots: () => string[]
 }
 
 /** Owns background inbox polling. One GitHub search call per configured
@@ -90,9 +108,10 @@ export class InboxPoller {
       payload: { queryId: q.id, loading: true }
     })
     try {
-      const result = await searchIssues(q.query)
+      const result = q.milestoneRegex
+        ? await this.runWithMilestoneRegex(q, q.milestoneRegex)
+        : await this.runSimple(q.query)
       if (result === null) {
-        // No token — surface as an error so the UI can prompt for one.
         this.store.dispatch({
           type: 'inbox/queryErrorChanged',
           payload: { queryId: q.id, error: 'Connect GitHub to use the inbox' }
@@ -105,22 +124,7 @@ export class InboxPoller {
         type: 'inbox/queryResultChanged',
         payload: {
           queryId: q.id,
-          items: result.items.map((it) => ({
-            kind: it.kind,
-            owner: it.owner,
-            repo: it.repo,
-            number: it.number,
-            title: it.title,
-            url: it.url,
-            state: it.state,
-            author: it.author,
-            labels: it.labels,
-            assignees: it.assignees,
-            createdAt: it.createdAt,
-            updatedAt: it.updatedAt,
-            commentCount: it.commentCount,
-            bodyPreview: it.bodyPreview
-          })),
+          items: result.items.map(toInboxItem),
           totalCount: result.totalCount,
           fetchedAt: now
         }
@@ -139,5 +143,157 @@ export class InboxPoller {
         payload: { queryId: q.id, loading: false }
       })
     }
+  }
+
+  /** No-regex path: single search call, items already in updated-desc order. */
+  private async runSimple(
+    query: string
+  ): Promise<{ items: SearchIssuesItem[]; totalCount: number } | null> {
+    return await searchIssues(query)
+  }
+
+  /** milestoneRegex path: enumerate candidate repos' milestones, regex
+   *  match titles, then run one scoped search per matched (repo, title)
+   *  and merge results. */
+  private async runWithMilestoneRegex(
+    q: InboxQuery,
+    regexSource: string
+  ): Promise<{ items: SearchIssuesItem[]; totalCount: number } | null> {
+    let regex: RegExp
+    try {
+      regex = new RegExp(regexSource)
+    } catch (err) {
+      throw new Error(
+        `Invalid milestone regex: ${err instanceof Error ? err.message : String(err)}`
+      )
+    }
+
+    // Candidate repos: explicit repo: clauses in the query, else fall back
+    // to every tracked repoRoot mapped through its origin URL.
+    const explicit = parseRepoClauses(q.query)
+    let candidates: { owner: string; repo: string }[]
+    if (explicit.length > 0) {
+      candidates = explicit
+    } else {
+      candidates = []
+      for (const root of this.opts.getRepoRoots()) {
+        const parsed = await getRepoOriginInfo(root)
+        if (parsed) candidates.push(parsed)
+      }
+      if (candidates.length === 0) {
+        throw new Error(
+          'milestoneRegex needs a `repo:` clause in the query or at least one tracked repository'
+        )
+      }
+    }
+
+    // Resolve matched milestones per repo.
+    const matches: { owner: string; repo: string; title: string }[] = []
+    for (const c of candidates) {
+      let ms: { title: string; state: 'open' | 'closed' }[]
+      try {
+        ms = await listMilestones(c.owner, c.repo)
+      } catch {
+        continue
+      }
+      for (const m of ms) {
+        if (regex.test(m.title)) {
+          matches.push({ owner: c.owner, repo: c.repo, title: m.title })
+          if (matches.length >= MAX_MILESTONES_PER_QUERY) break
+        }
+      }
+      if (matches.length >= MAX_MILESTONES_PER_QUERY) break
+    }
+
+    if (matches.length === 0) {
+      return { items: [], totalCount: 0 }
+    }
+
+    const baseQuery = stripMilestoneClauses(q.query)
+    // Run scoped searches in parallel. Each call is bounded to a specific
+    // repo+milestone, so dedupe across calls is unlikely; we sum totals
+    // honestly and dedupe items defensively by composite key.
+    const scoped = await Promise.all(
+      matches.map(async (m) => {
+        const scopedQuery = `${baseQuery} repo:${m.owner}/${m.repo} milestone:"${m.title}"`.trim()
+        return await searchIssues(scopedQuery)
+      })
+    )
+
+    let totalCount = 0
+    const seen = new Set<string>()
+    const items: SearchIssuesItem[] = []
+    for (const r of scoped) {
+      if (!r) return null
+      totalCount += r.totalCount
+      for (const it of r.items) {
+        const key = `${it.kind}:${it.owner}/${it.repo}#${it.number}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        items.push(it)
+      }
+    }
+    items.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    if (items.length > 100) items.length = 100
+    return { items, totalCount }
+  }
+}
+
+function toInboxItem(it: SearchIssuesItem): {
+  kind: 'issue' | 'pr'
+  owner: string
+  repo: string
+  number: number
+  title: string
+  url: string
+  state: 'open' | 'closed'
+  author: { login: string; avatarUrl: string } | null
+  labels: { name: string; color: string }[]
+  assignees: { login: string; avatarUrl: string }[]
+  createdAt: string
+  updatedAt: string
+  commentCount: number
+  bodyPreview: string | null
+  milestone: { title: string; state: 'open' | 'closed'; number: number } | null
+} {
+  return {
+    kind: it.kind,
+    owner: it.owner,
+    repo: it.repo,
+    number: it.number,
+    title: it.title,
+    url: it.url,
+    state: it.state,
+    author: it.author,
+    labels: it.labels,
+    assignees: it.assignees,
+    createdAt: it.createdAt,
+    updatedAt: it.updatedAt,
+    commentCount: it.commentCount,
+    bodyPreview: it.bodyPreview,
+    milestone: it.milestone
+  }
+}
+
+/** Read remote.origin.url for a tracked repo root and parse it to
+ *  owner/repo. Mirrors the parse logic in github.ts but takes a repoRoot
+ *  rather than a worktree path so the inbox poller can call it without
+ *  reaching into a per-worktree primitive. */
+async function getRepoOriginInfo(
+  repoRoot: string
+): Promise<{ owner: string; repo: string } | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['config', '--get', 'remote.origin.url'],
+      { cwd: repoRoot }
+    )
+    const url = stdout.trim()
+    // SSH or HTTPS — match the trailing owner/repo.
+    const m = url.match(/[:/]([^/:]+)\/([^/]+?)(?:\.git)?$/)
+    if (!m) return null
+    return { owner: m[1], repo: m[2] }
+  } catch {
+    return null
   }
 }

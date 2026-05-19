@@ -155,7 +155,8 @@ export type {
   InboxItemRef,
   InboxKind,
   InboxLabel,
-  InboxUser
+  InboxUser,
+  InboxMilestone
 } from './inbox'
 
 export interface AppState {

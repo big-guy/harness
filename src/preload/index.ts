@@ -141,8 +141,9 @@ contextBridge.exposeInMainWorld('api', {
     req('config:setAutoApprovePermissions', enabled),
   setAutoApproveSteerInstructions: (text: string) =>
     req('config:setAutoApproveSteerInstructions', text),
-  setInboxQueries: (queries: { id: string; name: string; query: string }[]) =>
-    req('config:setInboxQueries', queries),
+  setInboxQueries: (
+    queries: { id: string; name: string; query: string; milestoneRegex?: string }[]
+  ) => req('config:setInboxQueries', queries),
   setClaudeTuiFullscreen: (enabled: boolean) => req('config:setClaudeTuiFullscreen', enabled),
   setWsTransportEnabled: (enabled: boolean) => req('config:setWsTransportEnabled', enabled),
   setWsTransportPort: (port: number) => req('config:setWsTransportPort', port),
