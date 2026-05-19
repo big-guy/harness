@@ -102,6 +102,10 @@ export function usePrs() {
   return useAppState((s) => s.prs)
 }
 
+export function useInbox() {
+  return useAppState((s) => s.inbox)
+}
+
 export function useOnboarding() {
   return useAppState((s) => s.onboarding)
 }

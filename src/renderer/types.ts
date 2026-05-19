@@ -188,6 +188,9 @@ export interface ElectronAPI {
   refreshPRsAllIfStale(): Promise<boolean>
   refreshPRsOne(worktreePath: string): Promise<boolean>
   refreshPRsOneIfStale(worktreePath: string): Promise<boolean>
+  refreshInboxAll(): Promise<boolean>
+  refreshInboxAllIfStale(): Promise<boolean>
+  refreshInboxOne(queryId: string): Promise<boolean>
 
   getWeeklyStats(): Promise<WeeklyStats>
   getBranchCommits(worktreePath: string): Promise<BranchCommit[]>

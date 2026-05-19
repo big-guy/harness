@@ -22,6 +22,7 @@ import { HeadlessBrowserManager } from './headless-browser-manager'
 import type { BrowserManagerLike } from './browser-manager-types'
 import { PerfMonitor } from './perf-monitor'
 import { PRPoller } from './pr-poller'
+import { InboxPoller } from './inbox-poller'
 import { WorktreesFSM } from './worktrees-fsm'
 import { WorktreeDeletionFSM } from './worktree-deletion-fsm'
 import { PanesFSM, stripTransientTabFields } from './panes-fsm'
@@ -371,6 +372,10 @@ const prPoller = new PRPoller(store, {
     }
     saveConfig(config)
   }
+})
+
+const inboxPoller = new InboxPoller(store, {
+  getQueries: () => store.getSnapshot().state.settings.inboxQueries
 })
 
 ptyManager.setStore(store)
@@ -925,6 +930,19 @@ function registerIpcHandlers(): void {
     return true
   })
 
+  transport.onRequest('inbox:refreshAll', async (_ctx) => {
+    await inboxPoller.refreshAll()
+    return true
+  })
+  transport.onRequest('inbox:refreshAllIfStale', (_ctx) => {
+    inboxPoller.refreshAllIfStale()
+    return true
+  })
+  transport.onRequest('inbox:refreshOne', async (_ctx, queryId: string) => {
+    await inboxPoller.refreshById(queryId)
+    return true
+  })
+
   transport.onRequest('stats:getWeekly', async (_ctx) => {
     const snap = store.getSnapshot().state
     return getWeeklyStats(snap.prs, snap.worktrees)
@@ -1258,6 +1276,7 @@ function registerIpcHandlers(): void {
         cleaned.push({ id, name, query })
       }
     }
+    const prev = store.getSnapshot().state.settings.inboxQueries
     if (cleaned.length === 0) {
       delete config.inboxQueries
     } else {
@@ -1265,6 +1284,18 @@ function registerIpcHandlers(): void {
     }
     saveConfig(config)
     store.dispatch({ type: 'settings/inboxQueriesChanged', payload: cleaned })
+
+    // Drop stale per-query state for ids that were removed, then refresh
+    // queries that are newly added or whose query string changed.
+    const keepIds = cleaned.map((q) => q.id)
+    store.dispatch({ type: 'inbox/queriesPruned', payload: { keepIds } })
+    inboxPoller.pruneTo(keepIds)
+    const prevById = new Map(prev.map((q) => [q.id, q.query]))
+    for (const q of cleaned) {
+      if (prevById.get(q.id) !== q.query) {
+        void inboxPoller.refreshById(q.id)
+      }
+    }
     return true
   })
 
@@ -2162,6 +2193,8 @@ async function runBoot(): Promise<void> {
     store.dispatch({ type: 'settings/githubAuthSourceChanged', payload: source })
     prPoller.start()
     void prPoller.refreshAll()
+    inboxPoller.start()
+    void inboxPoller.refreshAll()
 
     await refreshHarnessStarState()
   })()
