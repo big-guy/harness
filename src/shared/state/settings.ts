@@ -81,6 +81,15 @@ export interface SettingsState {
   /** Named GitHub search-issues queries that drive the Inbox view. Empty
    *  array means the Inbox shows an empty/setup state. */
   inboxQueries: InboxQuery[]
+  /** Prefix prepended to auto-generated branch names when the user clicks
+   *  "Check out for review" on a PR in the Inbox. The final branch name is
+   *  `${prefix}${prNumber}`, so end the prefix with `/` or `-` if you want
+   *  one. Default `pr/`. */
+  inboxPRBranchPrefix: string
+  /** Prefix prepended to auto-generated branch names when the user clicks
+   *  "Start working on this" on an issue in the Inbox. The final branch
+   *  name is `${prefix}${issueNumber}-${slug}`. Default `issue-`. */
+  inboxIssueBranchPrefix: string
 }
 
 export type SettingsEvent =
@@ -120,6 +129,10 @@ export type SettingsEvent =
   | { type: 'settings/autoApprovePermissionsChanged'; payload: boolean }
   | { type: 'settings/autoApproveSteerInstructionsChanged'; payload: string }
   | { type: 'settings/inboxQueriesChanged'; payload: InboxQuery[] }
+  | {
+      type: 'settings/inboxBranchPrefixesChanged'
+      payload: { prBranchPrefix: string; issueBranchPrefix: string }
+    }
 
 // Client-side placeholder. Real values are seeded in the main-process Store
 // constructor from the on-disk config and secrets.
@@ -159,7 +172,9 @@ export const initialSettings: SettingsState = {
   defaultClaudeTabType: 'xterm',
   autoApprovePermissions: false,
   autoApproveSteerInstructions: '',
-  inboxQueries: []
+  inboxQueries: [],
+  inboxPRBranchPrefix: 'pr/',
+  inboxIssueBranchPrefix: 'issue-'
 }
 
 export function settingsReducer(state: SettingsState, event: SettingsEvent): SettingsState {
@@ -236,6 +251,12 @@ export function settingsReducer(state: SettingsState, event: SettingsEvent): Set
       return { ...state, autoApproveSteerInstructions: event.payload }
     case 'settings/inboxQueriesChanged':
       return { ...state, inboxQueries: event.payload }
+    case 'settings/inboxBranchPrefixesChanged':
+      return {
+        ...state,
+        inboxPRBranchPrefix: event.payload.prBranchPrefix,
+        inboxIssueBranchPrefix: event.payload.issueBranchPrefix
+      }
     default: {
       const _exhaustive: never = event
       void _exhaustive

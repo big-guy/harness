@@ -1,5 +1,3 @@
-import { execFile } from 'child_process'
-import { promisify } from 'util'
 import { log } from './debug'
 import {
   searchIssues,
@@ -8,10 +6,9 @@ import {
   stripMilestoneClauses,
   type SearchIssuesItem
 } from './github'
+import { getRepoOriginInfo } from './git-remote-info'
 import type { Store } from './store'
 import type { InboxQuery } from '../shared/state/settings'
-
-const execFileAsync = promisify(execFile)
 
 // Cap on the number of matched milestones we'll fan out into per-milestone
 // searches. Each match is one Search API call; the 30 req/min limit means
@@ -295,25 +292,3 @@ function toInboxItem(it: SearchIssuesItem): {
   }
 }
 
-/** Read remote.origin.url for a tracked repo root and parse it to
- *  owner/repo. Mirrors the parse logic in github.ts but takes a repoRoot
- *  rather than a worktree path so the inbox poller can call it without
- *  reaching into a per-worktree primitive. */
-async function getRepoOriginInfo(
-  repoRoot: string
-): Promise<{ owner: string; repo: string } | null> {
-  try {
-    const { stdout } = await execFileAsync(
-      'git',
-      ['config', '--get', 'remote.origin.url'],
-      { cwd: repoRoot }
-    )
-    const url = stdout.trim()
-    // SSH or HTTPS — match the trailing owner/repo.
-    const m = url.match(/[:/]([^/:]+)\/([^/]+?)(?:\.git)?$/)
-    if (!m) return null
-    return { owner: m[1], repo: m[2] }
-  } catch {
-    return null
-  }
-}

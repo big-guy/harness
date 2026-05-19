@@ -2476,6 +2476,106 @@ function genId(): string {
 }
 
 
+const PREFIX_CHAR_RE = /^[A-Za-z0-9_./-]*$/
+
+function InboxBranchPrefixesEditor(): JSX.Element {
+  const settings = useSettings()
+  const remotePR = settings.inboxPRBranchPrefix
+  const remoteIssue = settings.inboxIssueBranchPrefix
+  const [pr, setPr] = useState(remotePR)
+  const [issue, setIssue] = useState(remoteIssue)
+  const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setPr(remotePR)
+  }, [remotePR])
+  useEffect(() => {
+    setIssue(remoteIssue)
+  }, [remoteIssue])
+
+  const prValid = PREFIX_CHAR_RE.test(pr)
+  const issueValid = PREFIX_CHAR_RE.test(issue)
+  const dirty = pr !== remotePR || issue !== remoteIssue
+
+  const handleSave = async (): Promise<void> => {
+    setError(null)
+    try {
+      await window.api.setInboxBranchPrefixes({
+        prBranchPrefix: pr,
+        issueBranchPrefix: issue
+      })
+      setSavedAt(Date.now())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  return (
+    <div className="mb-6 rounded bg-panel-raised border border-border p-3">
+      <div className="text-xs font-semibold text-fg-bright mb-1">
+        Branch-name prefixes
+      </div>
+      <p className="text-xs text-dim mb-3">
+        When the Inbox creates a worktree, the branch is named
+        <code className="mx-1 bg-panel px-1 rounded">{`${pr || ''}<pr-number>`}</code>
+        for PRs and
+        <code className="mx-1 bg-panel px-1 rounded">{`${issue || ''}<n>-<title-slug>`}</code>
+        for issues. End the prefix with <code>/</code> or <code>-</code> for a
+        readable separator.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="text-[11px] text-dim">PR branch prefix</span>
+          <input
+            type="text"
+            value={pr}
+            onChange={(e) => setPr(e.target.value)}
+            placeholder="pr/"
+            spellCheck={false}
+            className={`mt-1 w-full bg-panel border rounded px-2 py-1 text-xs font-mono outline-none ${
+              prValid ? 'border-border-strong text-fg-bright focus:border-accent' : 'border-danger text-danger'
+            }`}
+          />
+        </label>
+        <label className="block">
+          <span className="text-[11px] text-dim">Issue branch prefix</span>
+          <input
+            type="text"
+            value={issue}
+            onChange={(e) => setIssue(e.target.value)}
+            placeholder="issue-"
+            spellCheck={false}
+            className={`mt-1 w-full bg-panel border rounded px-2 py-1 text-xs font-mono outline-none ${
+              issueValid ? 'border-border-strong text-fg-bright focus:border-accent' : 'border-danger text-danger'
+            }`}
+          />
+        </label>
+      </div>
+      {(!prValid || !issueValid) && (
+        <p className="mt-2 text-[11px] text-danger">
+          Prefixes may only contain A-Z, a-z, 0-9, _, ., -, /
+        </p>
+      )}
+      <div className="mt-3 flex items-center gap-3">
+        <button
+          onClick={handleSave}
+          disabled={!dirty || !prValid || !issueValid}
+          className="px-3 py-1 bg-surface hover:bg-surface-hover rounded text-xs text-fg-bright disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+        >
+          Save prefixes
+        </button>
+        {savedAt && !dirty && !error && (
+          <span className="text-xs text-success flex items-center gap-1">
+            <Check size={11} /> Saved
+          </span>
+        )}
+        {error && <span className="text-xs text-danger">{error}</span>}
+      </div>
+    </div>
+  )
+}
+
 function InboxQueriesEditor(): JSX.Element {
   const settings = useSettings()
   const remote = settings.inboxQueries
@@ -2541,6 +2641,9 @@ function InboxQueriesEditor(): JSX.Element {
         up matching milestones in the repos named by <code>repo:</code>
         (or all tracked repos), capped at five matches.
       </p>
+
+      <InboxBranchPrefixesEditor />
+
 
       <div className="space-y-2 mb-3">
         {rows.length === 0 && (

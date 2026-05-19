@@ -81,7 +81,15 @@ export function buildInitialAppState(
       defaultClaudeTabType: config.defaultClaudeTabType === 'json' ? 'json' : 'xterm',
       autoApprovePermissions: config.autoApprovePermissions === true,
       autoApproveSteerInstructions: config.autoApproveSteerInstructions || '',
-      inboxQueries: Array.isArray(config.inboxQueries) ? config.inboxQueries : []
+      inboxQueries: Array.isArray(config.inboxQueries) ? config.inboxQueries : [],
+      inboxPRBranchPrefix:
+        typeof config.inboxPRBranchPrefix === 'string'
+          ? config.inboxPRBranchPrefix
+          : 'pr/',
+      inboxIssueBranchPrefix:
+        typeof config.inboxIssueBranchPrefix === 'string'
+          ? config.inboxIssueBranchPrefix
+          : 'issue-'
     }
   }
 }

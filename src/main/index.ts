@@ -23,6 +23,8 @@ import type { BrowserManagerLike } from './browser-manager-types'
 import { PerfMonitor } from './perf-monitor'
 import { PRPoller } from './pr-poller'
 import { InboxPoller } from './inbox-poller'
+import { prepareInboxWorktree, type InboxCreateOutcome } from './inbox-create-worktree'
+import { getRepoOriginInfo } from './git-remote-info'
 import { WorktreesFSM } from './worktrees-fsm'
 import { WorktreeDeletionFSM } from './worktree-deletion-fsm'
 import { PanesFSM, stripTransientTabFields } from './panes-fsm'
@@ -331,6 +333,14 @@ store.subscribe((event) => {
   }
 })
 
+// Re-resolve owner/repo for every tracked repo whenever the repo list
+// changes. Inbox uses this to detect which items already have a worktree.
+store.subscribe((event) => {
+  if (event.type === 'worktrees/reposChanged') {
+    void refreshOriginByRoot()
+  }
+})
+
 // Mirror json-claude session state into terminals/statusChanged so the
 // sidebar + tab-bar dots light up the same way they do for xterm tabs.
 // Lives in its own module — see src/main/json-claude-status-deriver.ts.
@@ -378,6 +388,24 @@ const inboxPoller = new InboxPoller(store, {
   getQueries: () => store.getSnapshot().state.settings.inboxQueries,
   getRepoRoots: () => config.repoRoots || []
 })
+
+/** Resolve every tracked repoRoot's origin owner/repo and dispatch to the
+ *  store. Cheap (one `git config` per repo), so we re-run it from scratch
+ *  on any repo-list change rather than diffing. */
+async function refreshOriginByRoot(): Promise<void> {
+  const roots = config.repoRoots || []
+  const entries: [string, { owner: string; repo: string }][] = []
+  await Promise.all(
+    roots.map(async (root) => {
+      const info = await getRepoOriginInfo(root)
+      if (info) entries.push([root, info])
+    })
+  )
+  store.dispatch({
+    type: 'worktrees/originByRootChanged',
+    payload: Object.fromEntries(entries)
+  })
+}
 
 ptyManager.setStore(store)
 ptyManager.setSendSignal((channel, ...args) => transport.sendSignal(channel, ...args))
@@ -944,6 +972,39 @@ function registerIpcHandlers(): void {
     return true
   })
 
+  transport.onRequest(
+    'inbox:createWorktree',
+    async (
+      _ctx,
+      ref: { kind: 'issue' | 'pr'; owner: string; repo: string; number: number; title: string }
+    ): Promise<InboxCreateOutcome> => {
+      if (!ref || typeof ref !== 'object') {
+        throw new Error('Invalid inbox item reference')
+      }
+      const outcome = await prepareInboxWorktree(ref, {
+        getRepoRoots: () => config.repoRoots || [],
+        getOriginInfo: getRepoOriginInfo,
+        getWorktreeList: () => store.getSnapshot().state.worktrees.list,
+        generatePendingId: () => `pending-inbox-${ref.kind}-${ref.number}-${Date.now()}`,
+        getPRBranchPrefix: () =>
+          store.getSnapshot().state.settings.inboxPRBranchPrefix || 'pr/',
+        getIssueBranchPrefix: () =>
+          store.getSnapshot().state.settings.inboxIssueBranchPrefix || 'issue-'
+      })
+      if (outcome.kind === 'pending') {
+        // Fire-and-forget; the renderer focuses pendingId and watches
+        // the pending state transitions via the usual store events.
+        void worktreesFSM.runPending({
+          id: outcome.pendingId,
+          repoRoot: outcome.repoRoot,
+          branchName: outcome.branchName,
+          initialPrompt: outcome.initialPrompt
+        })
+      }
+      return outcome
+    }
+  )
+
   transport.onRequest('stats:getWeekly', async (_ctx) => {
     const snap = store.getSnapshot().state
     return getWeeklyStats(snap.prs, snap.worktrees)
@@ -1263,6 +1324,35 @@ function registerIpcHandlers(): void {
     })
     return true
   })
+
+  transport.onRequest(
+    'config:setInboxBranchPrefixes',
+    (_ctx, payload: { prBranchPrefix?: unknown; issueBranchPrefix?: unknown }) => {
+      const prRaw = typeof payload?.prBranchPrefix === 'string' ? payload.prBranchPrefix : ''
+      const issueRaw =
+        typeof payload?.issueBranchPrefix === 'string' ? payload.issueBranchPrefix : ''
+      // Trim leading whitespace; preserve the user's chosen separator at
+      // the end (slash, hyphen, etc.). Disallow shell-special characters
+      // and git-rejected ones — we keep it conservative and surface a
+      // friendly error rather than silently mangling.
+      const prPrefix = prRaw.trimStart()
+      const issuePrefix = issueRaw.trimStart()
+      if (!/^[A-Za-z0-9_./-]*$/.test(prPrefix)) {
+        throw new Error('PR branch prefix may only contain A-Z, a-z, 0-9, _, ., -, /')
+      }
+      if (!/^[A-Za-z0-9_./-]*$/.test(issuePrefix)) {
+        throw new Error('Issue branch prefix may only contain A-Z, a-z, 0-9, _, ., -, /')
+      }
+      config.inboxPRBranchPrefix = prPrefix
+      config.inboxIssueBranchPrefix = issuePrefix
+      saveConfig(config)
+      store.dispatch({
+        type: 'settings/inboxBranchPrefixesChanged',
+        payload: { prBranchPrefix: prPrefix, issueBranchPrefix: issuePrefix }
+      })
+      return true
+    }
+  )
 
   transport.onRequest('config:setInboxQueries', (_ctx, queries: unknown) => {
     const cleaned: { id: string; name: string; query: string }[] = []
@@ -2196,6 +2286,7 @@ async function runBoot(): Promise<void> {
     void prPoller.refreshAll()
     inboxPoller.start()
     void inboxPoller.refreshAll()
+    void refreshOriginByRoot()
 
     await refreshHarnessStarState()
   })()

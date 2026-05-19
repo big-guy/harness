@@ -124,6 +124,8 @@ function buildApi(transport: WebSocketClientTransport): ElectronAPI {
     refreshInboxAll: () => req('inbox:refreshAll') as Promise<boolean>,
     refreshInboxAllIfStale: () => req('inbox:refreshAllIfStale') as Promise<boolean>,
     refreshInboxOne: (queryId) => req('inbox:refreshOne', queryId) as Promise<boolean>,
+    createInboxWorktree: (ref) =>
+      req('inbox:createWorktree', ref) as ReturnType<ElectronAPI['createInboxWorktree']>,
 
     getWeeklyStats: () => req('stats:getWeekly') as ReturnType<ElectronAPI['getWeeklyStats']>,
 
@@ -185,6 +187,8 @@ function buildApi(transport: WebSocketClientTransport): ElectronAPI {
       req('config:setAutoApproveSteerInstructions', text) as Promise<boolean>,
     setInboxQueries: (queries) =>
       req('config:setInboxQueries', queries) as Promise<boolean>,
+    setInboxBranchPrefixes: (payload) =>
+      req('config:setInboxBranchPrefixes', payload) as Promise<boolean>,
     setClaudeTuiFullscreen: (enabled) =>
       req('config:setClaudeTuiFullscreen', enabled) as Promise<boolean>,
     setWsTransportEnabled: (enabled) =>

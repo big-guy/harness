@@ -116,6 +116,9 @@ contextBridge.exposeInMainWorld('api', {
   refreshInboxAll: () => req('inbox:refreshAll'),
   refreshInboxAllIfStale: () => req('inbox:refreshAllIfStale'),
   refreshInboxOne: (queryId: string) => req('inbox:refreshOne', queryId),
+  createInboxWorktree: (
+    ref: { kind: 'issue' | 'pr'; owner: string; repo: string; number: number; title: string }
+  ) => req('inbox:createWorktree', ref),
 
   getWeeklyStats: () => req('stats:getWeekly'),
 
@@ -143,6 +146,8 @@ contextBridge.exposeInMainWorld('api', {
     req('config:setAutoApproveSteerInstructions', text),
   setInboxQueries: (queries: { id: string; name: string; query: string }[]) =>
     req('config:setInboxQueries', queries),
+  setInboxBranchPrefixes: (payload: { prBranchPrefix: string; issueBranchPrefix: string }) =>
+    req('config:setInboxBranchPrefixes', payload),
   setClaudeTuiFullscreen: (enabled: boolean) => req('config:setClaudeTuiFullscreen', enabled),
   setWsTransportEnabled: (enabled: boolean) => req('config:setWsTransportEnabled', enabled),
   setWsTransportPort: (port: number) => req('config:setWsTransportPort', port),
