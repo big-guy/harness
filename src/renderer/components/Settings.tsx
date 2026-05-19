@@ -2475,6 +2475,7 @@ function genId(): string {
   return `q_${Math.random().toString(36).slice(2, 10)}`
 }
 
+
 function InboxQueriesEditor(): JSX.Element {
   const settings = useSettings()
   const remote = settings.inboxQueries
@@ -2534,7 +2535,11 @@ function InboxQueriesEditor(): JSX.Element {
         >
           issue search syntax
         </a>
-        .
+        . A <code>milestone:"…"</code> clause that contains regex
+        metacharacters (<code>. * + ? ( ) [ ] ^ $ \ |</code>) is automatically
+        interpreted as a regex against milestone titles — the poller looks
+        up matching milestones in the repos named by <code>repo:</code>
+        (or all tracked repos), capped at five matches.
       </p>
 
       <div className="space-y-2 mb-3">
@@ -2558,7 +2563,7 @@ function InboxQueriesEditor(): JSX.Element {
                 type="text"
                 value={row.query}
                 onChange={(e) => updateRow(idx, { query: e.target.value })}
-                placeholder="is:open is:pr review-requested:@me"
+                placeholder='is:open is:pr review-requested:@me milestone:"release-.+"'
                 spellCheck={false}
                 className="w-full bg-panel border border-border-strong rounded px-2 py-1 text-xs text-fg-bright placeholder-faint outline-none focus:border-accent font-mono"
               />

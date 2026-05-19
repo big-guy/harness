@@ -15,7 +15,8 @@ const sampleItem = (n: number): InboxItem => ({
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
   commentCount: 0,
-  bodyPreview: null
+  bodyPreview: null,
+  milestone: null
 })
 
 describe('inboxReducer', () => {

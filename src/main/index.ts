@@ -375,7 +375,8 @@ const prPoller = new PRPoller(store, {
 })
 
 const inboxPoller = new InboxPoller(store, {
-  getQueries: () => store.getSnapshot().state.settings.inboxQueries
+  getQueries: () => store.getSnapshot().state.settings.inboxQueries,
+  getRepoRoots: () => config.repoRoots || []
 })
 
 ptyManager.setStore(store)
