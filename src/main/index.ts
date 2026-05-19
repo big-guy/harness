@@ -959,7 +959,11 @@ function registerIpcHandlers(): void {
         getRepoRoots: () => config.repoRoots || [],
         getOriginInfo: getRepoOriginInfo,
         getWorktreeList: () => store.getSnapshot().state.worktrees.list,
-        generatePendingId: () => `pending-inbox-${ref.kind}-${ref.number}-${Date.now()}`
+        generatePendingId: () => `pending-inbox-${ref.kind}-${ref.number}-${Date.now()}`,
+        getPRBranchPrefix: () =>
+          store.getSnapshot().state.settings.inboxPRBranchPrefix || 'pr/',
+        getIssueBranchPrefix: () =>
+          store.getSnapshot().state.settings.inboxIssueBranchPrefix || 'issue-'
       })
       if (outcome.kind === 'pending') {
         // Fire-and-forget; the renderer focuses pendingId and watches
@@ -1294,6 +1298,35 @@ function registerIpcHandlers(): void {
     })
     return true
   })
+
+  transport.onRequest(
+    'config:setInboxBranchPrefixes',
+    (_ctx, payload: { prBranchPrefix?: unknown; issueBranchPrefix?: unknown }) => {
+      const prRaw = typeof payload?.prBranchPrefix === 'string' ? payload.prBranchPrefix : ''
+      const issueRaw =
+        typeof payload?.issueBranchPrefix === 'string' ? payload.issueBranchPrefix : ''
+      // Trim leading whitespace; preserve the user's chosen separator at
+      // the end (slash, hyphen, etc.). Disallow shell-special characters
+      // and git-rejected ones — we keep it conservative and surface a
+      // friendly error rather than silently mangling.
+      const prPrefix = prRaw.trimStart()
+      const issuePrefix = issueRaw.trimStart()
+      if (!/^[A-Za-z0-9_./-]*$/.test(prPrefix)) {
+        throw new Error('PR branch prefix may only contain A-Z, a-z, 0-9, _, ., -, /')
+      }
+      if (!/^[A-Za-z0-9_./-]*$/.test(issuePrefix)) {
+        throw new Error('Issue branch prefix may only contain A-Z, a-z, 0-9, _, ., -, /')
+      }
+      config.inboxPRBranchPrefix = prPrefix
+      config.inboxIssueBranchPrefix = issuePrefix
+      saveConfig(config)
+      store.dispatch({
+        type: 'settings/inboxBranchPrefixesChanged',
+        payload: { prBranchPrefix: prPrefix, issueBranchPrefix: issuePrefix }
+      })
+      return true
+    }
+  )
 
   transport.onRequest('config:setInboxQueries', (_ctx, queries: unknown) => {
     const cleaned: { id: string; name: string; query: string; milestoneRegex?: string }[] = []

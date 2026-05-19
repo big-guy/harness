@@ -28,6 +28,11 @@ interface PrepareDeps {
   getWorktreeList: () => Worktree[]
   /** Generates a pending id (so it can be deterministic in tests). */
   generatePendingId: () => string
+  /** Prefix for PR branches (default `pr/`). Final branch is `${prefix}${n}`. */
+  getPRBranchPrefix: () => string
+  /** Prefix for issue branches (default `issue-`). Final branch is
+   *  `${prefix}${n}-${slug}` (or just `${prefix}${n}` for empty slug). */
+  getIssueBranchPrefix: () => string
 }
 
 /** Resolve an inbox item to a worktree action.
@@ -82,7 +87,7 @@ async function preparePR(
   repoRoot: string,
   deps: PrepareDeps
 ): Promise<InboxCreateOutcome> {
-  const branchName = `pr/${ref.number}`
+  const branchName = makePRBranchName(ref.number, deps.getPRBranchPrefix())
 
   // Already have a worktree for this PR? Reuse it.
   const existing = deps.getWorktreeList().find(
@@ -127,7 +132,11 @@ async function prepareIssue(
   repoRoot: string,
   deps: PrepareDeps
 ): Promise<InboxCreateOutcome> {
-  const branchName = makeIssueBranchName(ref.number, ref.title)
+  const branchName = makeIssueBranchName(
+    ref.number,
+    ref.title,
+    deps.getIssueBranchPrefix()
+  )
 
   const existing = deps.getWorktreeList().find(
     (w) => w.repoRoot === repoRoot && w.branch === branchName
@@ -146,14 +155,22 @@ async function prepareIssue(
   }
 }
 
-export function makeIssueBranchName(number: number, title: string): string {
+export function makePRBranchName(number: number, prefix: string): string {
+  return `${prefix}${number}`
+}
+
+export function makeIssueBranchName(
+  number: number,
+  title: string,
+  prefix: string
+): string {
   const slug = title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 40)
     .replace(/-+$/g, '')
-  return slug ? `issue-${number}-${slug}` : `issue-${number}`
+  return slug ? `${prefix}${number}-${slug}` : `${prefix}${number}`
 }
 
 function buildPRPrompt(ref: InboxItemRef, isFork: boolean): string {

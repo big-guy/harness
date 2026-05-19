@@ -351,6 +351,17 @@ describe('settingsReducer', () => {
     expect(cleared.autoApproveSteerInstructions).toBe('')
   })
 
+  it('inboxBranchPrefixesChanged sets both branch prefixes', () => {
+    expect(initialSettings.inboxPRBranchPrefix).toBe('pr/')
+    expect(initialSettings.inboxIssueBranchPrefix).toBe('issue-')
+    const next = apply(initialSettings, {
+      type: 'settings/inboxBranchPrefixesChanged',
+      payload: { prBranchPrefix: 'review/', issueBranchPrefix: 'work/' }
+    })
+    expect(next.inboxPRBranchPrefix).toBe('review/')
+    expect(next.inboxIssueBranchPrefix).toBe('work/')
+  })
+
   it('inboxQueriesChanged replaces the queries array', () => {
     expect(initialSettings.inboxQueries).toEqual([])
     const next = apply(initialSettings, {

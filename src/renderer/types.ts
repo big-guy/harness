@@ -236,6 +236,10 @@ export interface ElectronAPI {
   setInboxQueries(
     queries: { id: string; name: string; query: string; milestoneRegex?: string }[]
   ): Promise<boolean>
+  setInboxBranchPrefixes(payload: {
+    prBranchPrefix: string
+    issueBranchPrefix: string
+  }): Promise<boolean>
   setClaudeTuiFullscreen(enabled: boolean): Promise<boolean>
   setWsTransportEnabled(enabled: boolean): Promise<boolean>
   setWsTransportPort(port: number): Promise<number>

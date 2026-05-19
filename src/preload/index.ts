@@ -147,6 +147,8 @@ contextBridge.exposeInMainWorld('api', {
   setInboxQueries: (
     queries: { id: string; name: string; query: string; milestoneRegex?: string }[]
   ) => req('config:setInboxQueries', queries),
+  setInboxBranchPrefixes: (payload: { prBranchPrefix: string; issueBranchPrefix: string }) =>
+    req('config:setInboxBranchPrefixes', payload),
   setClaudeTuiFullscreen: (enabled: boolean) => req('config:setClaudeTuiFullscreen', enabled),
   setWsTransportEnabled: (enabled: boolean) => req('config:setWsTransportEnabled', enabled),
   setWsTransportPort: (port: number) => req('config:setWsTransportPort', port),

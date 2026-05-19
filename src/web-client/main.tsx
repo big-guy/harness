@@ -187,6 +187,8 @@ function buildApi(transport: WebSocketClientTransport): ElectronAPI {
       req('config:setAutoApproveSteerInstructions', text) as Promise<boolean>,
     setInboxQueries: (queries) =>
       req('config:setInboxQueries', queries) as Promise<boolean>,
+    setInboxBranchPrefixes: (payload) =>
+      req('config:setInboxBranchPrefixes', payload) as Promise<boolean>,
     setClaudeTuiFullscreen: (enabled) =>
       req('config:setClaudeTuiFullscreen', enabled) as Promise<boolean>,
     setWsTransportEnabled: (enabled) =>
