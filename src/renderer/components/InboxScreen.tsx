@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeft,
   RefreshCw,
@@ -12,8 +12,9 @@ import {
   Settings as SettingsIcon,
   Search
 } from 'lucide-react'
-import { useInbox, useSettings } from '../store'
+import { useInbox, useSettings, useWorktrees } from '../store'
 import type { InboxItem } from '../../shared/state/inbox'
+import type { Worktree } from '../types'
 
 interface InboxScreenProps {
   onClose: () => void
@@ -89,6 +90,9 @@ interface ItemRowProps {
   onCreateWorktree: () => void
   createWorktreePending: boolean
   createWorktreeError: string | null
+  /** Existing worktree for this item, if any. When set, the action label
+   *  switches from "Check out…" to "Open existing worktree". */
+  existingWorktree: Worktree | null
 }
 
 function ItemRow({
@@ -97,7 +101,8 @@ function ItemRow({
   onToggle,
   onCreateWorktree,
   createWorktreePending,
-  createWorktreeError
+  createWorktreeError,
+  existingWorktree
 }: ItemRowProps): JSX.Element {
   return (
     <div className="border-b border-border">
@@ -122,6 +127,11 @@ function ItemRow({
             {item.milestone && (
               <span className="rounded-sm bg-surface text-fg px-1 text-[10px]">
                 {item.milestone.title}
+              </span>
+            )}
+            {existingWorktree && (
+              <span className="rounded-sm bg-accent/15 text-accent px-1 text-[10px]">
+                in worktree
               </span>
             )}
             {item.labels.length > 0 && (
@@ -174,9 +184,18 @@ function ItemRow({
             >
               {createWorktreePending && <Loader2 size={11} className="animate-spin" />}
               <span>
-                {item.kind === 'pr' ? 'Check out for review' : 'Start working on this'}
+                {existingWorktree
+                  ? 'Open existing worktree'
+                  : item.kind === 'pr'
+                    ? 'Check out for review'
+                    : 'Start working on this'}
               </span>
             </button>
+            {existingWorktree && (
+              <span className="text-[11px] text-faint truncate" title={existingWorktree.path}>
+                {existingWorktree.branch}
+              </span>
+            )}
             {createWorktreeError && (
               <span className="text-xs text-danger">{createWorktreeError}</span>
             )}
@@ -194,7 +213,47 @@ export function InboxScreen({
 }: InboxScreenProps): JSX.Element {
   const inbox = useInbox()
   const settings = useSettings()
+  const worktrees = useWorktrees()
   const queries = settings.inboxQueries
+  const prPrefix = settings.inboxPRBranchPrefix
+  const issuePrefix = settings.inboxIssueBranchPrefix
+
+  /** Index worktrees by `<owner>/<repo>` so per-row lookup is O(1).
+   *  Same-repo worktrees with different branches all live in the same
+   *  bucket; the row scans the bucket for a match. */
+  const worktreesByOwnerRepo = useMemo(() => {
+    const map = new Map<string, Worktree[]>()
+    for (const wt of worktrees.list) {
+      const origin = worktrees.originByRoot[wt.repoRoot]
+      if (!origin) continue
+      const key = `${origin.owner.toLowerCase()}/${origin.repo.toLowerCase()}`
+      const list = map.get(key)
+      if (list) list.push(wt)
+      else map.set(key, [wt])
+    }
+    return map
+  }, [worktrees.list, worktrees.originByRoot])
+
+  const findExistingWorktree = useCallback(
+    (item: InboxItem): Worktree | null => {
+      const bucket = worktreesByOwnerRepo.get(
+        `${item.owner.toLowerCase()}/${item.repo.toLowerCase()}`
+      )
+      if (!bucket) return null
+      if (item.kind === 'pr') {
+        const wanted = `${prPrefix}${item.number}`
+        return bucket.find((w) => w.branch === wanted) ?? null
+      }
+      // Issues: branch starts with `${issuePrefix}${n}-` or equals `${issuePrefix}${n}`.
+      const wantedExact = `${issuePrefix}${item.number}`
+      const wantedPrefix = `${issuePrefix}${item.number}-`
+      return (
+        bucket.find((w) => w.branch === wantedExact || w.branch.startsWith(wantedPrefix)) ??
+        null
+      )
+    },
+    [worktreesByOwnerRepo, prPrefix, issuePrefix]
+  )
 
   const [activeQueryId, setActiveQueryId] = useState<string | null>(
     queries[0]?.id ?? null
@@ -237,6 +296,16 @@ export function InboxScreen({
   }
 
   const itemKey = (it: InboxItem): string => `${it.kind}:${it.owner}/${it.repo}#${it.number}`
+
+  const handleRowAction = async (it: InboxItem): Promise<void> => {
+    const existing = findExistingWorktree(it)
+    if (existing) {
+      onClose()
+      onSelectWorktree(existing.path)
+      return
+    }
+    return handleCreateWorktree(it)
+  }
 
   const handleCreateWorktree = async (it: InboxItem): Promise<void> => {
     const key = itemKey(it)
@@ -394,9 +463,10 @@ export function InboxScreen({
                   onToggle={() =>
                     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
                   }
-                  onCreateWorktree={() => void handleCreateWorktree(it)}
+                  onCreateWorktree={() => void handleRowAction(it)}
                   createWorktreePending={!!creating[key]}
                   createWorktreeError={createError[key] ?? null}
+                  existingWorktree={findExistingWorktree(it)}
                 />
               )
             })}

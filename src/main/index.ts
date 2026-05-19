@@ -333,6 +333,14 @@ store.subscribe((event) => {
   }
 })
 
+// Re-resolve owner/repo for every tracked repo whenever the repo list
+// changes. Inbox uses this to detect which items already have a worktree.
+store.subscribe((event) => {
+  if (event.type === 'worktrees/reposChanged') {
+    void refreshOriginByRoot()
+  }
+})
+
 // Mirror json-claude session state into terminals/statusChanged so the
 // sidebar + tab-bar dots light up the same way they do for xterm tabs.
 // Lives in its own module — see src/main/json-claude-status-deriver.ts.
@@ -380,6 +388,24 @@ const inboxPoller = new InboxPoller(store, {
   getQueries: () => store.getSnapshot().state.settings.inboxQueries,
   getRepoRoots: () => config.repoRoots || []
 })
+
+/** Resolve every tracked repoRoot's origin owner/repo and dispatch to the
+ *  store. Cheap (one `git config` per repo), so we re-run it from scratch
+ *  on any repo-list change rather than diffing. */
+async function refreshOriginByRoot(): Promise<void> {
+  const roots = config.repoRoots || []
+  const entries: [string, { owner: string; repo: string }][] = []
+  await Promise.all(
+    roots.map(async (root) => {
+      const info = await getRepoOriginInfo(root)
+      if (info) entries.push([root, info])
+    })
+  )
+  store.dispatch({
+    type: 'worktrees/originByRootChanged',
+    payload: Object.fromEntries(entries)
+  })
+}
 
 ptyManager.setStore(store)
 ptyManager.setSendSignal((channel, ...args) => transport.sendSignal(channel, ...args))
@@ -2271,6 +2297,7 @@ async function runBoot(): Promise<void> {
     void prPoller.refreshAll()
     inboxPoller.start()
     void inboxPoller.refreshAll()
+    void refreshOriginByRoot()
 
     await refreshHarnessStarState()
   })()
