@@ -4,6 +4,7 @@ import {
   listMilestones,
   parseRepoClauses,
   stripMilestoneClauses,
+  getPRAutoMerge,
   type SearchIssuesItem
 } from './github'
 import { getRepoOriginInfo } from './git-remote-info'
@@ -127,6 +128,12 @@ export class InboxPoller {
           fetchedAt: now
         }
       })
+
+      // Lazy: decorate PR rows with merge-queue state. Fire-and-forget —
+      // the renderer reads from mergeQueueByKey as it arrives. We don't
+      // bother with concurrency limits since the REST API budget is
+      // generous (5000/hr) and the result set is capped at 100.
+      this.decorateMergeQueue(result.items)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       log('inbox-poller', `refresh failed for ${q.id}`, msg)
@@ -140,6 +147,24 @@ export class InboxPoller {
         type: 'inbox/queryLoadingChanged',
         payload: { queryId: q.id, loading: false }
       })
+    }
+  }
+
+  private decorateMergeQueue(items: SearchIssuesItem[]): void {
+    for (const it of items) {
+      if (it.kind !== 'pr') continue
+      const key = `pr:${it.owner}/${it.repo}#${it.number}`
+      void getPRAutoMerge(it.owner, it.repo, it.number)
+        .then((inQueue) => {
+          if (inQueue === null) return
+          this.store.dispatch({
+            type: 'inbox/mergeQueueChanged',
+            payload: { key, inQueue }
+          })
+        })
+        .catch(() => {
+          /* swallow — non-fatal */
+        })
     }
   }
 

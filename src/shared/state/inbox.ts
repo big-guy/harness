@@ -74,6 +74,11 @@ export interface InboxState {
   lastFetchedAt: Record<string, number>
   /** Last error message per query, or null. Cleared on a successful poll. */
   errors: Record<string, string | null>
+  /** Per-PR merge-queue state, keyed by `<owner>/<repo>#<n>`. Populated
+   *  lazily after each poll: the poller fan-outs a /pulls/{n} fetch for
+   *  every PR item and writes the auto-merge flag here. Undefined = not
+   *  yet fetched. Issues never appear here. */
+  mergeQueueByKey: Record<string, boolean>
 }
 
 export type InboxEvent =
@@ -98,13 +103,19 @@ export type InboxEvent =
    *  Sent by main when the settings list changes so the renderer doesn't
    *  see stale data for a deleted query. */
   | { type: 'inbox/queriesPruned'; payload: { keepIds: string[] } }
+  /** Set or clear the merge-queue flag for a specific PR. */
+  | {
+      type: 'inbox/mergeQueueChanged'
+      payload: { key: string; inQueue: boolean }
+    }
 
 export const initialInbox: InboxState = {
   byQueryId: {},
   loading: {},
   totalCount: {},
   lastFetchedAt: {},
-  errors: {}
+  errors: {},
+  mergeQueueByKey: {}
 }
 
 function pickKeys<V>(rec: Record<string, V>, keep: Set<string>): Record<string, V> {
@@ -144,9 +155,18 @@ export function inboxReducer(state: InboxState, event: InboxEvent): InboxState {
         loading: pickKeys(state.loading, keep),
         totalCount: pickKeys(state.totalCount, keep),
         lastFetchedAt: pickKeys(state.lastFetchedAt, keep),
-        errors: pickKeys(state.errors, keep)
+        errors: pickKeys(state.errors, keep),
+        mergeQueueByKey: state.mergeQueueByKey
       }
     }
+    case 'inbox/mergeQueueChanged':
+      return {
+        ...state,
+        mergeQueueByKey: {
+          ...state.mergeQueueByKey,
+          [event.payload.key]: event.payload.inQueue
+        }
+      }
     default: {
       const _exhaustive: never = event
       void _exhaustive

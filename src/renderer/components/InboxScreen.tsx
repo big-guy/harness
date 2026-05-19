@@ -69,20 +69,27 @@ function filterAndSort(items: InboxItem[], filter: string, sort: SortKey): Inbox
   return sorted
 }
 
-function stateColor(item: InboxItem): string {
+function stateColor(item: InboxItem, inMergeQueue: boolean): string {
   if (item.state === 'closed') return 'text-fg/40'
+  if (item.kind === 'pr' && inMergeQueue) return 'text-purple-400'
   if (item.kind === 'pr') return 'text-success'
   return 'text-accent'
 }
 
-function StateIcon({ item }: { item: InboxItem }): JSX.Element {
+function StateIcon({
+  item,
+  inMergeQueue
+}: {
+  item: InboxItem
+  inMergeQueue: boolean
+}): JSX.Element {
   if (item.kind === 'pr') {
-    return <GitPullRequest size={14} className={stateColor(item)} />
+    return <GitPullRequest size={14} className={stateColor(item, inMergeQueue)} />
   }
   if (item.state === 'closed') {
-    return <CircleX size={14} className={stateColor(item)} />
+    return <CircleX size={14} className={stateColor(item, inMergeQueue)} />
   }
-  return <CircleDot size={14} className={stateColor(item)} />
+  return <CircleDot size={14} className={stateColor(item, inMergeQueue)} />
 }
 
 function UserBadge({
@@ -115,6 +122,7 @@ interface ItemRowProps {
   /** Existing worktree for this item, if any. When set, the action label
    *  switches from "Check out…" to "Open existing worktree". */
   existingWorktree: Worktree | null
+  inMergeQueue: boolean
 }
 
 function ItemRow({
@@ -124,7 +132,8 @@ function ItemRow({
   onCreateWorktree,
   createWorktreePending,
   createWorktreeError,
-  existingWorktree
+  existingWorktree,
+  inMergeQueue
 }: ItemRowProps): JSX.Element {
   return (
     <div className="border-b border-border">
@@ -133,7 +142,7 @@ function ItemRow({
         className="w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-panel-raised/40 transition-colors cursor-pointer"
       >
         <span className="mt-0.5">
-          <StateIcon item={item} />
+          <StateIcon item={item} inMergeQueue={inMergeQueue} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 min-w-0">
@@ -154,6 +163,11 @@ function ItemRow({
             {existingWorktree && (
               <span className="rounded-sm bg-accent/15 text-accent px-1 text-[10px]">
                 in worktree
+              </span>
+            )}
+            {inMergeQueue && (
+              <span className="rounded-sm bg-purple-400/15 text-purple-400 px-1 text-[10px]">
+                queued
               </span>
             )}
             {item.labels.length > 0 && (
@@ -494,6 +508,9 @@ export function InboxScreen({
                   createWorktreePending={!!creating[key]}
                   createWorktreeError={createError[key] ?? null}
                   existingWorktree={findExistingWorktree(it)}
+                  inMergeQueue={
+                    it.kind === 'pr' && !!inbox.mergeQueueByKey[`pr:${it.owner}/${it.repo}#${it.number}`]
+                  }
                 />
               )
             })}
