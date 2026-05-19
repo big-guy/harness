@@ -542,6 +542,43 @@ describe('terminalsReducer', () => {
     })
   })
 
+  it('tabLabelChanged renames a tab and is a no-op when nothing changes', () => {
+    const tree: PaneNode = {
+      type: 'leaf',
+      id: 'p1',
+      tabs: [
+        { id: 't1', type: 'shell', label: 'Shell' },
+        { id: 't2', type: 'shell', label: 'Other' }
+      ],
+      activeTabId: 't1'
+    }
+    const start: TerminalsState = { ...initialTerminals, panes: { '/wt/a': tree } }
+    const next = apply(start, {
+      type: 'terminals/tabLabelChanged',
+      payload: { worktreePath: '/wt/a', tabId: 't1', label: 'My Shell' }
+    })
+    const tabs = getLeaves(next.panes['/wt/a'])[0].tabs
+    expect(tabs[0].label).toBe('My Shell')
+    expect(tabs[1].label).toBe('Other')
+    // Same label → reference-equal no-op.
+    const same = apply(next, {
+      type: 'terminals/tabLabelChanged',
+      payload: { worktreePath: '/wt/a', tabId: 't1', label: 'My Shell' }
+    })
+    expect(same).toBe(next)
+    // Missing worktree or tab → no-op.
+    const noWt = apply(start, {
+      type: 'terminals/tabLabelChanged',
+      payload: { worktreePath: '/wt/missing', tabId: 't1', label: 'x' }
+    })
+    expect(noWt).toBe(start)
+    const noTab = apply(start, {
+      type: 'terminals/tabLabelChanged',
+      payload: { worktreePath: '/wt/a', tabId: 't-missing', label: 'x' }
+    })
+    expect(noTab).toBe(start)
+  })
+
   it('tabTypeChanged flips agent → json-claude in place', () => {
     const tree: PaneNode = {
       type: 'leaf',
