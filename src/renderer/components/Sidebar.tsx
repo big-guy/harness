@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
-import { ChevronDown, ChevronRight, Plus, RefreshCw, FolderOpen, Loader2, Settings as SettingsIcon, Sparkles, BarChart3, CalendarDays, Trash2, LayoutGrid, X, Layers, Rows3, AlertCircle, Keyboard, MessageSquare } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, RefreshCw, FolderOpen, Loader2, Settings as SettingsIcon, Sparkles, BarChart3, CalendarDays, Trash2, LayoutGrid, X, Layers, Rows3, AlertCircle, Keyboard, MessageSquare, Inbox } from 'lucide-react'
 import { openReportIssue } from './ReportIssueScreen'
 import { Tooltip } from './Tooltip'
 import { HotkeyBadge } from './HotkeyBadge'
@@ -38,6 +38,9 @@ interface SidebarProps {
   onOpenMyWeek: () => void
   onOpenCleanup: () => void
   onOpenCommandCenter: () => void
+  onOpenInbox: () => void
+  inboxActive: boolean
+  inboxUnreadCount: number
   commandCenterActive: boolean
   width: number
   collapsedGroups: Record<string, boolean>
@@ -76,6 +79,9 @@ export function Sidebar({
   onOpenMyWeek,
   onOpenCleanup,
   onOpenCommandCenter,
+  onOpenInbox,
+  inboxActive,
+  inboxUnreadCount,
   commandCenterActive,
   width,
   collapsedGroups: _collapsedGroups,
@@ -446,6 +452,23 @@ export function Sidebar({
             }`}
           >
             <LayoutGrid size={14} />
+          </button>
+        </Tooltip>
+        <Tooltip label="Inbox" side="top">
+          <button
+            onClick={onOpenInbox}
+            className={`relative rounded p-1.5 transition-colors cursor-pointer ${
+              inboxActive
+                ? 'text-accent bg-surface'
+                : 'text-dim hover:text-fg hover:bg-surface'
+            }`}
+          >
+            <Inbox size={14} />
+            {inboxUnreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-1 rounded-full bg-accent text-app text-[9px] font-semibold flex items-center justify-center">
+                {inboxUnreadCount > 99 ? '99+' : inboxUnreadCount}
+              </span>
+            )}
           </button>
         </Tooltip>
         <Tooltip label="Activity" side="top">

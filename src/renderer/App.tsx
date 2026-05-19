@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useSettings, usePrs, useOnboarding, useHooks, useWorktrees, useTerminals, usePanes, useLastActive, useUpdater, useRepoConfigs } from './store'
+import { useSettings, usePrs, useOnboarding, useHooks, useWorktrees, useTerminals, usePanes, useLastActive, useUpdater, useRepoConfigs, useInbox } from './store'
 import { useTailLineBuffer } from './hooks/useTailLineBuffer'
 import { useTabHandlers } from './hooks/useTabHandlers'
 import { useHotkeyHandlers } from './hooks/useHotkeyHandlers'
@@ -24,6 +24,7 @@ import { AGENT_REGISTRY } from '../shared/agent-registry'
 import { AgentIcon } from './components/AgentIcon'
 import { Activity } from './components/Activity'
 import { Cleanup } from './components/Cleanup'
+import { InboxScreen } from './components/InboxScreen'
 import { CommandCenter } from './components/CommandCenter'
 import { ReviewScreen } from './components/ReviewScreen'
 import { CommandPalette } from './components/CommandPalette'
@@ -124,6 +125,12 @@ function DesktopApp(): JSX.Element {
   const prStatuses = prs.byPath
   const mergedPaths = prs.mergedByPath
   const prLoading = prs.loading
+  const inbox = useInbox()
+  const inboxUnreadCount = useMemo(() => {
+    let total = 0
+    for (const items of Object.values(inbox.byQueryId)) total += items.length
+    return total
+  }, [inbox.byQueryId])
   // Per-worktree last-active timestamps — derived in main by the
   // activity-deriver, dispatched as terminals/lastActiveChanged events.
   const lastActive = useLastActive()
@@ -209,6 +216,7 @@ function DesktopApp(): JSX.Element {
   const [showMyWeek, setShowMyWeek] = useState(false)
   const [showActivity, setShowActivity] = useState(false)
   const [showCleanup, setShowCleanup] = useState(false)
+  const [showInbox, setShowInbox] = useState(false)
   const [showCommandCenter, setShowCommandCenter] = useState(false)
   const [showReview, setShowReview] = useState(false)
   const [reviewMode, setReviewMode] = useState<'working' | 'branch'>('branch')
@@ -1056,8 +1064,12 @@ const setQuestStep = useCallback((next: QuestStep) => {
               setShowNewWorktree(false)
               setShowActivity(false)
               setShowCleanup(false)
+              setShowInbox(false)
               setShowCommandCenter(true)
             }}
+            onOpenInbox={() => setShowInbox(true)}
+            inboxActive={showInbox}
+            inboxUnreadCount={inboxUnreadCount}
             commandCenterActive={showCommandCenter}
             width={sidebarWidth}
             collapsedGroups={collapsedGroups}
@@ -1076,7 +1088,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
           if (!paneTree) return null
           const leaves = getLeaves(paneTree)
           if (leaves.length === 0 || !leaves.some((l) => l.tabs.length > 0)) return null
-          const isVisible = !showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && !showReview && reportIssueState === null && wt.path === activeWorktreeId && !pendingDeletionByPath[wt.path]
+          const isVisible = !showNewWorktree && !showActivity && !showCleanup && !showInbox && !showCommandCenter && !showReview && reportIssueState === null && wt.path === activeWorktreeId && !pendingDeletionByPath[wt.path]
           return (
             <div
               key={wt.path}
@@ -1176,6 +1188,15 @@ const setQuestStep = useCallback((next: QuestStep) => {
             />
           </div>
         )}
+        {showInbox && (
+          <InboxScreen
+            onClose={() => setShowInbox(false)}
+            onOpenSettings={() => {
+              setShowInbox(false)
+              setShowSettings(true)
+            }}
+          />
+        )}
         {showCommandCenter && (
           <CommandCenter
             worktrees={worktrees}
@@ -1215,12 +1236,12 @@ const setQuestStep = useCallback((next: QuestStep) => {
             </div>
           )
         })()}
-        {!showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && !showReview && reportIssueState === null && !activeWorktreeId && worktrees.length > 0 && (
+        {!showNewWorktree && !showActivity && !showCleanup && !showInbox && !showCommandCenter && !showReview && reportIssueState === null && !activeWorktreeId && worktrees.length > 0 && (
           <div className="flex-1 flex items-center justify-center text-dim">
             Select a worktree to begin
           </div>
         )}
-        {!showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && !showReview && reportIssueState === null && isPendingId(activeWorktreeId) && (() => {
+        {!showNewWorktree && !showActivity && !showCleanup && !showInbox && !showCommandCenter && !showReview && reportIssueState === null && isPendingId(activeWorktreeId) && (() => {
           const pending = pendingWorktrees.find((p) => p.id === activeWorktreeId)
           if (!pending) return null
           return (
@@ -1232,7 +1253,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
             />
           )
         })()}
-        {!showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && !showReview && reportIssueState === null && activeWorktreeId && pendingDeletionByPath[activeWorktreeId] && (
+        {!showNewWorktree && !showActivity && !showCleanup && !showInbox && !showCommandCenter && !showReview && reportIssueState === null && activeWorktreeId && pendingDeletionByPath[activeWorktreeId] && (
           <DeletingWorktreeScreen
             deletion={pendingDeletionByPath[activeWorktreeId]}
             onDismiss={handleDismissPendingDeletion}
@@ -1244,10 +1265,10 @@ const setQuestStep = useCallback((next: QuestStep) => {
           onFinish={() => setQuestStep('done')}
         />
         {/* Right panel — hidden on the new-worktree screen so the form gets the full width */}
-        {!showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && !showReview && reportIssueState === null && !rightColumnHidden && (
+        {!showNewWorktree && !showActivity && !showCleanup && !showInbox && !showCommandCenter && !showReview && reportIssueState === null && !rightColumnHidden && (
           <ResizeHandle onDelta={handleRightPanelResize} />
         )}
-        {!showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && !showReview && reportIssueState === null && !rightColumnHidden && (
+        {!showNewWorktree && !showActivity && !showCleanup && !showInbox && !showCommandCenter && !showReview && reportIssueState === null && !rightColumnHidden && (
           <RightColumn
             width={rightPanelWidth}
             activeWorktreeId={activeWorktreeId}
