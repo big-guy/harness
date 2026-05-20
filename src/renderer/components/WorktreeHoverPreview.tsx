@@ -10,7 +10,7 @@ interface WorktreeHoverPreviewProps {
   onMouseLeave: () => void
 }
 
-const MAX_LINES = 10
+const MAX_LINES = 20
 
 export function WorktreeHoverPreview({
   anchorRect,
@@ -28,7 +28,8 @@ export function WorktreeHoverPreview({
   const gap = 8
   const margin = 24
   const left = anchorRect.right + gap
-  const width = Math.max(320, window.innerWidth - left - margin)
+  const fullWidth = Math.max(320, window.innerWidth - left - margin)
+  const width = Math.max(240, Math.floor(fullWidth / 2))
   const top = anchorRect.top
 
   const handleNoopCheck = (e: React.MouseEvent): void => {

@@ -237,9 +237,16 @@ function DesktopApp(): JSX.Element {
   // useTailLineBuffer on demand so a chatty PTY doesn't re-render the
   // renderer when nobody is looking.
   const [previewActive, setPreviewActive] = useState(false)
-  // Only subscribe to the PTY stream when CommandCenter is open or a
-  // sidebar hover preview is visible.
-  const tailLines = useTailLineBuffer(showCommandCenter || previewActive)
+  const tailLines = useTailLineBuffer(showCommandCenter)
+  // Hover preview captures more lines, keeps box-drawing intact (so the
+  // TUI looks like a TUI), and flushes faster for a live feel.
+  const previewTailLines = useTailLineBuffer(previewActive, {
+    maxLines: 20,
+    bufferBytes: 16384,
+    flushMs: 200,
+    includeBlanks: true,
+    preserveBoxDrawing: true
+  })
   const settings = useSettings()
   const { hasGithubToken: hasGithubPat, githubAuthSource, nameClaudeSessions, defaultAgent, theme: activeTheme } = settings
   const nameAgentSessions = nameClaudeSessions
@@ -1160,7 +1167,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
             onToggleRepo={toggleRepo}
             unifiedRepos={unifiedRepos}
             onToggleUnifiedRepos={() => setUnifiedRepos((v) => !v)}
-            tailLines={tailLines}
+            tailLines={previewTailLines}
             activeTabId={activeTabId}
             onPreviewActive={setPreviewActive}
           />
