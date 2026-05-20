@@ -232,10 +232,14 @@ function DesktopApp(): JSX.Element {
   // explicit confirmation separately for the onboarding step checkmarks.
   const [themeChosen, setThemeChosen] = useState(false)
   const [agentChosen, setAgentChosen] = useState(false)
-  // Only subscribe to the PTY stream when CommandCenter is open. Without
-  // this gate, a chatty PTY pegs the renderer with re-renders for output
-  // nobody is currently looking at.
-  const tailLines = useTailLineBuffer(showCommandCenter)
+  // Sidebar hover-preview state. Per-client UI focus (which row's preview
+  // is currently up) — never goes through a slice. Used solely to gate
+  // useTailLineBuffer on demand so a chatty PTY doesn't re-render the
+  // renderer when nobody is looking.
+  const [previewActive, setPreviewActive] = useState(false)
+  // Only subscribe to the PTY stream when CommandCenter is open or a
+  // sidebar hover preview is visible.
+  const tailLines = useTailLineBuffer(showCommandCenter || previewActive)
   const settings = useSettings()
   const { hasGithubToken: hasGithubPat, githubAuthSource, nameClaudeSessions, defaultAgent, theme: activeTheme } = settings
   const nameAgentSessions = nameClaudeSessions
@@ -1156,6 +1160,9 @@ const setQuestStep = useCallback((next: QuestStep) => {
             onToggleRepo={toggleRepo}
             unifiedRepos={unifiedRepos}
             onToggleUnifiedRepos={() => setUnifiedRepos((v) => !v)}
+            tailLines={tailLines}
+            activeTabId={activeTabId}
+            onPreviewActive={setPreviewActive}
           />
         )}
         {sidebarVisible && <ResizeHandle onDelta={handleSidebarResize} />}

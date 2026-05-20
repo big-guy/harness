@@ -1,4 +1,5 @@
-import { GitPullRequest, RotateCw, Trash2, Loader2, Moon } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { GitPullRequest, RotateCw, Trash2, Loader2, Moon, PictureInPicture2 } from 'lucide-react'
 import type { Worktree, PtyStatus, PendingTool, PRStatus } from '../types'
 import { isPRMerged } from '../../shared/state/prs'
 import { formatWakeAt } from '../../shared/state/snooze'
@@ -8,6 +9,9 @@ import { formatPendingTool } from '../pending-tool'
 import { HotkeyBadge } from './HotkeyBadge'
 import { useMetaHeld } from '../hooks/useMetaHeld'
 import type { Action } from '../hotkeys'
+import { WorktreeHoverPreview } from './WorktreeHoverPreview'
+
+const HOVER_GRACE_MS = 150
 
 interface WorktreeTabProps {
   worktree: Worktree
@@ -38,6 +42,12 @@ interface WorktreeTabProps {
    *  caller can decide based on altKey. */
   onSnooze?: (e: React.MouseEvent) => void
   onUnsnooze?: () => void
+  /** Tail-line text for this worktree's active tab; rendered inside the
+   *  hover preview. Empty string when no output is buffered yet. */
+  previewText?: string
+  /** Fires true on hover-preview show and false on hide so App can gate
+   *  the tail-line subscription. */
+  onPreviewActive?: (active: boolean) => void
 }
 
 const STATUS_COLORS: Record<PtyStatus | 'merged', string> = {
@@ -70,8 +80,39 @@ const PR_STATE_COLOR: Record<string, string> = {
   closed: 'text-danger'
 }
 
-export function WorktreeTab({ worktree, isActive, status, pendingTool, shellActive, prStatus, isMerged, repoLabel, cmdOrdinal, deleting, isSnoozed, snoozeWakeAt, onClick, onDelete, onContinue, onSnooze, onUnsnooze }: WorktreeTabProps): JSX.Element {
+export function WorktreeTab({ worktree, isActive, status, pendingTool, shellActive, prStatus, isMerged, repoLabel, cmdOrdinal, deleting, isSnoozed, snoozeWakeAt, onClick, onDelete, onContinue, onSnooze, onUnsnooze, previewText, onPreviewActive }: WorktreeTabProps): JSX.Element {
   const metaHeld = useMetaHeld()
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const graceTimerRef = useRef<number | null>(null)
+
+  const clearGrace = useCallback(() => {
+    if (graceTimerRef.current !== null) {
+      window.clearTimeout(graceTimerRef.current)
+      graceTimerRef.current = null
+    }
+  }, [])
+
+  const showPreview = useCallback(() => {
+    clearGrace()
+    if (buttonRef.current) setAnchorRect(buttonRef.current.getBoundingClientRect())
+    if (!previewOpen) {
+      setPreviewOpen(true)
+      onPreviewActive?.(true)
+    }
+  }, [clearGrace, previewOpen, onPreviewActive])
+
+  const hidePreviewSoon = useCallback(() => {
+    clearGrace()
+    graceTimerRef.current = window.setTimeout(() => {
+      setPreviewOpen(false)
+      onPreviewActive?.(false)
+      graceTimerRef.current = null
+    }, HOVER_GRACE_MS)
+  }, [clearGrace, onPreviewActive])
+
+  useEffect(() => clearGrace, [clearGrace])
   const displayStatus: PtyStatus | 'merged' = isMerged ? 'merged' : status
   const showPendingTool = displayStatus === 'needs-approval' && pendingTool
   const canContinue = !!onContinue && isPRMerged(prStatus)
@@ -103,6 +144,25 @@ export function WorktreeTab({ worktree, isActive, status, pendingTool, shellActi
           : 'text-muted hover:bg-panel-raised hover:text-fg'
       }`}
     >
+      <button
+        ref={buttonRef}
+        onClick={(e) => e.stopPropagation()}
+        onMouseEnter={showPreview}
+        onMouseLeave={hidePreviewSoon}
+        title="Preview terminal output"
+        className="shrink-0 text-faint hover:text-fg transition-colors cursor-pointer"
+      >
+        <PictureInPicture2 size={12} />
+      </button>
+      {previewOpen && anchorRect && (
+        <WorktreeHoverPreview
+          anchorRect={anchorRect}
+          text={previewText || ''}
+          onSelect={onClick}
+          onMouseEnter={showPreview}
+          onMouseLeave={hidePreviewSoon}
+        />
+      )}
       {deleting ? (
         <Loader2
           size={11}

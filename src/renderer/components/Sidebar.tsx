@@ -57,6 +57,13 @@ interface SidebarProps {
   onToggleRepo: (repoRoot: string) => void
   unifiedRepos: boolean
   onToggleUnifiedRepos: () => void
+  /** Tail-line text for the hover preview, keyed by terminal id. */
+  tailLines: Record<string, string>
+  /** Terminal id of the active tab per worktree path. */
+  activeTabId: Record<string, string>
+  /** Fires when a hover preview opens/closes so App can gate the
+   *  tail-line subscription. */
+  onPreviewActive: (active: boolean) => void
 }
 
 export function Sidebar({
@@ -98,7 +105,10 @@ export function Sidebar({
   collapsedRepos,
   onToggleRepo,
   unifiedRepos,
-  onToggleUnifiedRepos
+  onToggleUnifiedRepos,
+  tailLines,
+  activeTabId,
+  onPreviewActive
 }: SidebarProps): JSX.Element {
   const metaHeld = useMetaHeld()
   const backend = useBackend()
@@ -370,6 +380,8 @@ export function Sidebar({
                   onContinue={wt.isMain || deletingPaths.has(wt.path) ? undefined : () => beginContinue(wt.path, wt.branch)}
                   onSnooze={wt.isMain || deletingPaths.has(wt.path) ? undefined : (e) => onSnoozeRow(wt.path, e)}
                   onUnsnooze={wt.isMain || deletingPaths.has(wt.path) ? undefined : () => onUnsnoozeRow(wt.path)}
+                  previewText={tailLines[activeTabId[wt.path]] || ''}
+                  onPreviewActive={onPreviewActive}
                 />
                 {continueTarget?.path === wt.path && (
                   <div className="border-y-2 border-accent bg-panel-raised p-2.5 shadow-inner">
