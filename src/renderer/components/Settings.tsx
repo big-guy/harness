@@ -4,7 +4,7 @@ import { openReportIssue } from './ReportIssueScreen'
 import { HARNESS_ISSUES_URL, HARNESS_RELEASES_URL, harnessReleaseNotesUrl } from '../../shared/constants'
 import { useSettings, useUpdater, useRepoConfigs, useHooks } from '../store'
 import { useBackend } from '../backend'
-import type { UpdaterStatus, MergeStrategy, RepoConfig } from '../types'
+import type { UpdaterStatus, MergeStrategy, RepoConfig, WorktreeDetail } from '../types'
 import { DEFAULT_HOTKEYS, ACTION_LABELS, bindingToString, eventToBinding, resolveHotkeys, type Action, type HotkeyBinding } from '../hotkeys'
 import { Tooltip } from './Tooltip'
 import { AGENT_REGISTRY, agentDisplayName, CLAUDE_MODELS, CODEX_MODELS } from '../../shared/agent-registry'
@@ -176,6 +176,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
     editor: editorId,
     worktreeBase,
     mergeStrategy,
+    worktreeDetail,
     hasGithubToken: settingsHasToken,
     githubAuthSource: authSource,
     harnessStarred,
@@ -390,6 +391,10 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
     },
     [scopeRepoRoot, updateRepoConfig]
   )
+
+  const handleSelectWorktreeDetail = useCallback(async (detail: WorktreeDetail) => {
+    await backend.setWorktreeDetail(detail)
+  }, [])
 
   // Resolve what each control should display for the active scope.
   const scopedRepoCfg = scopeRepoRoot ? repoConfigs[scopeRepoRoot] || {} : null
@@ -1085,6 +1090,61 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                 >
                   the quick brown fox 0123 =&gt; != &lt;= -&gt;
                 </div>
+              </div>
+
+              <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Sidebar detail</h3>
+              <p className="text-xs text-dim mb-3">
+                What to show next to each worktree row in the sidebar. The
+                detail hides on hover; row action buttons appear in its place.
+              </p>
+              <div className="space-y-2">
+                {(
+                  [
+                    {
+                      id: 'diff' as const,
+                      label: 'Diff stat',
+                      description: 'Show added/removed line counts from the PR'
+                    },
+                    {
+                      id: 'age' as const,
+                      label: 'Age',
+                      description: 'Show how long the worktree has existed'
+                    },
+                    {
+                      id: 'model' as const,
+                      label: 'Model',
+                      description: "Show the most recent agent model used by the worktree's agent tabs"
+                    },
+                    {
+                      id: 'none' as const,
+                      label: 'Nothing',
+                      description: 'Hide the extra detail'
+                    }
+                  ]
+                ).map((opt) => {
+                  const isActive = worktreeDetail === opt.id
+                  return (
+                    <button
+                      key={opt.id}
+                      onClick={() => handleSelectWorktreeDetail(opt.id)}
+                      className={`w-full text-left rounded border px-3 py-2 transition-colors cursor-pointer ${
+                        isActive
+                          ? 'border-accent bg-panel-raised'
+                          : 'border-border hover:border-border-strong'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`w-3 h-3 rounded-full border ${
+                            isActive ? 'border-accent bg-accent' : 'border-border-strong'
+                          }`}
+                        />
+                        <span className="text-sm text-fg-bright">{opt.label}</span>
+                      </div>
+                      <p className="text-xs text-dim mt-1 ml-5">{opt.description}</p>
+                    </button>
+                  )
+                })}
               </div>
             </section>
 

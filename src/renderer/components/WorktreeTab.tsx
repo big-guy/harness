@@ -2,7 +2,10 @@ import { GitPullRequest, RotateCw, Trash2, Loader2, Moon } from 'lucide-react'
 import type { Worktree, PtyStatus, PendingTool, PRStatus } from '../types'
 import { isPRMerged } from '../../shared/state/prs'
 import { formatWakeAt } from '../../shared/state/snooze'
+import { useAppState } from '../store'
+import { AgentIcon } from './AgentIcon'
 import { Tooltip } from './Tooltip'
+import { formatWorktreeAge, pickLatestWorktreeModel, shortModel } from './worktree-detail'
 import { repoNameColor } from './RepoIcon'
 import { formatPendingTool } from '../pending-tool'
 import { HotkeyBadge } from './HotkeyBadge'
@@ -72,6 +75,13 @@ const PR_STATE_COLOR: Record<string, string> = {
 
 export function WorktreeTab({ worktree, isActive, status, pendingTool, shellActive, prStatus, isMerged, repoLabel, cmdOrdinal, deleting, isSnoozed, snoozeWakeAt, onClick, onDelete, onContinue, onSnooze, onUnsnooze }: WorktreeTabProps): JSX.Element {
   const metaHeld = useMetaHeld()
+  const worktreeDetail = useAppState((s) => s.settings.worktreeDetail)
+  // String selector returns '' (stable) outside model mode so non-model
+  // modes don't pay re-render cost on every costs/panes event.
+  const currentModel = useAppState((s) => {
+    if (s.settings.worktreeDetail !== 'model') return ''
+    return pickLatestWorktreeModel(s.terminals.panes[worktree.path], s.costs.byTerminal)
+  })
   const displayStatus: PtyStatus | 'merged' = isMerged ? 'merged' : status
   const showPendingTool = displayStatus === 'needs-approval' && pendingTool
   const canContinue = !!onContinue && isPRMerged(prStatus)
@@ -169,13 +179,30 @@ export function WorktreeTab({ worktree, isActive, status, pendingTool, shellActi
           </button>
         </Tooltip>
       )}
-      {prStatus && typeof prStatus.additions === 'number' && typeof prStatus.deletions === 'number' && (
+      {worktreeDetail === 'diff' && prStatus && typeof prStatus.additions === 'number' && typeof prStatus.deletions === 'number' && (
         <span
           className="text-[10px] font-mono shrink-0 leading-none group-hover:hidden"
           title={`+${prStatus.additions} additions, −${prStatus.deletions} deletions`}
         >
           <span className="text-success">+{prStatus.additions}</span>
           <span className="text-danger ml-0.5">−{prStatus.deletions}</span>
+        </span>
+      )}
+      {worktreeDetail === 'age' && (
+        <span
+          className="text-[10px] font-mono shrink-0 leading-none text-dim group-hover:hidden"
+          title={worktree.createdAt ? `Created ${new Date(worktree.createdAt).toLocaleString()}` : 'Creation time unknown'}
+        >
+          {formatWorktreeAge(worktree.createdAt)}
+        </span>
+      )}
+      {worktreeDetail === 'model' && (
+        <span
+          className="inline-flex items-center gap-1 text-[10px] font-mono shrink-0 leading-none text-dim group-hover:hidden truncate max-w-[10rem]"
+          title={currentModel ? `Most recent agent model: ${currentModel}` : 'No model seen yet on any tab'}
+        >
+          <AgentIcon kind="claude" size={10} />
+          {currentModel ? shortModel(currentModel) : '—'}
         </span>
       )}
       {(onSnooze || onUnsnooze) && !worktree.isMain && (

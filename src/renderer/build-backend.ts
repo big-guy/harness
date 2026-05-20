@@ -314,6 +314,8 @@ export function buildBackend(
     setWorktreeBase: (mode: 'remote' | 'local') => req('config:setWorktreeBase', mode),
     setMergeStrategy: (strategy: 'squash' | 'merge-commit' | 'fast-forward') =>
       req('config:setMergeStrategy', strategy),
+    setWorktreeDetail: (detail: 'diff' | 'age' | 'model' | 'none') =>
+      req('config:setWorktreeDetail', detail),
 
     setEditor: (editorId: string) => req('config:setEditor', editorId),
     getAvailableEditors: () => req('config:getAvailableEditors'),

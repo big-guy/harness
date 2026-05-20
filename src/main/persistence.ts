@@ -89,6 +89,10 @@ export interface Config {
   // Default strategy for "Merge locally" action. Auto-updates to whatever
   // was last used unless the user pinned one in Settings.
   mergeStrategy?: 'squash' | 'merge-commit' | 'fast-forward'
+  // Which "extra detail" to render next to each worktree row in the sidebar.
+  // Defaults to 'diff' (PR additions/deletions); other values trade that
+  // signal for token cost, worktree age, or nothing.
+  worktreeDetail?: 'diff' | 'age' | 'model' | 'none'
   // Branches that have been merged locally via Harness, keyed by branch name.
   // Value is the branch-tip SHA at merge time — if the branch later advances
   // past this SHA, the flag is considered stale and the branch is no longer
@@ -204,6 +208,7 @@ export interface Config {
 
 export const DEFAULT_WORKTREE_BASE: 'remote' | 'local' = 'remote'
 export const DEFAULT_MERGE_STRATEGY: 'squash' | 'merge-commit' | 'fast-forward' = 'squash'
+export const DEFAULT_WORKTREE_DETAIL: 'diff' | 'age' | 'model' | 'none' = 'diff'
 
 export const DEFAULT_THEME = 'dark'
 export const AVAILABLE_THEMES = [
