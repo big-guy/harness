@@ -294,6 +294,8 @@ export function buildBackend(
 
     getTerminalHistory: (id: string) => req('terminal:getHistory', id),
     clearTerminalHistory: (id: string) => req('terminal:forgetHistory', id),
+    searchScrollback: (query: string, opts?: { limit?: number; context?: number }) =>
+      req('terminals:searchScrollback', query, opts),
     agentSessionFileExists: (cwd: string, sessionId: string, agentKind?: string) =>
       req('agent:sessionFileExists', cwd, sessionId, agentKind),
     getLatestAgentSessionId: (cwd: string, agentKind?: string) =>

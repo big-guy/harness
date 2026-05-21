@@ -16,6 +16,9 @@ export type { SessionCostSummary, ClaudeAuthInfo, SubscriptionTier }
 import type { AddRepoResult } from '../shared/repo-pick'
 export type { AddRepoResult }
 
+import type { ScrollbackSearchResult } from '../shared/scrollback-search'
+export type { ScrollbackSearchResult }
+
 export interface FsEntry {
   name: string
   isDir: boolean
@@ -370,6 +373,10 @@ export interface ElectronAPI {
   panesWakeTab(wtPath: string, tabId: string): Promise<boolean>
   getTerminalHistory(id: string): Promise<string>
   clearTerminalHistory(id: string): Promise<boolean>
+  searchScrollback(
+    query: string,
+    opts?: { limit?: number; context?: number }
+  ): Promise<ScrollbackSearchResult[]>
   agentSessionFileExists(cwd: string, sessionId: string, agentKind?: AgentKind): Promise<boolean>
   getLatestAgentSessionId(cwd: string, agentKind?: AgentKind): Promise<string | null>
   buildAgentSpawnArgs(agentKind: string, opts: {

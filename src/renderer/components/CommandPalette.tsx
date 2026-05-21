@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Search, GitPullRequest, ArrowRight, FileText, Server } from 'lucide-react'
-import type { Worktree, PtyStatus, PRStatus } from '../types'
+import { Search, GitPullRequest, ArrowRight, FileText, Server, Terminal } from 'lucide-react'
+import type { Worktree, PtyStatus, PRStatus, ScrollbackSearchResult } from '../types'
 import type { Action, HotkeyBinding } from '../hotkeys'
 import { ACTION_LABELS, bindingToString } from '../hotkeys'
 import { groupWorktrees, GROUP_ORDER, GROUP_LABELS, type GroupKey } from '../worktree-sort'
@@ -9,7 +9,7 @@ import { fuzzyMatch } from '../fuzzy'
 import { useBackend } from '../backend'
 import { useSettings, useSnooze } from '../store'
 
-export type PaletteMode = 'root' | 'files'
+export type PaletteMode = 'root' | 'files' | 'scrollback'
 
 interface CommandPaletteProps {
   worktrees: Worktree[]
@@ -24,12 +24,14 @@ interface CommandPaletteProps {
   onAction: (action: Action) => void
   onOpenFile: (filePath: string) => void
   onAddBackend: () => void
+  onJumpToTab: (worktreePath: string, paneId: string, tabId: string) => void
 }
 
 type PaletteItem =
   | { kind: 'worktree'; wt: Worktree }
   | { kind: 'action'; action: Action; label: string; hint?: string }
   | { kind: 'open-files'; label: string }
+  | { kind: 'search-scrollback'; label: string }
   | { kind: 'add-backend'; label: string }
   | { kind: 'heading'; label: string }
   | { kind: 'recent-worktree'; wt: Worktree }
@@ -220,6 +222,7 @@ export function CommandPalette({
   onAction,
   onOpenFile,
   onAddBackend,
+  onJumpToTab,
 }: CommandPaletteProps): JSX.Element {
   const backend = useBackend()
   const [mode, setMode] = useState<PaletteMode>(initialMode)
@@ -227,6 +230,8 @@ export function CommandPalette({
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [files, setFiles] = useState<string[]>([])
   const [filesLoading, setFilesLoading] = useState(false)
+  const [scrollbackResults, setScrollbackResults] = useState<ScrollbackSearchResult[]>([])
+  const [scrollbackLoading, setScrollbackLoading] = useState(false)
   const [recents] = useState<PaletteRecent[]>(() => loadPaletteRecents())
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -265,6 +270,38 @@ export function CommandPalette({
     setSelectedIndex(0)
     inputRef.current?.focus()
   }, [mode])
+
+  // Debounced scrollback search. Fires whenever the query changes in
+  // scrollback mode; empty / very short queries yield no work.
+  useEffect(() => {
+    if (mode !== 'scrollback') return
+    const q = query.trim()
+    if (q.length < 2) {
+      setScrollbackResults([])
+      setScrollbackLoading(false)
+      return
+    }
+    let cancelled = false
+    setScrollbackLoading(true)
+    const t = setTimeout(() => {
+      backend
+        .searchScrollback(q, { limit: 200, context: 80 })
+        .then((results) => {
+          if (cancelled) return
+          setScrollbackResults(results)
+          setScrollbackLoading(false)
+        })
+        .catch(() => {
+          if (cancelled) return
+          setScrollbackResults([])
+          setScrollbackLoading(false)
+        })
+    }, 120)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [mode, query, backend])
 
   const multiRepo = useMemo(() => {
     const roots = new Set(worktrees.map((wt) => wt.repoRoot))
@@ -328,6 +365,9 @@ export function CommandPalette({
       // distinct kind below.
       return { items, selectableCount: fileItems.length }
     }
+    if (mode === 'scrollback') {
+      return { items: [] as PaletteItem[], selectableCount: scrollbackResults.length }
+    }
     const isSearching = query.trim().length > 0
     const items: PaletteItem[] = []
     let selectable = 0
@@ -364,6 +404,16 @@ export function CommandPalette({
       // "Open File..." virtual action, matches any query containing "open" or "file"
       if (/open|file/i.test(query)) {
         items.push({ kind: 'open-files', label: 'Open File…' })
+        selectable++
+      }
+      // "Search tab contents…" virtual action — surfaces under any query
+      // mentioning search/scroll/contents/grep so users can find it without
+      // knowing the exact wording.
+      if (
+        /search|scroll|contents|grep|log|tab/i.test(query) ||
+        fuzzyScore(query, 'Search tab contents') > 0
+      ) {
+        items.push({ kind: 'search-scrollback', label: 'Search Tab Contents…' })
         selectable++
       }
       // "Add Backend…" virtual action — fuzzy-matches "add backend" /
@@ -414,6 +464,8 @@ export function CommandPalette({
       items.push({ kind: 'heading', label: 'Commands' })
       items.push({ kind: 'open-files', label: 'Open File…' })
       selectable++
+      items.push({ kind: 'search-scrollback', label: 'Search Tab Contents…' })
+      selectable++
       items.push({ kind: 'add-backend', label: 'Add Backend…' })
       selectable++
       for (const a of actionItems) {
@@ -436,7 +488,7 @@ export function CommandPalette({
 
   useEffect(() => {
     setSelectedIndex(0)
-  }, [query, mode])
+  }, [query, mode, scrollbackResults.length])
 
   const openFile = useCallback(
     (filePath: string) => {
@@ -473,6 +525,9 @@ export function CommandPalette({
       } else if (item.kind === 'open-files') {
         setMode('files')
         return
+      } else if (item.kind === 'search-scrollback') {
+        setMode('scrollback')
+        return
       } else if (item.kind === 'add-backend') {
         onAddBackend()
       } else if (item.kind === 'recent-file') {
@@ -494,12 +549,16 @@ export function CommandPalette({
     (e: React.KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
-        if (mode === 'files') {
+        if (mode === 'files' || mode === 'scrollback') {
           setMode('root')
         } else {
           onClose()
         }
-      } else if (e.key === 'Backspace' && mode === 'files' && query.length === 0) {
+      } else if (
+        e.key === 'Backspace' &&
+        (mode === 'files' || mode === 'scrollback') &&
+        query.length === 0
+      ) {
         e.preventDefault()
         setMode('root')
       } else if (e.key === 'ArrowDown') {
@@ -515,16 +574,26 @@ export function CommandPalette({
           if (file) openFile(file.path)
           return
         }
+        if (mode === 'scrollback') {
+          const hit = scrollbackResults[selectedIndex]
+          if (hit) {
+            onJumpToTab(hit.worktreeId, hit.paneId, hit.terminalId)
+            onClose()
+          }
+          return
+        }
         const flatIdx = selectableIndices[selectedIndex]
         if (flatIdx !== undefined) execute(flatItems[flatIdx])
       }
     },
-    [mode, query, fileItems, openFile, flatItems, selectableIndices, selectedIndex, selectableCount, execute, onClose]
+    [mode, query, fileItems, openFile, flatItems, selectableIndices, selectedIndex, selectableCount, execute, onClose, scrollbackResults, onJumpToTab]
   )
 
   useEffect(() => {
     const target =
-      mode === 'files' ? selectedIndex : selectableIndices[selectedIndex]
+      mode === 'files' || mode === 'scrollback'
+        ? selectedIndex
+        : selectableIndices[selectedIndex]
     if (target === undefined) return
     const el = listRef.current?.querySelector(`[data-idx="${target}"]`) as HTMLElement | undefined
     el?.scrollIntoView({ block: 'nearest' })
@@ -546,13 +615,25 @@ export function CommandPalette({
               Open File
             </span>
           )}
+          {mode === 'scrollback' && (
+            <span className="inline-flex items-center gap-1 text-[11px] bg-accent/15 text-accent px-1.5 py-0.5 rounded font-medium shrink-0">
+              <Terminal size={11} />
+              Search Tabs
+            </span>
+          )}
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={mode === 'files' ? 'Search files…' : 'Search worktrees and commands...'}
+            placeholder={
+              mode === 'files'
+                ? 'Search files…'
+                : mode === 'scrollback'
+                  ? 'Search across every open tab…'
+                  : 'Search worktrees and commands...'
+            }
             className="flex-1 bg-transparent text-fg-bright text-sm outline-none placeholder:text-faint"
           />
           <kbd className="text-[10px] text-faint bg-bg px-1.5 py-0.5 rounded border border-border font-mono">ESC</kbd>
@@ -565,6 +646,63 @@ export function CommandPalette({
           {mode === 'files' && !filesLoading && fileItems.length === 0 && (
             <div className="px-4 py-8 text-center text-dim text-sm">No files match</div>
           )}
+          {mode === 'scrollback' && query.trim().length < 2 && (
+            <div className="px-4 py-8 text-center text-dim text-sm">
+              Type to search across every open tab&apos;s scrollback…
+            </div>
+          )}
+          {mode === 'scrollback' && query.trim().length >= 2 && scrollbackLoading && scrollbackResults.length === 0 && (
+            <div className="px-4 py-8 text-center text-dim text-sm">Searching…</div>
+          )}
+          {mode === 'scrollback' && query.trim().length >= 2 && !scrollbackLoading && scrollbackResults.length === 0 && (
+            <div className="px-4 py-8 text-center text-dim text-sm">No matches</div>
+          )}
+          {mode === 'scrollback' && scrollbackResults.length > 0 && (() => {
+            let lastWorktree: string | null = null
+            return scrollbackResults.map((hit, idx) => {
+              const isSelected = idx === selectedIndex
+              const repoName = hit.worktreeRepoRoot.split('/').pop() || hit.worktreeRepoRoot
+              const showHeader = hit.worktreeId !== lastWorktree
+              lastWorktree = hit.worktreeId
+              const before = hit.snippet.slice(0, hit.matchStart)
+              const match = hit.snippet.slice(hit.matchStart, hit.matchEnd)
+              const after = hit.snippet.slice(hit.matchEnd)
+              return (
+                <div key={`${hit.terminalId}-${idx}`}>
+                  {showHeader && (
+                    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-faint flex items-center gap-1">
+                      <span className={repoNameColor(repoName)}>{repoName}</span>
+                      <span>·</span>
+                      <span className="truncate">{hit.worktreeBranch}</span>
+                    </div>
+                  )}
+                  <button
+                    data-idx={idx}
+                    className={`w-full flex flex-col gap-0.5 px-3 py-1.5 text-left cursor-pointer transition-colors ${
+                      isSelected ? 'bg-accent/15 text-fg-bright' : 'text-fg hover:bg-surface-hover'
+                    }`}
+                    onMouseEnter={() => setSelectedIndex(idx)}
+                    onClick={() => {
+                      onJumpToTab(hit.worktreeId, hit.paneId, hit.terminalId)
+                      onClose()
+                    }}
+                  >
+                    <div className="flex items-center gap-1.5 text-[11px] text-faint">
+                      <Terminal size={11} className="shrink-0" />
+                      <span className="truncate text-fg-bright">{hit.tabLabel}</span>
+                      <span className="shrink-0">·</span>
+                      <span className="shrink-0">line {hit.lineIndex + 1}</span>
+                    </div>
+                    <div className="text-xs font-mono whitespace-pre overflow-hidden text-ellipsis text-dim">
+                      <span>{before}</span>
+                      <span className="bg-accent/30 text-fg-bright">{match}</span>
+                      <span>{after}</span>
+                    </div>
+                  </button>
+                </div>
+              )
+            })
+          })()}
           {mode === 'files' &&
             fileItems.map((f, idx) => {
               const isSelected = idx === selectedIndex
@@ -736,6 +874,23 @@ export function CommandPalette({
               )
             }
 
+            if (item.kind === 'search-scrollback') {
+              return (
+                <button
+                  key={`search-scrollback-${flatIdx}`}
+                  data-idx={flatIdx}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm cursor-pointer transition-colors ${
+                    isSelected ? 'bg-accent/15 text-fg-bright' : 'text-fg hover:bg-surface-hover'
+                  }`}
+                  onMouseEnter={() => setSelectedIndex(mySelectableIdx)}
+                  onClick={() => execute(item)}
+                >
+                  <Terminal size={14} className="text-dim shrink-0" />
+                  <span className="truncate flex-1 text-left">{item.label}</span>
+                </button>
+              )
+            }
+
             const actionKey =
               item.kind === 'recent-action' ? `recent-act-${item.action}` : item.action
             return (
@@ -763,6 +918,12 @@ export function CommandPalette({
           <div className="px-3 py-1.5 border-t border-border text-[10px] text-faint flex items-center justify-between">
             <span>{files.length} files · {fileItems.length} shown</span>
             <span className="font-mono">↵ open · esc back</span>
+          </div>
+        )}
+        {mode === 'scrollback' && scrollbackResults.length > 0 && (
+          <div className="px-3 py-1.5 border-t border-border text-[10px] text-faint flex items-center justify-between">
+            <span>{scrollbackResults.length} matches</span>
+            <span className="font-mono">↵ jump to tab · esc back</span>
           </div>
         )}
       </div>

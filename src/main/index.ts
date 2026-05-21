@@ -1950,6 +1950,62 @@ function registerIpcHandlers(): void {
     return true
   })
 
+  // Global scrollback search across every open (non-closed) worktree's
+  // terminal buffers. PtyManager owns the raw scrollback (not a slice — too
+  // chatty for the reducer), so this lives as an IPC query. Matches are
+  // enriched with worktreeId + paneId by walking the panes slice; terminals
+  // whose worktree no longer exists in the snapshot are dropped.
+  transport.onRequest(
+    'terminals:searchScrollback',
+    (_ctx, query: string, opts?: { limit?: number; context?: number }) => {
+      const matches = ptyManager.searchScrollback(query || '', opts || {})
+      if (matches.length === 0) return []
+      const snap = store.getSnapshot().state
+      const tabLookup = new Map<
+        string,
+        { worktreePath: string; paneId: string; label: string; type: string }
+      >()
+      const openWorktreePaths = new Set(snap.worktrees.list.map((w) => w.path))
+      for (const [worktreePath, tree] of Object.entries(snap.terminals.panes)) {
+        if (!openWorktreePaths.has(worktreePath)) continue
+        for (const leaf of getLeaves(tree)) {
+          for (const tab of leaf.tabs) {
+            tabLookup.set(tab.id, {
+              worktreePath,
+              paneId: leaf.id,
+              label: tab.label,
+              type: tab.type
+            })
+          }
+        }
+      }
+      const worktreeMeta = new Map(
+        snap.worktrees.list.map((w) => [w.path, { branch: w.branch, repoRoot: w.repoRoot }])
+      )
+      const enriched: import('../shared/scrollback-search').ScrollbackSearchResult[] = []
+      for (const m of matches) {
+        const t = tabLookup.get(m.terminalId)
+        if (!t) continue
+        const wt = worktreeMeta.get(t.worktreePath)
+        if (!wt) continue
+        enriched.push({
+          terminalId: m.terminalId,
+          worktreeId: t.worktreePath,
+          paneId: t.paneId,
+          tabLabel: t.label,
+          tabType: t.type,
+          worktreeBranch: wt.branch,
+          worktreeRepoRoot: wt.repoRoot,
+          snippet: m.snippet,
+          matchStart: m.matchStart,
+          matchEnd: m.matchEnd,
+          lineIndex: m.lineIndex
+        })
+      }
+      return enriched
+    }
+  )
+
   transport.onRequest('agent:sessionFileExists', (_ctx, cwd: string, sessionId: string, agentKind?: string): boolean => {
     const kind = toAgentKind(agentKind)
     return getAgent(kind).sessionFileExists(cwd, sessionId)

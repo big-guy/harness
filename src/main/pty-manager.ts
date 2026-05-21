@@ -78,6 +78,61 @@ class HistoryBuffer {
   }
 }
 
+export interface ScrollbackMatch {
+  terminalId: string
+  snippet: string
+  matchStart: number
+  matchEnd: number
+  lineIndex: number
+}
+
+// Strip ANSI CSI / OSC / escape sequences so substring searches aren't fooled
+// by SGR color codes wrapping the text. Conservative pattern — covers the
+// ESC-prefixed control sequences node-pty actually emits.
+const ANSI_RE = /\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1B]*(?:\x07|\x1B\\)|[@-Z\\-_])/g
+export function stripAnsi(s: string): string {
+  return s.replace(ANSI_RE, '')
+}
+
+function countLines(s: string, upto: number): number {
+  let n = 0
+  for (let i = 0; i < upto; i++) if (s.charCodeAt(i) === 10) n++
+  return n
+}
+
+/** Pure search over a map of id→raw-scrollback. Exported for tests. */
+export function searchScrollbackBuffers(
+  buffers: Iterable<[string, string]>,
+  query: string,
+  opts: { limit?: number; context?: number } = {}
+): ScrollbackMatch[] {
+  const q = query.trim()
+  if (!q) return []
+  const limit = opts.limit ?? 200
+  const context = opts.context ?? 80
+  const needle = q.toLowerCase()
+  const results: ScrollbackMatch[] = []
+  for (const [id, raw] of buffers) {
+    if (results.length >= limit) break
+    const stripped = stripAnsi(raw)
+    const haystack = stripped.toLowerCase()
+    let from = 0
+    while (results.length < limit) {
+      const idx = haystack.indexOf(needle, from)
+      if (idx === -1) break
+      const start = Math.max(0, idx - context)
+      const end = Math.min(stripped.length, idx + needle.length + context)
+      const snippet = stripped.slice(start, end)
+      const matchStart = idx - start
+      const matchEnd = matchStart + needle.length
+      const lineIndex = countLines(stripped, idx)
+      results.push({ terminalId: id, snippet, matchStart, matchEnd, lineIndex })
+      from = idx + needle.length
+    }
+  }
+  return results
+}
+
 export class PtyManager {
   private ptys = new Map<string, PtyInstance>()
   private activityTimer: NodeJS.Timeout | null = null
@@ -247,6 +302,20 @@ export class PtyManager {
   /** Raw PTY scrollback for `id`, or empty string if none. */
   getHistory(id: string): string {
     return this.history.get(id)?.toString() || ''
+  }
+
+  /** Search every in-memory scrollback buffer for `query` (case-insensitive
+   * substring). Returns up to `opts.limit` matches with ~`opts.context` chars
+   * of surrounding text per hit. ANSI escapes are stripped before matching so
+   * color codes don't break the search. */
+  searchScrollback(
+    query: string,
+    opts: { limit?: number; context?: number } = {}
+  ): ScrollbackMatch[] {
+    const iter = function* (this: PtyManager): Iterable<[string, string]> {
+      for (const [id, buf] of this.history) yield [id, buf.toString()]
+    }
+    return searchScrollbackBuffers(iter.call(this), query, opts)
   }
 
   /** Drop the in-memory buffer + delete the persisted file. Called on tab

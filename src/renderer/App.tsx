@@ -1391,6 +1391,14 @@ const setQuestStep = useCallback((next: QuestStep) => {
         }}
         onOpenFile={(filePath) => handleOpenFile(filePath)}
         onAddBackend={() => setShowAddBackend(true)}
+        onJumpToTab={(worktreePath, paneId, tabId) => {
+          setShowNewWorktree(false)
+          setShowActivity(false)
+          setShowCleanup(false)
+          setShowCommandCenter(false)
+          setActiveWorktreeId(worktreePath)
+          handleSelectTab(worktreePath, paneId, tabId)
+        }}
       />
     )}
     {showHotkeyCheatsheet && (
