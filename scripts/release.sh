@@ -117,6 +117,25 @@ if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
   exit 0
 fi
 
+# ---- Failure trap ----
+# Notarization is the long, fragile step. We do all the file edits
+# (version bump, README, release notes) up front but DEFER the commit
+# until after the build succeeds. If we exit non-zero before that
+# commit happens, restore the touched files so a failed run leaves the
+# tree exactly as it started — no half-released "Release v..." commit
+# sitting on main.
+COMMITTED=0
+RELEASE_TOUCHED_FILES=(package.json package-lock.json README.md site/public/releases.html)
+restore_release_files() {
+  local exit_code=$?
+  if [ "$COMMITTED" = "0" ] && [ "$exit_code" != "0" ]; then
+    echo
+    warn "Release failed before commit — restoring working tree"
+    git checkout -- "${RELEASE_TOUCHED_FILES[@]}" 2>/dev/null || true
+  fi
+}
+trap restore_release_files EXIT
+
 # ---- Bump version ----
 step "Bumping package.json and package-lock.json to ${VERSION}"
 node -e "
@@ -197,11 +216,6 @@ else
   warn "Claude did not modify site/public/releases.html — continuing anyway"
 fi
 
-# ---- Commit version bump + release notes together ----
-git add package.json package-lock.json README.md site/public/releases.html
-git commit -m "Release v${VERSION}"
-ok "Committed version bump, download links, and release notes"
-
 # ---- Cross-arch claude binary ----
 # Bundled @anthropic-ai/claude-code ships per-arch native binaries via
 # optionalDependencies. npm install only pulls the host-arch one, so the
@@ -235,6 +249,18 @@ for f in "$DMG_ARM64" "$DMG_X64" "$ZIP_ARM64" "$ZIP_X64" "$LATEST_YML"; do
   fi
 done
 ok "All artifacts present"
+
+# ---- Commit version bump + release notes ----
+# Deferred until after the build to avoid landing a "Release v..." commit
+# on main when notarization fails. The trap above restores the working
+# tree if we exit before reaching this point; once COMMITTED=1, the trap
+# becomes a no-op and any subsequent failure (tag/push/gh) is left for
+# the user to recover from manually since the artifacts already exist.
+step "Committing version bump and release notes"
+git add package.json package-lock.json README.md site/public/releases.html
+git commit -m "Release v${VERSION}"
+COMMITTED=1
+ok "Committed version bump, download links, and release notes"
 
 # ---- Tag and push ----
 step "Tagging and pushing"
