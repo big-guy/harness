@@ -304,6 +304,13 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
 
     const progressAddon = new ProgressAddon()
     terminal.loadAddon(progressAddon)
+    // Only the controller dispatches — spectators parse the same OSC stream
+    // identically, so letting them all dispatch would 2x+ the IPC traffic
+    // and the reducer would dedup most of it anyway.
+    const progressSub = progressAddon.onChange((p) => {
+      if (!isControllerRef.current) return
+      backend.setTerminalProgress(terminalId, p.state, p.value)
+    })
 
     const searchAddon = new SearchAddon()
     terminal.loadAddon(searchAddon)
@@ -548,6 +555,7 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
       cleanupData?.()
       cleanupExit?.()
       searchResultsSub.dispose()
+      progressSub.dispose()
       searchAddonRef.current = null
       terminal.dispose()
     }
