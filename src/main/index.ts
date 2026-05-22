@@ -25,6 +25,7 @@ import { parseCliFlags, USAGE, type CliFlags } from './cli-args'
 import { PlaywrightBrowserManager } from './browser-manager-playwright'
 import type { BrowserManagerLike } from './browser-manager-types'
 import { PerfMonitor } from './perf-monitor'
+import { setGitHubApiRecorder, setGitHubApiLoggingEnabled } from './github-recorder'
 import { PRPoller } from './pr-poller'
 import { WorktreesFSM } from './worktrees-fsm'
 import { WorktreeDeletionFSM } from './worktree-deletion-fsm'
@@ -321,6 +322,8 @@ const jsonClaudeManager = new JsonClaudeManager(store, {
     })
 })
 const perfMonitor = new PerfMonitor()
+setGitHubApiRecorder(() => perfMonitor.recordGitHubApiCall())
+setGitHubApiLoggingEnabled(config.expandedDiagnosticLoggingEnabled === true)
 
 // In Electron mode createDesktopShell applies the dev-mode userData
 // override (must run before anything reads paths) and constructs the
@@ -1511,6 +1514,21 @@ function registerIpcHandlers(): void {
     } else {
       desktopHooks.startAutoUpdateChecks()
     }
+    return true
+  })
+
+  transport.onRequest('config:setExpandedDiagnosticLoggingEnabled', (_ctx, enabled: boolean) => {
+    if (enabled) {
+      config.expandedDiagnosticLoggingEnabled = true
+    } else {
+      delete config.expandedDiagnosticLoggingEnabled
+    }
+    saveConfig(config)
+    setGitHubApiLoggingEnabled(enabled)
+    store.dispatch({
+      type: 'settings/expandedDiagnosticLoggingEnabledChanged',
+      payload: enabled
+    })
     return true
   })
 
