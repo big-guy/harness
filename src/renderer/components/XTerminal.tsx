@@ -251,17 +251,40 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
     const bg = rootStyle.getPropertyValue('--color-app').trim() || '#0a0a0a'
     const fg = rootStyle.getPropertyValue('--color-fg-bright').trim() || '#e5e5e5'
 
+    const openUrlInBrowserTab = (uri: string): void => {
+      // Browser tabs live in panes alongside terminals; appending here
+      // bypasses the App-level handleAddBrowserTab so XTerminal stays
+      // self-contained. paneId is omitted — panesFSM falls back to the
+      // first leaf which is correct for the common single-pane case.
+      let label = 'Browser'
+      try {
+        label = new URL(uri).host || label
+      } catch {
+        // ignore; fall back to generic label
+      }
+      const id = `browser-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      void backend.panesAddTab(cwd, { id, type: 'browser', label, url: uri })
+    }
+
     const terminal = new Terminal({
       fontSize: currentFontSize,
       fontFamily: currentFontFamily,
       cursorBlink: true,
       cursorStyle: 'bar',
       allowProposedApi: true,
-      // Route OSC 8 hyperlink clicks to the system browser. Without this,
-      // xterm's default handler shows a confirm prompt and then calls
-      // window.open, which Electron silently swallows.
+      // Route OSC 8 hyperlink clicks: plain click sends the URL to the OS
+      // default browser; Cmd/Ctrl-click opens an in-app browser tab in this
+      // terminal's worktree. mailto: always goes external (in-app browser
+      // can't handle it).
       linkHandler: {
-        activate: (_event, uri) => {
+        activate: (event, uri) => {
+          const inApp = (event.metaKey || event.ctrlKey) && !uri.startsWith('mailto:')
+          if (inApp) {
+            if (uri.startsWith('http://') || uri.startsWith('https://')) {
+              openUrlInBrowserTab(uri)
+            }
+            return
+          }
           if (uri.startsWith('http://') || uri.startsWith('https://') || uri.startsWith('mailto:')) {
             backend.openExternal(uri)
           }
@@ -298,7 +321,12 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
 
     const webLinksAddon = new WebLinksAddon((event, uri) => {
       event.preventDefault()
-      backend.openExternal(uri)
+      const inApp = event.metaKey || event.ctrlKey
+      if (inApp) {
+        openUrlInBrowserTab(uri)
+      } else {
+        backend.openExternal(uri)
+      }
     })
     terminal.loadAddon(webLinksAddon)
 
