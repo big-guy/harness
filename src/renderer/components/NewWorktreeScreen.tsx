@@ -247,6 +247,10 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, d
       // analog today.
       const effectiveAgent: 'claude' | 'codex' =
         mode === 'teleport' ? 'claude' : agentKindOverride
+      // When the user picked from the existing-branches combobox, ask the
+      // FSM to `git worktree add <dir> <branch>` (no `-b`) so an existing
+      // local or remote-tracking ref is checked out — not created literally.
+      const checkoutExisting = mode === 'fresh' && existingBranch !== null
       await onSubmit(
         selectedRepo,
         effectiveBranch,
@@ -442,7 +446,8 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, d
                     branches={branchesByRepo[selectedRepo] || []}
                     value={existingBranch}
                     onChange={handlePickExistingBranch}
-                    disabled={submitting || branch.length > 0}
+                    disabled={submitting || branch.length > 0 || !selectedRepo}
+                    placeholder={!selectedRepo ? 'Select a repository first' : undefined}
                   />
                 </div>
               </>
@@ -854,6 +859,10 @@ interface ExistingBranchComboboxProps {
   value: string | null
   onChange: (name: string | null) => void
   disabled: boolean
+  /** Optional override for the input placeholder. When omitted, the
+   * combobox picks one of its own ("Type to filter…" or "No branches
+   * found") based on `branches.length`. */
+  placeholder?: string
 }
 
 /** Typeahead combobox over the local + remote branch list. Typing
@@ -864,7 +873,8 @@ function ExistingBranchCombobox({
   branches,
   value,
   onChange,
-  disabled
+  disabled,
+  placeholder
 }: ExistingBranchComboboxProps): JSX.Element {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -948,7 +958,7 @@ function ExistingBranchCombobox({
           onFocus={handleFocus}
           onBlur={handleBlur}
           onKeyDown={handleKey}
-          placeholder={branches.length === 0 ? 'No branches found' : 'Type to filter…'}
+          placeholder={placeholder ?? (branches.length === 0 ? 'No branches found' : 'Type to filter…')}
           disabled={disabled || branches.length === 0}
           autoComplete="off"
           spellCheck={false}
