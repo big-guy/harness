@@ -1289,6 +1289,10 @@ const setQuestStep = useCallback((next: QuestStep) => {
             onPRSubmit={handleSubmitNewPRWorktree}
             onCancel={() => setShowNewWorktree(false)}
             repoRoots={repoRoots}
+            // Hide the repo picker when the per-repo "Add worktree"
+            // button set the target explicitly; the active-worktree
+            // fallback is just a guess, so leave the picker visible.
+            repoLocked={newWorktreeRepoRoot != null}
             defaultRepoRoot={
               newWorktreeRepoRoot ??
               (activeWorktreeId ? worktreeRepoByPath[activeWorktreeId] : undefined)

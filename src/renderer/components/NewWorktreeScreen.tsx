@@ -11,6 +11,10 @@ interface NewWorktreeScreenProps {
   onPRSubmit: (repoRoot: string, prNumber: number) => Promise<void>
   onCancel: () => void
   repoRoots: string[]
+  /** When true, the caller knows the target repo (per-repo "Add worktree"
+   *  button click) — hide the repo picker UI even if multiple repos are
+   *  registered. When false, render the picker normally. */
+  repoLocked?: boolean
   /** Repo to pre-select in the picker. Usually the repo of the currently active worktree. */
   defaultRepoRoot?: string
 }
@@ -69,7 +73,7 @@ const STARTER_PROMPTS = [
   }
 ]
 
-export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, defaultRepoRoot }: NewWorktreeScreenProps): JSX.Element {
+export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, repoLocked, defaultRepoRoot }: NewWorktreeScreenProps): JSX.Element {
   const [mode, setMode] = useState<'fresh' | 'teleport' | 'pr'>('fresh')
   const [selectedRepo, setSelectedRepo] = useState<string>(
     defaultRepoRoot && repoRoots.includes(defaultRepoRoot) ? defaultRepoRoot : repoRoots[0] || ''
@@ -169,11 +173,11 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, d
   }, [effectiveBranch, prompt, canSubmit, onSubmit, parsedTeleport, selectedRepo])
 
   const cycleRepo = useCallback((direction: 1 | -1) => {
-    if (repoRoots.length <= 1) return
+    if (repoRoots.length <= 1 || repoLocked) return
     const idx = repoRoots.indexOf(selectedRepo)
     const next = (idx + direction + repoRoots.length) % repoRoots.length
     setSelectedRepo(repoRoots[next])
-  }, [repoRoots, selectedRepo])
+  }, [repoRoots, selectedRepo, repoLocked])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -295,7 +299,7 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, d
               </button>
             </div>
 
-            {repoRoots.length > 1 && (
+            {repoRoots.length > 1 && !repoLocked && (
               <div className="mb-5">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-dim">
