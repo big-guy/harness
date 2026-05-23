@@ -95,7 +95,7 @@ let currentFontSize = DEFAULT_TERMINAL_FONT_SIZE
 function applyFontToAll(): void {
   for (const [id, term] of terminalRegistry) {
     term.options.fontFamily = currentFontFamily
-    term.options.fontSize = currentFontSize
+    term.options.fontSize = effectiveTerminalFontSize()
     const fit = fitRegistry.get(id)
     if (!fit) continue
     try {
@@ -119,6 +119,18 @@ function applyFontToAll(): void {
 // Pre-init the cache fires the first time an XTerminal mounts; the
 // `applyFontToAll()` sweep updates anything already on screen.
 let fontCacheInitialized = false
+// `currentFontSize` holds the user-configured terminal size; the actual
+// pixel size we ship to xterm is shifted by `uiScaleOffset` to keep
+// terminals in step with the rest of the UI (compact = 0, normal = +2,
+// roomy = +4). Stored separately so the user's terminal preference
+// isn't overwritten when they toggle UI scale.
+let uiScaleOffset = 0
+function uiScaleToOffset(scale: 'compact' | 'normal' | 'roomy'): number {
+  return scale === 'roomy' ? 4 : scale === 'normal' ? 2 : 0
+}
+function effectiveTerminalFontSize(): number {
+  return currentFontSize + uiScaleOffset
+}
 function initFontCache(): void {
   if (fontCacheInitialized) return
   fontCacheInitialized = true
@@ -126,6 +138,7 @@ function initFontCache(): void {
   void backend.getStateSnapshot().then(({ state }) => {
     currentFontFamily = state.settings.terminalFontFamily || DEFAULT_TERMINAL_FONT_FAMILY
     currentFontSize = state.settings.terminalFontSize || DEFAULT_TERMINAL_FONT_SIZE
+    uiScaleOffset = uiScaleToOffset(state.settings.uiScale)
     applyFontToAll()
   })
   backend.onStateEvent((raw) => {
@@ -135,6 +148,9 @@ function initFontCache(): void {
       applyFontToAll()
     } else if (event.type === 'settings/terminalFontSizeChanged') {
       currentFontSize = event.payload || DEFAULT_TERMINAL_FONT_SIZE
+      applyFontToAll()
+    } else if (event.type === 'settings/uiScaleChanged') {
+      uiScaleOffset = uiScaleToOffset(event.payload)
       applyFontToAll()
     }
   })
@@ -291,7 +307,7 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
     }
 
     const terminal = new Terminal({
-      fontSize: currentFontSize,
+      fontSize: effectiveTerminalFontSize(),
       fontFamily: currentFontFamily,
       cursorBlink: true,
       cursorStyle: 'bar',

@@ -66,6 +66,12 @@ function cleanText(el: Element): string {
   return (el.textContent ?? '').replace(/\s+/g, ' ').trim()
 }
 
+/** Pixels added to the terminal font size for each UI scale step. Matches
+ *  XTerminal's effectiveTerminalFontSize — kept in sync by hand. */
+function uiScaleOffsetForTerminal(scale: 'compact' | 'normal' | 'roomy'): number {
+  return scale === 'roomy' ? 4 : scale === 'normal' ? 2 : 0
+}
+
 function highlightMatch(text: string, query: string): React.ReactNode {
   if (!query) return text
   const lower = text.toLowerCase()
@@ -286,6 +292,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
     jsonModeClaudeTabs,
     defaultClaudeTabType,
     jsonModeChatDensity,
+    uiScale,
     jsonModeDefaultPermissionMode,
     autoSleepMinutes,
     autoApprovePermissions,
@@ -295,6 +302,21 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
   } = settings
   const setupScript = worktreeScripts.setup
   const teardownScript = worktreeScripts.teardown
+
+  // When the UI scale changes, the root font-size shifts and every
+  // section reflows — the user's scroll position no longer points at the
+  // section they were reading. Re-anchor to the section they had on
+  // screen so the slider doesn't yank them to a random spot.
+  const activeSectionRef = useRef(activeSection)
+  useEffect(() => { activeSectionRef.current = activeSection }, [activeSection])
+  const prevUiScaleRef = useRef(uiScale)
+  useEffect(() => {
+    if (uiScale === prevUiScaleRef.current) return
+    prevUiScaleRef.current = uiScale
+    // requestAnimationFrame so we run after App.tsx's font-size effect
+    // and the browser reflow it triggers.
+    requestAnimationFrame(() => scrollToSection(activeSectionRef.current))
+  }, [uiScale, scrollToSection])
 
   const [rebindingAction, setRebindingAction] = useState<Action | null>(null)
   const [defaultClaudeCommand, setDefaultClaudeCommand] = useState<string>('')
@@ -430,6 +452,26 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
   const handleSelectThemeMode = useCallback((mode: 'light' | 'dark' | 'system') => {
     void backend.setThemeMode(mode)
   }, [backend])
+
+  // UI scale change is visible everywhere at once, so we let the user
+  // *preview* in a small sample box before committing. The slider sets
+  // a local draft; the live UI stays at the persisted scale until Save.
+  const [draftUiScale, setDraftUiScale] = useState(uiScale)
+  // Sync the draft when the persisted value changes from elsewhere
+  // (e.g. cmd+= / cmd+- hotkey while Settings is open).
+  useEffect(() => { setDraftUiScale(uiScale) }, [uiScale])
+  const uiScaleDirty = draftUiScale !== uiScale
+  const draftUiScalePx =
+    draftUiScale === 'roomy' ? 20 : draftUiScale === 'normal' ? 18 : 16
+  const handleSelectUiScale = useCallback((value: 'compact' | 'normal' | 'roomy') => {
+    setDraftUiScale(value)
+  }, [])
+  const handleSaveUiScale = useCallback(() => {
+    void backend.setUiScale(draftUiScale)
+  }, [backend, draftUiScale])
+  const handleRevertUiScale = useCallback(() => {
+    setDraftUiScale(uiScale)
+  }, [uiScale])
 
   const handleSelectLightTheme = useCallback((id: string) => {
     void backend.setThemeLight(id)
@@ -1055,7 +1097,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
         >
           <ArrowLeft size={14} />
           Back
-          <kbd className="text-[10px] text-faint bg-bg px-1.5 py-0.5 rounded border border-border font-mono">ESC</kbd>
+          <kbd className="text-xs text-faint bg-bg px-1.5 py-0.5 rounded border border-border font-mono">ESC</kbd>
         </button>
         <span className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 text-sm font-medium text-fg pointer-events-none">
           Settings
@@ -1135,7 +1177,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                   <span className="text-fg-bright truncate">
                     {highlightMatch(item.title, sectionQuery)}
                   </span>
-                  <span className="text-faint text-[10px] truncate">{item.context}</span>
+                  <span className="text-faint text-xs truncate">{item.context}</span>
                 </button>
               ))}
             </div>
@@ -1300,6 +1342,141 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                 </div>
               </div>
 
+              {/* UI scale — drives the root html font-size, so every rem
+                  unit (text-xs/sm/base/lg, padding-*, gap-*) scales in
+                  lockstep. Native range input gives free keyboard
+                  semantics; the three notches are also clickable labels. */}
+              <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">UI size</h3>
+              <p className="text-xs text-dim mb-3">
+                Scales the entire app — affects sidebar, panels, dialogs.
+                Roomy is friendlier for screen-sharing; compact packs more on screen.
+              </p>
+              <input
+                type="range"
+                min={0}
+                max={2}
+                step={1}
+                value={draftUiScale === 'compact' ? 0 : draftUiScale === 'normal' ? 1 : 2}
+                onChange={(e) => {
+                  const v = Number(e.target.value)
+                  handleSelectUiScale(v === 0 ? 'compact' : v === 1 ? 'normal' : 'roomy')
+                }}
+                aria-label="UI size"
+                className="w-full accent-accent cursor-pointer"
+              />
+              <div className="mt-1 flex justify-between text-xs text-dim select-none">
+                <button
+                  type="button"
+                  onClick={() => handleSelectUiScale('compact')}
+                  className={`cursor-pointer transition-colors ${draftUiScale === 'compact' ? 'text-fg-bright' : 'hover:text-fg'}`}
+                >
+                  Compact
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectUiScale('normal')}
+                  className={`cursor-pointer transition-colors ${draftUiScale === 'normal' ? 'text-fg-bright' : 'hover:text-fg'}`}
+                >
+                  Normal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectUiScale('roomy')}
+                  className={`cursor-pointer transition-colors ${draftUiScale === 'roomy' ? 'text-fg-bright' : 'hover:text-fg'}`}
+                >
+                  Roomy
+                </button>
+              </div>
+
+              {/* Scoped preview — uses inline pixel + em sizes so changing
+                  the slider only resizes this box, not the whole app.
+                  The actual UI shifts on Save (App.tsx watches
+                  settings.uiScale). */}
+              <div
+                className="mt-3 rounded border border-border bg-panel/60"
+                style={{
+                  fontSize: `${draftUiScalePx}px`,
+                  padding: '0.75em',
+                  lineHeight: 1.4
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '0.625em',
+                    color: 'var(--color-dim)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    fontWeight: 500
+                  }}
+                >
+                  Preview · {draftUiScale} ({draftUiScalePx}px)
+                </div>
+                <div
+                  style={{
+                    marginTop: '0.5em',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5em'
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '0.5em',
+                      height: '0.5em',
+                      borderRadius: '50%',
+                      background: 'var(--color-success)',
+                      flexShrink: 0
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{ fontSize: '0.875em', color: 'var(--color-fg-bright)' }}
+                    >
+                      my-branch
+                    </div>
+                    <div style={{ fontSize: '0.6875em', color: 'var(--color-faint)' }}>
+                      last touched 3m ago
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    style={{
+                      fontSize: '0.6875em',
+                      padding: '0.25em 0.5em',
+                      borderRadius: '0.25em',
+                      background:
+                        'color-mix(in srgb, var(--color-accent) 20%, transparent)',
+                      color: 'var(--color-fg-bright)',
+                      border:
+                        '1px solid color-mix(in srgb, var(--color-accent) 40%, transparent)',
+                      cursor: 'default'
+                    }}
+                  >
+                    Action
+                  </button>
+                </div>
+              </div>
+
+              {uiScaleDirty && (
+                <div className="mt-3 flex items-center justify-end gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={handleSaveUiScale}
+                    className="px-2.5 py-1 rounded bg-accent/20 hover:bg-accent/30 text-fg-bright border border-accent/40 cursor-pointer transition-colors"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRevertUiScale}
+                    className="px-2.5 py-1 rounded text-dim hover:text-fg cursor-pointer transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+
               <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Terminal font</h3>
               <p className="text-xs text-dim mb-3">
                 Used by every Claude and shell tab. Provide any CSS font-family value
@@ -1334,7 +1511,12 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
 
                 <div>
                   <label className="block text-sm font-medium text-fg mb-1">
-                    Font size <span className="text-dim font-normal">({terminalFontSize}px)</span>
+                    Font size <span className="text-dim font-normal">
+                      ({terminalFontSize}px
+                      {uiScaleOffsetForTerminal(draftUiScale) > 0 && (
+                        <> + {uiScaleOffsetForTerminal(draftUiScale)}px from UI size = {terminalFontSize + uiScaleOffsetForTerminal(draftUiScale)}px</>
+                      )})
+                    </span>
                   </label>
                   <input
                     type="range"
@@ -1351,7 +1533,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                   className="rounded border border-border-strong bg-panel px-3 py-2 text-fg-bright"
                   style={{
                     fontFamily: terminalFontFamily || defaultTerminalFontFamily,
-                    fontSize: `${terminalFontSize}px`,
+                    fontSize: `${terminalFontSize + uiScaleOffsetForTerminal(draftUiScale)}px`,
                     lineHeight: 1.4
                   }}
                 >
@@ -1436,7 +1618,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
               <div ref={(el) => { subSectionRefs.current['agent-claude'] = el }} id="agent-claude" className="mt-8">
               <h3 className="text-sm font-semibold text-fg-bright mb-3 flex items-center gap-2">
                 Claude Code
-                {defaultAgent === 'claude' && <span className="text-[10px] font-normal text-dim bg-panel px-1.5 py-0.5 rounded">default</span>}
+                {defaultAgent === 'claude' && <span className="text-xs font-normal text-dim bg-panel px-1.5 py-0.5 rounded">default</span>}
               </h3>
 
               <div className="bg-panel-raised border border-border rounded-lg p-4 mb-4">
@@ -1490,8 +1672,8 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
 
                 <div className="mt-4 pt-3 border-t border-border">
                   <label className="block text-xs font-medium text-fg mb-1">Full command preview</label>
-                  <div className="bg-panel border border-border rounded px-3 py-2 text-[11px] text-fg-bright font-mono break-all">{commandPreview}</div>
-                  <p className="text-[10px] text-dim mt-1">where <code className="bg-panel px-1 rounded">{`<shell>`}</code> is your <code className="bg-panel px-1 rounded">$SHELL</code> (typically <code className="bg-panel px-1 rounded">/bin/bash</code> or <code className="bg-panel px-1 rounded">/bin/zsh</code>).</p>
+                  <div className="bg-panel border border-border rounded px-3 py-2 text-xs text-fg-bright font-mono break-all">{commandPreview}</div>
+                  <p className="text-xs text-dim mt-1">where <code className="bg-panel px-1 rounded">{`<shell>`}</code> is your <code className="bg-panel px-1 rounded">$SHELL</code> (typically <code className="bg-panel px-1 rounded">/bin/bash</code> or <code className="bg-panel px-1 rounded">/bin/zsh</code>).</p>
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-border">
@@ -1500,7 +1682,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                     <div className="flex-1">
                       <div className="text-sm text-fg-bright">Enable Harness MCP</div>
                       <div className="text-xs text-dim mt-0.5">
-                        Injects <code className="bg-panel px-1 rounded text-[10px]">harness-control</code> MCP server via <code className="bg-panel px-1 rounded text-[10px]">--mcp-config</code>.
+                        Injects <code className="bg-panel px-1 rounded text-xs">harness-control</code> MCP server via <code className="bg-panel px-1 rounded text-xs">--mcp-config</code>.
                       </div>
                     </div>
                   </label>
@@ -1523,7 +1705,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                     <div className="flex-1">
                       <div className="text-sm text-fg-bright">Fullscreen TUI by default</div>
                       <div className="text-xs text-dim mt-0.5">
-                        Sets <code className="bg-panel px-1 rounded text-[10px]">CLAUDE_CODE_NO_FLICKER=1</code> so Claude runs in fullscreen TUI mode instead of taking over your scrollback.
+                        Sets <code className="bg-panel px-1 rounded text-xs">CLAUDE_CODE_NO_FLICKER=1</code> so Claude runs in fullscreen TUI mode instead of taking over your scrollback.
                       </div>
                     </div>
                   </label>
@@ -1537,7 +1719,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                 </p>
                 <div className="space-y-2">
                   <div>
-                    <label className="block text-[11px] font-medium text-dim mb-1">Base URL</label>
+                    <label className="block text-xs font-medium text-dim mb-1">Base URL</label>
                     <input
                       type="text"
                       value={litellmBaseUrl}
@@ -1548,7 +1730,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-medium text-dim mb-1">Auth token <span className="text-faint">(optional)</span></label>
+                    <label className="block text-xs font-medium text-dim mb-1">Auth token <span className="text-faint">(optional)</span></label>
                     <div className="flex items-center gap-2">
                       <input
                         type={litellmAuthRevealed ? 'text' : 'password'}
@@ -1617,7 +1799,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
               <div ref={(el) => { subSectionRefs.current['agent-codex'] = el }} id="agent-codex" className="mt-8">
               <h3 className="text-sm font-semibold text-fg-bright mb-3 flex items-center gap-2">
                 Codex
-                {defaultAgent === 'codex' && <span className="text-[10px] font-normal text-dim bg-panel px-1.5 py-0.5 rounded">default</span>}
+                {defaultAgent === 'codex' && <span className="text-xs font-normal text-dim bg-panel px-1.5 py-0.5 rounded">default</span>}
               </h3>
 
               <div className="bg-panel-raised border border-border rounded-lg p-4 mb-4">
@@ -1675,8 +1857,8 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                   return (
                     <div className="mt-4 pt-3 border-t border-border">
                       <label className="block text-xs font-medium text-fg mb-1">Full command preview</label>
-                      <div className="bg-panel border border-border rounded px-3 py-2 text-[11px] text-fg-bright font-mono break-all">{`<shell> -ilc "${codexPreviewInner}"`}</div>
-                      <p className="text-[10px] text-dim mt-1">where <code className="bg-panel px-1 rounded">{`<shell>`}</code> is your <code className="bg-panel px-1 rounded">$SHELL</code> (typically <code className="bg-panel px-1 rounded">/bin/bash</code> or <code className="bg-panel px-1 rounded">/bin/zsh</code>).</p>
+                      <div className="bg-panel border border-border rounded px-3 py-2 text-xs text-fg-bright font-mono break-all">{`<shell> -ilc "${codexPreviewInner}"`}</div>
+                      <p className="text-xs text-dim mt-1">where <code className="bg-panel px-1 rounded">{`<shell>`}</code> is your <code className="bg-panel px-1 rounded">$SHELL</code> (typically <code className="bg-panel px-1 rounded">/bin/bash</code> or <code className="bg-panel px-1 rounded">/bin/zsh</code>).</p>
                     </div>
                   )
                 })()}
@@ -1730,7 +1912,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                   <div className="flex-1">
                     <div className="text-sm text-fg-bright">Inject Harness context into Claude sessions</div>
                     <div className="text-xs text-dim mt-0.5">
-                      Appends <code className="bg-panel px-1 rounded text-[10px]">--append-system-prompt</code> with context about Harness and MCP tools.
+                      Appends <code className="bg-panel px-1 rounded text-xs">--append-system-prompt</code> with context about Harness and MCP tools.
                     </div>
                   </div>
                 </label>
@@ -1739,7 +1921,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                   <>
                     <div className="mb-4">
                       <label className="block text-xs font-medium text-fg mb-1">Base prompt</label>
-                      <p className="text-[11px] text-dim mb-2">Sent to every Claude session.</p>
+                      <p className="text-xs text-dim mb-2">Sent to every Claude session.</p>
                       <textarea
                         value={systemPromptDraft}
                         onChange={(e) => setSystemPromptDraft(e.target.value)}
@@ -1751,7 +1933,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
 
                     <div className="mb-4">
                       <label className="block text-xs font-medium text-fg mb-1">Main worktree addition</label>
-                      <p className="text-[11px] text-dim mb-2">Appended when Claude is running on the main/primary worktree.</p>
+                      <p className="text-xs text-dim mb-2">Appended when Claude is running on the main/primary worktree.</p>
                       <textarea
                         value={systemPromptMainDraft}
                         onChange={(e) => setSystemPromptMainDraft(e.target.value)}
@@ -1781,7 +1963,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                         {systemPromptSaveResult.ok ? <Check size={12} /> : <X size={12} />}{systemPromptSaveResult.message}
                       </div>
                     )}
-                    <p className="mt-3 text-[11px] text-faint">Changes apply to new sessions only.</p>
+                    <p className="mt-3 text-xs text-faint">Changes apply to new sessions only.</p>
                   </>
                 )}
               </div>
@@ -1796,7 +1978,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
 
               {repoList.length > 0 && (
                 <div className="mb-4">
-                  <div className="flex items-center gap-1 text-[11px] text-faint mb-1.5 uppercase tracking-wide">
+                  <div className="flex items-center gap-1 text-xs text-faint mb-1.5 uppercase tracking-wide">
                     Scope
                   </div>
                   <div className="flex flex-wrap gap-1 bg-panel-raised border border-border rounded p-1">
@@ -1825,7 +2007,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                       </button>
                     ))}
                   </div>
-                  <p className="text-[11px] text-faint mt-1.5">
+                  <p className="text-xs text-faint mt-1.5">
                     {scopeRepoRoot
                       ? <>Editing <code className="bg-panel-raised px-1 rounded">.harness.json</code> in <span className="font-mono">{repoBasename(scopeRepoRoot)}</span>. Unset fields inherit from global. You can commit this file to share settings with teammates.</>
                       : 'Editing global settings. Individual repos can override these values via their .harness.json file.'}
@@ -1879,14 +2061,14 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
               <div className="flex items-center justify-between mt-6 mb-1">
                 <h3 className="text-sm font-semibold text-fg-bright">Default merge strategy</h3>
                 {scopeRepoRoot === null && reposOverridingKey('mergeStrategy').length > 0 && (
-                  <span className="text-[10px] text-warning bg-warning/10 border border-warning/30 rounded px-1.5 py-0.5">
+                  <span className="text-xs text-warning bg-warning/10 border border-warning/30 rounded px-1.5 py-0.5">
                     Overridden in {reposOverridingKey('mergeStrategy').map(repoBasename).join(', ')}
                   </span>
                 )}
                 {scopeRepoRoot !== null && scopedMergeStrategyIsOverride && (
                   <button
                     onClick={handleResetMergeStrategyToGlobal}
-                    className="text-[10px] text-dim hover:text-fg underline cursor-pointer"
+                    className="text-xs text-dim hover:text-fg underline cursor-pointer"
                   >
                     Reset to global
                   </button>
@@ -1948,27 +2130,27 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
               <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Setup & teardown scripts</h3>
               <p className="text-xs text-dim mb-3">
                 Optional shell commands run via a login shell
-                (<code className="bg-panel-raised px-1 rounded text-[10px]">zsh -ilc</code>) with
-                the worktree as <code className="bg-panel-raised px-1 rounded text-[10px]">cwd</code>.
+                (<code className="bg-panel-raised px-1 rounded text-xs">zsh -ilc</code>) with
+                the worktree as <code className="bg-panel-raised px-1 rounded text-xs">cwd</code>.
                 Setup runs after a worktree is created; teardown runs before it's removed.
                 The env vars{' '}
-                <code className="bg-panel-raised px-1 rounded text-[10px]">HARNESS_WORKTREE_PATH</code>,{' '}
-                <code className="bg-panel-raised px-1 rounded text-[10px]">HARNESS_BRANCH</code>, and{' '}
-                <code className="bg-panel-raised px-1 rounded text-[10px]">HARNESS_REPO_ROOT</code>{' '}
+                <code className="bg-panel-raised px-1 rounded text-xs">HARNESS_WORKTREE_PATH</code>,{' '}
+                <code className="bg-panel-raised px-1 rounded text-xs">HARNESS_BRANCH</code>, and{' '}
+                <code className="bg-panel-raised px-1 rounded text-xs">HARNESS_REPO_ROOT</code>{' '}
                 are available to the command.
               </p>
 
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs text-dim">Setup command</label>
                 {scopeRepoRoot === null && reposOverridingKey('setupCommand').length > 0 && (
-                  <span className="text-[10px] text-warning bg-warning/10 border border-warning/30 rounded px-1.5 py-0.5">
+                  <span className="text-xs text-warning bg-warning/10 border border-warning/30 rounded px-1.5 py-0.5">
                     Overridden in {reposOverridingKey('setupCommand').map(repoBasename).join(', ')}
                   </span>
                 )}
                 {scopeRepoRoot !== null && scopedSetupIsOverride && (
                   <button
                     onClick={handleResetSetupToGlobal}
-                    className="text-[10px] text-dim hover:text-fg underline cursor-pointer"
+                    className="text-xs text-dim hover:text-fg underline cursor-pointer"
                   >
                     Reset to global
                   </button>
@@ -1989,14 +2171,14 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
               <div className="flex items-center justify-between mt-3 mb-1">
                 <label className="block text-xs text-dim">Teardown command</label>
                 {scopeRepoRoot === null && reposOverridingKey('teardownCommand').length > 0 && (
-                  <span className="text-[10px] text-warning bg-warning/10 border border-warning/30 rounded px-1.5 py-0.5">
+                  <span className="text-xs text-warning bg-warning/10 border border-warning/30 rounded px-1.5 py-0.5">
                     Overridden in {reposOverridingKey('teardownCommand').map(repoBasename).join(', ')}
                   </span>
                 )}
                 {scopeRepoRoot !== null && scopedTeardownIsOverride && (
                   <button
                     onClick={handleResetTeardownToGlobal}
-                    className="text-[10px] text-dim hover:text-fg underline cursor-pointer"
+                    className="text-xs text-dim hover:text-fg underline cursor-pointer"
                   >
                     Reset to global
                   </button>
@@ -2028,7 +2210,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                   </span>
                 )}
               </div>
-              <p className="mt-2 text-[11px] text-faint">
+              <p className="mt-2 text-xs text-faint">
                 Failures are logged but don't block the worktree operation. Leave blank to disable.
               </p>
 
@@ -2057,7 +2239,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                   <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Share Claude Code permissions</h3>
                   <p className="text-xs text-dim mb-3">
                     Symlink each worktree's{' '}
-                    <code className="bg-panel-raised px-1 rounded text-[10px]">.claude/settings.local.json</code>{' '}
+                    <code className="bg-panel-raised px-1 rounded text-xs">.claude/settings.local.json</code>{' '}
                     to the main worktree's copy so "Don't ask again"
                     permissions granted in any worktree apply everywhere.
                     Only takes effect for worktrees created while enabled
@@ -2116,12 +2298,12 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                   )
                 })}
               </div>
-              <p className="text-[11px] text-faint">
-                Harness spawns the editor via a login shell (<code className="bg-panel-raised px-1 rounded text-[10px]">zsh -ilc</code>)
+              <p className="text-xs text-faint">
+                Harness spawns the editor via a login shell (<code className="bg-panel-raised px-1 rounded text-xs">zsh -ilc</code>)
                 so homebrew and nvm paths are picked up automatically. If nothing
                 happens when you click "Open in editor", check that the selected
                 editor's CLI is installed (e.g. VS Code's{' '}
-                <code className="bg-panel-raised px-1 rounded text-[10px]">code</code> command,
+                <code className="bg-panel-raised px-1 rounded text-xs">code</code> command,
                 installed via <em>Shell Command: Install 'code' command in PATH</em> from
                 the command palette).
               </p>
@@ -2278,7 +2460,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                 )}
               </div>
               <p className="text-sm text-dim mb-4">
-                Click a shortcut to rebind it. Press <kbd className="bg-panel-raised px-1 rounded text-[10px]">Esc</kbd> to cancel.
+                Click a shortcut to rebind it. Press <kbd className="bg-panel-raised px-1 rounded text-xs">Esc</kbd> to cancel.
               </p>
 
               <div className="bg-panel-raised border border-border rounded-lg divide-y divide-border">
@@ -2362,7 +2544,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
 
                 {import.meta.env.DEV && (
                   <div className="mt-3 pt-3 border-t border-border">
-                    <div className="text-[10px] uppercase tracking-wide text-faint mb-1.5">
+                    <div className="text-xs uppercase tracking-wide text-faint mb-1.5">
                       Dev: simulate updater state
                     </div>
                     <div className="flex gap-1.5">
@@ -2370,7 +2552,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                         <button
                           key={s}
                           onClick={() => backend.devSimulateUpdate(s)}
-                          className="px-2 py-1 bg-surface hover:bg-surface-hover rounded text-[11px] text-fg transition-colors cursor-pointer"
+                          className="px-2 py-1 bg-surface hover:bg-surface-hover rounded text-xs text-fg transition-colors cursor-pointer"
                         >
                           {s}
                         </button>
@@ -2515,7 +2697,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
               <div className="bg-panel-raised border border-warning/30 rounded-lg p-4 mb-4">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="text-sm font-semibold text-fg-bright">Browser control</h3>
-                  <span className="text-[10px] font-medium text-warning bg-warning/10 border border-warning/30 rounded px-1.5 py-0.5">
+                  <span className="text-xs font-medium text-warning bg-warning/10 border border-warning/30 rounded px-1.5 py-0.5">
                     Experimental
                   </span>
                 </div>
@@ -2536,7 +2718,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                   <div className="flex-1">
                     <label htmlFor="browser-tools-enabled" className="text-sm text-fg-bright cursor-pointer">Enable browser tools</label>
                     <div className="text-xs text-dim mt-0.5 mb-2">
-                      Exposes <code className="bg-panel px-1 rounded text-[10px]">harness-control</code> MCP browser_* tools to the agent.
+                      Exposes <code className="bg-panel px-1 rounded text-xs">harness-control</code> MCP browser_* tools to the agent.
                     </div>
                     <select
                       value={browserToolsMode}
@@ -2555,19 +2737,19 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
               <div className="bg-panel-raised border border-warning/30 rounded-lg p-4 mb-4">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="text-sm font-semibold text-fg-bright">JSON-mode Claude tabs</h3>
-                  <span className="text-[10px] font-medium text-warning bg-warning/10 border border-warning/30 rounded px-1.5 py-0.5">
+                  <span className="text-xs font-medium text-warning bg-warning/10 border border-warning/30 rounded px-1.5 py-0.5">
                     Experimental
                   </span>
                 </div>
                 <p className="text-xs text-dim mb-3">
                   Adds a second Claude tab type that runs{' '}
-                  <code className="bg-panel px-1 rounded text-[10px]">claude -p --output-format stream-json</code>{' '}
+                  <code className="bg-panel px-1 rounded text-xs">claude -p --output-format stream-json</code>{' '}
                   and renders the conversation in React — native textarea, real
                   text selection, markdown, syntax highlighting, per-tool cards.
-                  When enabled, <kbd className="bg-panel px-1 rounded text-[10px]">⇧</kbd>-click the
+                  When enabled, <kbd className="bg-panel px-1 rounded text-xs">⇧</kbd>-click the
                   Sparkles button on a worktree's tab bar to spawn one.
                   Many TUI features are still missing — see{' '}
-                  <code className="bg-panel px-1 rounded text-[10px]">plans/json-mode-native-chat.md</code>.
+                  <code className="bg-panel px-1 rounded text-xs">plans/json-mode-native-chat.md</code>.
                 </p>
 
                 <label className="flex items-start gap-3 cursor-pointer">
@@ -2715,12 +2897,12 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
               <div className="bg-panel-raised border border-warning/30 rounded-lg p-4 mb-4">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="text-sm font-semibold text-fg-bright">Auto-approve safe tool calls</h3>
-                  <span className="text-[10px] font-medium text-warning bg-warning/10 border border-warning/30 rounded px-1.5 py-0.5">
+                  <span className="text-xs font-medium text-warning bg-warning/10 border border-warning/30 rounded px-1.5 py-0.5">
                     Experimental
                   </span>
                 </div>
                 <p className="text-xs text-dim mb-3">
-                  In JSON-mode tabs, spawns a Haiku oneshot to approve obviously-safe tool calls (Read, Grep, Edit, …) instead of prompting you. A hardcoded deny-list catches risky calls (<code className="bg-panel px-1 rounded text-[10px]">rm -rf</code>, <code className="bg-panel px-1 rounded text-[10px]">git push</code>, <code className="bg-panel px-1 rounded text-[10px]">WebFetch</code>, …) before Haiku is consulted. Productivity feature only — an LLM judging another LLM is not a security boundary. Has no effect on xterm Claude tabs.
+                  In JSON-mode tabs, spawns a Haiku oneshot to approve obviously-safe tool calls (Read, Grep, Edit, …) instead of prompting you. A hardcoded deny-list catches risky calls (<code className="bg-panel px-1 rounded text-xs">rm -rf</code>, <code className="bg-panel px-1 rounded text-xs">git push</code>, <code className="bg-panel px-1 rounded text-xs">WebFetch</code>, …) before Haiku is consulted. Productivity feature only — an LLM judging another LLM is not a security boundary. Has no effect on xterm Claude tabs.
                 </p>
 
                 <label className="flex items-start gap-3 cursor-pointer">
@@ -2743,8 +2925,8 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                     <label className="block text-xs font-medium text-fg mb-1">
                       Project-specific guidance <span className="text-faint font-normal">(optional)</span>
                     </label>
-                    <p className="text-[11px] text-dim mb-2">
-                      Free-text instructions appended to the reviewer's policy prompt. Use to add carve-outs (e.g. <em>&quot;approve <code className="bg-panel px-1 rounded text-[10px]">npm install</code> for this project&quot;</em>) or extra strictness (e.g. <em>&quot;deny any Bash that writes outside src/&quot;</em>). The hardcoded safety bullets always run first; this is purely additive guidance. You can also edit + re-review from any rejected approval card.
+                    <p className="text-xs text-dim mb-2">
+                      Free-text instructions appended to the reviewer's policy prompt. Use to add carve-outs (e.g. <em>&quot;approve <code className="bg-panel px-1 rounded text-xs">npm install</code> for this project&quot;</em>) or extra strictness (e.g. <em>&quot;deny any Bash that writes outside src/&quot;</em>). The hardcoded safety bullets always run first; this is purely additive guidance. You can also edit + re-review from any rejected approval card.
                     </p>
                     <textarea
                       value={autoApproveSteerDraft}
@@ -2763,7 +2945,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                       </button>
                       {autoApproveSteerSaveResult && (
                         <span
-                          className={`text-[11px] flex items-center gap-1 ${autoApproveSteerSaveResult.ok ? 'text-success' : 'text-danger'}`}
+                          className={`text-xs flex items-center gap-1 ${autoApproveSteerSaveResult.ok ? 'text-success' : 'text-danger'}`}
                         >
                           {autoApproveSteerSaveResult.ok ? <Check size={11} /> : <X size={11} />}
                           {autoApproveSteerSaveResult.message}
@@ -2778,7 +2960,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
               <div className="bg-panel-raised border border-warning/30 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="text-sm font-semibold text-fg-bright">Web &amp; mobile client</h3>
-                  <span className="text-[10px] font-medium text-warning bg-warning/10 border border-warning/30 rounded px-1.5 py-0.5">
+                  <span className="text-xs font-medium text-warning bg-warning/10 border border-warning/30 rounded px-1.5 py-0.5">
                     Experimental
                   </span>
                 </div>
@@ -2819,7 +3001,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                             onBlur={handleSaveWsPort}
                             className="w-28 bg-panel border border-border-strong rounded px-2 py-1 text-xs text-fg-bright outline-none focus:border-fg font-mono"
                           />
-                          <span className="text-[11px] text-faint">default 37291</span>
+                          <span className="text-xs text-faint">default 37291</span>
                         </div>
                       </div>
                       <div>
@@ -2838,7 +3020,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                     <div className="mt-4 pt-3 border-t border-border">
                       <label className="block text-xs font-medium text-fg mb-1">Connection URL</label>
                       <div className="flex items-center gap-2">
-                        <code className="flex-1 bg-panel border border-border rounded px-2 py-1.5 text-[11px] text-fg-bright font-mono truncate">
+                        <code className="flex-1 bg-panel border border-border rounded px-2 py-1.5 text-xs text-fg-bright font-mono truncate">
                           {showWsToken ? wsUrl : wsUrlMasked}
                         </code>
                         <Tooltip label={showWsToken ? 'Hide token' : 'Show token'}>
@@ -2902,11 +3084,11 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                               </p>
                               {lanAddresses.length > 1 && (
                                 <div>
-                                  <label className="block text-[11px] font-medium text-fg mb-1">Interface</label>
+                                  <label className="block text-xs font-medium text-fg mb-1">Interface</label>
                                   <select
                                     value={selectedLanAddress ?? ''}
                                     onChange={(e) => setSelectedLanAddress(e.target.value)}
-                                    className="w-full bg-panel border border-border-strong rounded px-2 py-1 text-[11px] text-fg-bright outline-none focus:border-fg cursor-pointer font-mono"
+                                    className="w-full bg-panel border border-border-strong rounded px-2 py-1 text-xs text-fg-bright outline-none focus:border-fg cursor-pointer font-mono"
                                   >
                                     {lanAddresses.map((a) => (
                                       <option key={a.iface + a.address} value={a.address}>
@@ -2916,7 +3098,7 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
                                   </select>
                                 </div>
                               )}
-                              <p className="font-mono text-[10px] break-all text-fg">
+                              <p className="font-mono text-xs break-all text-fg">
                                 http://{selectedLanAddress}:{wsInfo?.port}/
                               </p>
                             </div>

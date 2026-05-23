@@ -230,7 +230,7 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, r
         >
           <ArrowLeft size={14} />
           Back
-          <kbd className="text-[10px] text-faint bg-bg px-1.5 py-0.5 rounded border border-border font-mono">ESC</kbd>
+          <kbd className="text-xs text-faint bg-bg px-1.5 py-0.5 rounded border border-border font-mono">ESC</kbd>
         </button>
       </div>
 
@@ -302,10 +302,10 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, r
             {repoRoots.length > 1 && !repoLocked && (
               <div className="mb-5">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-dim">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-dim">
                     Repository
                   </span>
-                  <span className="text-[11px] text-faint">
+                  <span className="text-xs text-faint">
                     <span className="font-mono">⌘[</span> <span className="font-mono">⌘]</span> to switch
                   </span>
                 </div>
@@ -333,7 +333,7 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, r
             {mode === 'fresh' && (
               <label className="block">
                 <div className="mb-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-dim">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-dim">
                     Branch name
                   </span>
                 </div>
@@ -347,8 +347,7 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, r
                   disabled={submitting}
                   autoComplete="off"
                   spellCheck={false}
-                  style={{ fontSize: '13px' }}
-                  className="w-full bg-app border-2 border-border-strong rounded-lg px-3 py-2.5 font-mono text-fg-bright placeholder-faint outline-none focus:border-accent transition-colors"
+                  className="w-full bg-app border-2 border-border-strong rounded-lg px-3 py-2.5 text-sm font-mono text-fg-bright placeholder-faint outline-none focus:border-accent transition-colors"
                 />
               </label>
             )}
@@ -356,10 +355,10 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, r
             {mode === 'fresh' && (
               <label className="block mt-6">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-dim">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-dim">
                     Kickoff prompt
                   </span>
-                  <span className="text-[11px] text-faint">optional</span>
+                  <span className="text-xs text-faint">optional</span>
                 </div>
                 <textarea
                   ref={promptRef}
@@ -376,7 +375,7 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, r
             {mode === 'teleport' && (
               <label className="block">
                 <div className="mb-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-dim">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-dim">
                     Session id or command
                   </span>
                 </div>
@@ -389,14 +388,13 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, r
                   disabled={submitting}
                   autoComplete="off"
                   spellCheck={false}
-                  style={{ fontSize: '13px' }}
-                  className={`w-full bg-app border-2 rounded-lg px-3 py-2.5 font-mono text-fg-bright placeholder-faint outline-none transition-colors ${
+                  className={`w-full bg-app border-2 rounded-lg px-3 py-2.5 text-sm font-mono text-fg-bright placeholder-faint outline-none transition-colors ${
                     teleportInvalid
                       ? 'border-danger focus:border-danger'
                       : 'border-border-strong focus:border-accent'
                   }`}
                 />
-                <div className="mt-2 text-[11px] text-dim leading-snug">
+                <div className="mt-2 text-xs text-dim leading-snug">
                   {teleportInvalid ? (
                     <span className="text-danger">
                       Couldn't find a <span className="font-mono">session_…</span> id in there.
@@ -435,7 +433,7 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, r
 
             {mode !== 'pr' && (
               <div className="flex items-center justify-between mt-6 gap-3">
-                <div className="text-[11px] text-faint">
+                <div className="text-xs text-faint">
                   <span className="font-mono">⌘⏎</span> to create ·{' '}
                   <span className="font-mono">Esc</span> to cancel
                 </div>
@@ -484,7 +482,7 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, r
           {mode === 'fresh' && (
           <div className="mt-10">
             <div className="mb-3 px-1">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-dim">
+              <span className="text-xs font-semibold uppercase tracking-wider text-dim">
                 Or try a starter task
               </span>
             </div>
@@ -571,7 +569,7 @@ function PRPickerList({ prs, loading, error, disabled, pendingNumber, onPick }: 
               </span>
               {isPending && <Loader2 size={12} className="animate-spin text-accent shrink-0" />}
             </div>
-            <div className="mt-1 text-[11px] text-dim flex items-center gap-1.5 flex-wrap">
+            <div className="mt-1 text-xs text-dim flex items-center gap-1.5 flex-wrap">
               {pr.author && <span>by {pr.author.login}</span>}
               <span className="text-faint">·</span>
               <span className="font-mono text-faint">

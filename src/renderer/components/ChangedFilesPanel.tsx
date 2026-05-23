@@ -68,7 +68,7 @@ export function ChangedFilesPanel({ worktreePath, onOpenDiff, onSendToAgent, onO
               e.stopPropagation()
               onOpenReview()
             }}
-            className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent text-app text-[10px] font-medium hover:bg-accent/80 transition-colors cursor-pointer"
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent text-app text-xs font-medium hover:bg-accent/80 transition-colors cursor-pointer"
           >
             <ClipboardCheck size={10} />
             Review
@@ -99,7 +99,7 @@ export function ChangedFilesPanel({ worktreePath, onOpenDiff, onSendToAgent, onO
         {worktreePath && hasLoaded && (
           <>
             {/* Uncommitted section */}
-            <div className="px-3 py-1.5 text-[10px] font-medium text-dim uppercase tracking-wider bg-panel-raised/50 flex items-center">
+            <div className="px-3 py-1.5 text-xs font-medium text-dim uppercase tracking-wider bg-panel-raised/50 flex items-center">
               <span>Uncommitted</span>
               {workingFiles.length > 0 && (
                 <span className="ml-auto text-faint normal-case tracking-normal">
@@ -112,7 +112,7 @@ export function ChangedFilesPanel({ worktreePath, onOpenDiff, onSendToAgent, onO
             ) : (
               <>
                 {stagedFiles.length > 0 && unstagedFiles.length > 0 && (
-                  <div className="px-3 py-1 text-[9px] font-medium text-dim uppercase tracking-wider">
+                  <div className="px-3 py-1 text-xs font-medium text-dim uppercase tracking-wider">
                     Staged
                   </div>
                 )}
@@ -126,7 +126,7 @@ export function ChangedFilesPanel({ worktreePath, onOpenDiff, onSendToAgent, onO
                   />
                 ))}
                 {stagedFiles.length > 0 && unstagedFiles.length > 0 && (
-                  <div className="px-3 py-1 text-[9px] font-medium text-dim uppercase tracking-wider">
+                  <div className="px-3 py-1 text-xs font-medium text-dim uppercase tracking-wider">
                     Unstaged
                   </div>
                 )}
@@ -143,7 +143,7 @@ export function ChangedFilesPanel({ worktreePath, onOpenDiff, onSendToAgent, onO
             )}
 
             {/* Branch diff section */}
-            <div className="px-3 py-1.5 text-[10px] font-medium text-dim uppercase tracking-wider bg-panel-raised/50 mt-1 flex items-center">
+            <div className="px-3 py-1.5 text-xs font-medium text-dim uppercase tracking-wider bg-panel-raised/50 mt-1 flex items-center">
               <span>Committed</span>
               {branchFiles.length > 0 && (
                 <span className="ml-auto text-faint normal-case tracking-normal">
@@ -210,7 +210,7 @@ function FileRow({
         </span>
       </Tooltip>
       {(file.additions !== undefined || file.deletions !== undefined) && (
-        <span className="shrink-0 font-mono text-[10px] tabular-nums">
+        <span className="shrink-0 font-mono text-xs tabular-nums">
           {file.additions !== undefined && file.additions > 0 && (
             <span className="text-success">+{file.additions}</span>
           )}

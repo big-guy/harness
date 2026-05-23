@@ -281,7 +281,7 @@ export function Cleanup({
         >
           <ArrowLeft size={14} />
           Back
-          <kbd className="text-[10px] text-faint bg-bg px-1.5 py-0.5 rounded border border-border font-mono">ESC</kbd>
+          <kbd className="text-xs text-faint bg-bg px-1.5 py-0.5 rounded border border-border font-mono">ESC</kbd>
         </button>
         <span className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 text-sm font-medium text-fg pointer-events-none">
           Clean up worktrees
@@ -457,34 +457,34 @@ export function Cleanup({
                               {c.worktree.branch || basename(path)}
                             </span>
                             {c.merged && (
-                              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-success/15 text-success border border-success/30">
+                              <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-success/15 text-success border border-success/30">
                                 <GitPullRequest size={9} />
                                 merged
                               </span>
                             )}
                             {c.prState === 'open' && (
-                              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-info/15 text-info border border-info/30">
+                              <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-info/15 text-info border border-info/30">
                                 <GitPullRequest size={9} />
                                 open PR
                               </span>
                             )}
                             {c.prState === 'closed' && !c.merged && (
-                              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-faint/15 text-dim border border-border">
+                              <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-faint/15 text-dim border border-border">
                                 closed PR
                               </span>
                             )}
                             {c.dirty && (
-                              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-warning/15 text-warning border border-warning/30">
+                              <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-warning/15 text-warning border border-warning/30">
                                 <AlertTriangle size={9} />
                                 uncommitted
                               </span>
                             )}
                           </div>
-                          <div className="text-[11px] text-dim font-mono truncate mt-0.5">
+                          <div className="text-xs text-dim font-mono truncate mt-0.5">
                             {path}
                           </div>
                         </div>
-                        <div className="text-[11px] tabular-nums shrink-0">
+                        <div className="text-xs tabular-nums shrink-0">
                           {isDeleting ? (
                             <span className="text-danger">deleting…</span>
                           ) : isDeleted ? (
@@ -502,7 +502,7 @@ export function Cleanup({
                         <div className="px-4 pb-3 pl-[4.25rem] space-y-3 border-t border-border/50 bg-app/30">
                           {pr && (
                             <div className="pt-3">
-                              <div className="text-[10px] uppercase tracking-wider text-dim mb-1">
+                              <div className="text-xs uppercase tracking-wider text-dim mb-1">
                                 Pull request
                               </div>
                               <div className="flex items-start gap-2">
@@ -523,7 +523,7 @@ export function Cleanup({
                             </div>
                           )}
                           <div className={pr ? '' : 'pt-3'}>
-                            <div className="text-[10px] uppercase tracking-wider text-dim mb-1">
+                            <div className="text-xs uppercase tracking-wider text-dim mb-1">
                               Recent commits
                             </div>
                             {commits === 'loading' && (
@@ -549,7 +549,7 @@ export function Cleanup({
                                   </div>
                                 ))}
                                 {commits.length > 5 && (
-                                  <div className="text-[11px] text-dim">
+                                  <div className="text-xs text-dim">
                                     +{commits.length - 5} more
                                   </div>
                                 )}

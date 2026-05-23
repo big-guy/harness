@@ -2602,6 +2602,22 @@ function registerIpcHandlers(): void {
   )
 
   transport.onRequest(
+    'config:setUiScale',
+    (_ctx, value: 'compact' | 'normal' | 'roomy') => {
+      const next: 'compact' | 'normal' | 'roomy' =
+        value === 'normal' || value === 'roomy' ? value : 'compact'
+      if (next === 'compact') {
+        delete config.uiScale
+      } else {
+        config.uiScale = next
+      }
+      saveConfig(config)
+      store.dispatch({ type: 'settings/uiScaleChanged', payload: next })
+      return true
+    }
+  )
+
+  transport.onRequest(
     'config:setJsonModeChatDensity',
     (_ctx, value: 'compact' | 'comfy') => {
       const next: 'compact' | 'comfy' = value === 'comfy' ? 'comfy' : 'compact'

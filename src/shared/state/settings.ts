@@ -14,6 +14,13 @@ export type BrowserToolsMode = 'view' | 'full'
 
 export type JsonModeChatDensity = 'compact' | 'comfy'
 
+/** Three-step UI density. Controls the root `html` font-size so every
+ *  `rem`-based unit (and therefore the entire `text-xs` / `text-sm` /
+ *  `text-base` / `text-lg` scale) shifts together.
+ *  compact = 16px (browser default, unchanged from pre-uiScale builds),
+ *  normal = 18px, roomy = 20px. */
+export type UiScale = 'compact' | 'normal' | 'roomy'
+
 export type ThemeMode = 'light' | 'dark' | 'system'
 
 /** A theme loaded from `<userData>/themes/*.json`. Stays minimal — the
@@ -123,6 +130,9 @@ export interface SettingsState {
    *  radius for newcomers / screen-sharing. Wired via CSS variables on
    *  the chat root, so it's a pure styling switch. */
   jsonModeChatDensity: JsonModeChatDensity
+  /** Global UI density. Maps to a root `html` font-size:
+   *  compact = 16px, normal = 18px, roomy = 20px. */
+  uiScale: UiScale
   /** Permission mode applied to a freshly-spawned json-mode session.
    *  Existing sessions keep whatever mode they were in (set via the
    *  statusline picker). Default 'acceptEdits' so first-time users
@@ -185,6 +195,7 @@ export type SettingsEvent =
   | { type: 'settings/autoApproveSteerInstructionsChanged'; payload: string }
   | { type: 'settings/useSystemClaudeForJsonModeChanged'; payload: boolean }
   | { type: 'settings/jsonModeChatDensityChanged'; payload: JsonModeChatDensity }
+  | { type: 'settings/uiScaleChanged'; payload: UiScale }
   | {
       type: 'settings/jsonModeDefaultPermissionModeChanged'
       payload: JsonClaudePermissionMode
@@ -237,6 +248,7 @@ export const initialSettings: SettingsState = {
   autoApproveSteerInstructions: '',
   useSystemClaudeForJsonMode: false,
   jsonModeChatDensity: 'compact',
+  uiScale: 'compact',
   jsonModeDefaultPermissionMode: 'acceptEdits',
   autoSleepMinutes: 30,
   snoozeDefaultDays: 7,
@@ -315,6 +327,8 @@ export function settingsReducer(state: SettingsState, event: SettingsEvent): Set
       return { ...state, browserToolsEnabled: event.payload }
     case 'settings/browserToolsModeChanged':
       return { ...state, browserToolsMode: event.payload }
+    case 'settings/uiScaleChanged':
+      return { ...state, uiScale: event.payload }
     case 'settings/jsonModeClaudeTabsChanged':
       return { ...state, jsonModeClaudeTabs: event.payload }
     case 'settings/defaultClaudeTabTypeChanged':

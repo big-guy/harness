@@ -331,6 +331,19 @@ function DesktopApp(): JSX.Element {
   const tailLines = useTailLineBuffer(showCommandCenter)
   const settings = useSettings()
   const { hasGithubToken: hasGithubPat, githubAuthSource, nameClaudeSessions, defaultAgent } = settings
+  // Apply the UI scale to the root html element so every rem-based size
+  // (text-xs / text-sm / padding-*, etc.) shifts in lockstep. compact = today's
+  // default (16px), normal = 18px, roomy = 20px.
+  useEffect(() => {
+    const px =
+      settings.uiScale === 'roomy' ? 20 : settings.uiScale === 'normal' ? 18 : 16
+    document.documentElement.style.fontSize = `${px}px`
+    return () => {
+      // Reset to browser default if the App ever unmounts (test harnesses,
+      // hot reload of the root component) so we don't pin a stale value.
+      document.documentElement.style.fontSize = ''
+    }
+  }, [settings.uiScale])
   const activeTheme = useActiveTheme()
   const nameAgentSessions = nameClaudeSessions
   const hasGithubToken = hasGithubPat || !!githubAuthSource
@@ -811,24 +824,24 @@ const setQuestStep = useCallback((next: QuestStep) => {
                 <div className="h-14 mb-3 flex flex-col justify-center gap-1.5 bg-app/50 rounded border border-border px-2 py-1.5">
                   <div className="flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />
-                    <span className="text-[9px] font-mono text-muted flex-1 truncate">feat/onboarding</span>
+                    <span className="text-xs font-mono text-muted flex-1 truncate">feat/onboarding</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" />
-                    <span className="text-[9px] font-mono text-muted flex-1 truncate">fix/login-flash</span>
+                    <span className="text-xs font-mono text-muted flex-1 truncate">fix/login-flash</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />
-                    <span className="text-[9px] font-mono text-muted flex-1 truncate">refactor/auth</span>
+                    <span className="text-xs font-mono text-muted flex-1 truncate">refactor/auth</span>
                   </div>
                 </div>
                 <div className="text-xs text-fg-bright font-medium mb-0.5">Parallel agents</div>
-                <div className="text-[11px] text-dim leading-snug">One window, many sessions</div>
+                <div className="text-xs text-dim leading-snug">One window, many sessions</div>
               </div>
               <div className="rounded-lg border border-border bg-panel p-3">
                 <div className="h-14 mb-3 flex items-center justify-center bg-app/50 rounded border border-border">
                   <div className="flex flex-col items-center">
-                    <div className="px-1.5 py-0.5 rounded bg-surface border border-border-strong text-[8px] font-mono text-fg-bright">.git</div>
+                    <div className="px-1.5 py-0.5 rounded bg-surface border border-border-strong text-xs font-mono text-fg-bright">.git</div>
                     <svg width="60" height="12" viewBox="0 0 60 12" className="text-faint">
                       <path d="M30 0 L30 5 L10 5 L10 12 M30 5 L30 12 M30 5 L50 5 L50 12" stroke="currentColor" strokeWidth="1" fill="none" />
                     </svg>
@@ -840,25 +853,25 @@ const setQuestStep = useCallback((next: QuestStep) => {
                   </div>
                 </div>
                 <div className="text-xs text-fg-bright font-medium mb-0.5">Worktrees handled</div>
-                <div className="text-[11px] text-dim leading-snug">Your original repo stays clean</div>
+                <div className="text-xs text-dim leading-snug">Your original repo stays clean</div>
               </div>
               <div className="rounded-lg border border-border bg-panel p-3">
                 <div className="h-14 mb-3 flex flex-col items-center justify-center gap-1 bg-app/50 rounded border border-border px-2">
                   <div className="flex items-center gap-1.5 w-full">
                     <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />
-                    <span className="text-[9px] text-muted font-mono">working</span>
+                    <span className="text-xs text-muted font-mono">working</span>
                   </div>
                   <div className="flex items-center gap-1.5 w-full">
                     <span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" />
-                    <span className="text-[9px] text-muted font-mono">waiting</span>
+                    <span className="text-xs text-muted font-mono">waiting</span>
                   </div>
                   <div className="flex items-center gap-1.5 w-full">
                     <span className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" />
-                    <span className="text-[9px] text-muted font-mono">approve</span>
+                    <span className="text-xs text-muted font-mono">approve</span>
                   </div>
                 </div>
                 <div className="text-xs text-fg-bright font-medium mb-0.5">Status at a glance</div>
-                <div className="text-[11px] text-dim leading-snug">Dots show who's waiting</div>
+                <div className="text-xs text-dim leading-snug">Dots show who's waiting</div>
               </div>
             </div>
 
@@ -875,7 +888,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
                     <CheckCircle2 className="w-5 h-5 text-success shrink-0 mt-0.5" />
                   ) : (
                     <div
-                      className={`w-5 h-5 rounded-full border-2 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5 ${
+                      className={`w-5 h-5 rounded-full border-2 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5 ${
                         activeStep === 1 ? 'border-accent text-accent' : 'border-border-strong text-dim'
                       }`}
                     >
@@ -913,7 +926,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
                             />
                           ))}
                         </div>
-                        <span className="text-[11px] font-medium truncate">{opt.label}</span>
+                        <span className="text-xs font-medium truncate">{opt.label}</span>
                       </button>
                     )
                   })}
@@ -932,7 +945,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
                     <CheckCircle2 className="w-5 h-5 text-success shrink-0 mt-0.5" />
                   ) : (
                     <div
-                      className={`w-5 h-5 rounded-full border-2 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5 ${
+                      className={`w-5 h-5 rounded-full border-2 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5 ${
                         activeStep === 2 ? 'border-accent text-accent' : 'border-border-strong text-dim'
                       }`}
                     >
@@ -977,7 +990,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
                     <CheckCircle2 className="w-5 h-5 text-success shrink-0 mt-0.5" />
                   ) : (
                     <div
-                      className={`w-5 h-5 rounded-full border-2 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5 ${
+                      className={`w-5 h-5 rounded-full border-2 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5 ${
                         activeStep === 3 ? 'border-accent text-accent' : 'border-border-strong text-dim'
                       }`}
                     >
@@ -1038,7 +1051,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
               >
                 <div className="flex items-start gap-3 mb-3">
                   <div
-                    className={`w-5 h-5 rounded-full border-2 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5 ${
+                    className={`w-5 h-5 rounded-full border-2 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5 ${
                       activeStep === 4 ? 'border-accent text-accent' : 'border-border-strong text-dim'
                     }`}
                   >

@@ -235,6 +235,8 @@ export function buildBackend(
       req('config:setDefaultClaudeTabType', value),
     setJsonModeChatDensity: (value: 'compact' | 'comfy') =>
       req('config:setJsonModeChatDensity', value),
+    setUiScale: (value: 'compact' | 'normal' | 'roomy') =>
+      req('config:setUiScale', value),
     setJsonModeDefaultPermissionMode: (value: 'default' | 'acceptEdits' | 'plan') =>
       req('config:setJsonModeDefaultPermissionMode', value),
     setAutoSleepMinutes: (value: number) => req('config:setAutoSleepMinutes', value),

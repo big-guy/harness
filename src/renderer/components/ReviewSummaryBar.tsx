@@ -42,7 +42,7 @@ export function ReviewSummaryBar({
         >
           <ArrowLeft size={14} />
           Back
-          <kbd className="text-[10px] text-faint bg-bg px-1.5 py-0.5 rounded border border-border font-mono">ESC</kbd>
+          <kbd className="text-xs text-faint bg-bg px-1.5 py-0.5 rounded border border-border font-mono">ESC</kbd>
         </button>
 
         <div className="flex items-baseline gap-1.5 text-xs truncate min-w-0">
@@ -59,7 +59,7 @@ export function ReviewSummaryBar({
           )}
         </div>
 
-        <div className="flex items-center gap-2 text-[11px] text-faint">
+        <div className="flex items-center gap-2 text-xs text-faint">
           <span>{fileCount} file{fileCount !== 1 ? 's' : ''}</span>
           <span className="text-border">·</span>
           {additions > 0 && <span className="text-success">+{additions}</span>}
@@ -68,7 +68,7 @@ export function ReviewSummaryBar({
 
         <div className="flex-1" />
 
-        <div className="flex items-center gap-1.5 text-[11px] no-drag">
+        <div className="flex items-center gap-1.5 text-xs no-drag">
           {allReviewed ? (
             <span className="flex items-center gap-1 text-success font-medium">
               <Check size={12} strokeWidth={2.5} />

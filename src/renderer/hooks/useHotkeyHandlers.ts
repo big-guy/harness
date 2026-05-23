@@ -93,7 +93,9 @@ export function useHotkeyHandlers(args: UseHotkeyHandlersArgs): {
 
   // Mirror the sidebar's grouping/rendering order so hotkey navigation
   // matches what's on screen.
-  const viewerLogin = useSettings().viewerLogin
+  const allSettings = useSettings()
+  const viewerLogin = allSettings.viewerLogin
+  const uiScale = allSettings.uiScale
   const snoozeByPath = useSnooze().byPath
   const snoozedPaths = useMemo(() => {
     const m: Record<string, true> = {}
@@ -264,6 +266,14 @@ export function useHotkeyHandlers(args: UseHotkeyHandlersArgs): {
       },
       toggleSidebar: () => setSidebarVisible((v) => !v),
       toggleRightColumn: () => setRightColumnHidden((v) => !v),
+      uiScaleUp: () => {
+        const next = uiScale === 'compact' ? 'normal' : uiScale === 'normal' ? 'roomy' : 'roomy'
+        if (next !== uiScale) void backend.setUiScale(next)
+      },
+      uiScaleDown: () => {
+        const next = uiScale === 'roomy' ? 'normal' : uiScale === 'normal' ? 'compact' : 'compact'
+        if (next !== uiScale) void backend.setUiScale(next)
+      },
       openPR: () => {
         if (!activeWorktreeId) return
         const pr = prStatuses[activeWorktreeId]
@@ -332,7 +342,8 @@ export function useHotkeyHandlers(args: UseHotkeyHandlersArgs): {
       onOpenNewWorktree,
       onOpenReview,
       onToggleHotkeyCheatsheet,
-      onToggleCommandCenter
+      onToggleCommandCenter,
+      uiScale
     ]
   )
 

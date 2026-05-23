@@ -39,6 +39,8 @@ export type Action =
   | 'togglePerfMonitor'
   | 'hotkeyCheatsheet'
   | 'openReview'
+  | 'uiScaleUp'
+  | 'uiScaleDown'
 
 export interface Modifiers {
   cmd?: boolean
@@ -98,6 +100,8 @@ export const DEFAULT_HOTKEYS: Record<Action, HotkeyBinding> = {
   togglePerfMonitor: { key: 'd', modifiers: { cmd: true, shift: true } },
   hotkeyCheatsheet: { key: '/', modifiers: { cmd: true, shift: true } },
   openReview: { key: 'r', modifiers: { cmd: true, alt: true } },
+  uiScaleUp: { key: '=', modifiers: { cmd: true } },
+  uiScaleDown: { key: '-', modifiers: { cmd: true } },
 }
 
 /** Check if a KeyboardEvent matches a hotkey binding */
@@ -215,7 +219,9 @@ export const ACTION_LABELS: Record<Action, string> = {
   toggleRightColumn: 'Toggle right column',
   togglePerfMonitor: 'Performance monitor',
   hotkeyCheatsheet: 'Keyboard shortcuts',
-  openReview: 'Review changes'
+  openReview: 'Review changes',
+  uiScaleUp: 'Increase UI size',
+  uiScaleDown: 'Decrease UI size'
 }
 
 /** Capture a KeyboardEvent into a HotkeyBinding (for the rebind UI) */
