@@ -399,6 +399,8 @@ export function buildBackend(
       onLocalSignal('app:togglePerfMonitor', () => callback()),
     onOpenKeyboardShortcuts: (callback: () => void) =>
       onLocalSignal('app:openKeyboardShortcuts', () => callback()),
+    onOpenWorktreeGuide: (callback: () => void) =>
+      onLocalSignal('app:openWorktreeGuide', () => callback()),
     onOpenNewProject: (callback: () => void) =>
       onLocalSignal('menu:newProject', () => callback()),
     onOpenReportIssue: (callback: () => void) =>

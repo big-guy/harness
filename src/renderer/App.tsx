@@ -418,6 +418,12 @@ const setQuestStep = useCallback((next: QuestStep) => {
     return cleanup
   }, [backend, openOverlay])
 
+  // Open Worktree Guide from the Help menu
+  useEffect(() => {
+    const cleanup = backend.onOpenWorktreeGuide(() => openOverlay('guide'))
+    return cleanup
+  }, [backend, openOverlay])
+
   // File → New Project… (Cmd+N)
   useEffect(() => {
     const cleanup = backend.onOpenNewProject(() => setShowNewProject(true))
@@ -763,10 +769,6 @@ const setQuestStep = useCallback((next: QuestStep) => {
   // Activity-log transitions are recorded by main's activity-deriver
   // (see src/main/activity-deriver.ts). The renderer no longer pings
   // recordActivity directly.
-
-  if (showGuide) {
-    return <Guide onClose={() => setShowGuide(false)} />
-  }
 
   const repoPickerOverlay = (
     <RemoteFilePicker
@@ -1245,6 +1247,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
             onOpenCommandCenter={() => toggleOverlay('commandCenter')}
             onOpenNewProject={() => toggleOverlay('newProject')}
             onOpenReportIssue={() => toggleOverlay('reportIssue')}
+            onOpenWorktreeGuide={() => toggleOverlay('guide')}
             activeOverlay={activeOverlay}
             width={sidebarWidth}
             collapsedGroups={collapsedGroups}
@@ -1270,6 +1273,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
             onOpenActivity={() => toggleOverlay('activity')}
             onOpenMyWeek={() => toggleOverlay('myWeek')}
             onOpenReportIssue={() => toggleOverlay('reportIssue')}
+            onOpenWorktreeGuide={() => toggleOverlay('guide')}
             onOpenHotkeyCheatsheet={() => toggleOverlay('hotkeys')}
             onOpenSettings={() => toggleOverlay('settings')}
             activeOverlay={activeOverlay}
@@ -1282,7 +1286,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
           if (!paneTree) return null
           const leaves = getLeaves(paneTree)
           if (leaves.length === 0 || !leaves.some((l) => l.tabs.length > 0)) return null
-          const isVisible = !showNewWorktree && !showNewProject && !showActivity && !showCleanup && !showCommandCenter && !showReview && !showSettings && !showMyWeek && wt.path === activeWorktreeId && !pendingDeletionByPath[wt.path]
+          const isVisible = !showNewWorktree && !showNewProject && !showActivity && !showCleanup && !showCommandCenter && !showReview && !showSettings && !showMyWeek && !showGuide && wt.path === activeWorktreeId && !pendingDeletionByPath[wt.path]
           return (
             <div
               key={wt.path}
@@ -1397,10 +1401,6 @@ const setQuestStep = useCallback((next: QuestStep) => {
                 setShowSettings(false)
                 setSettingsInitialSection(undefined)
               }}
-              onOpenGuide={() => {
-                setSettingsInitialSection(undefined)
-                openOverlay('guide')
-              }}
               initialSection={settingsInitialSection}
             />
           </div>
@@ -1444,6 +1444,11 @@ const setQuestStep = useCallback((next: QuestStep) => {
             />
           </div>
         )}
+        {showGuide && (
+          <div className="flex-1 min-w-0 flex" style={{ paddingLeft: overlayLeadingPx }}>
+            <Guide onClose={() => setShowGuide(false)} />
+          </div>
+        )}
         {showReview && activeWorktreeId && (() => {
           const reviewWt = worktrees.find((w) => w.path === activeWorktreeId)
           return (
@@ -1463,12 +1468,12 @@ const setQuestStep = useCallback((next: QuestStep) => {
             </div>
           )
         })()}
-        {!showNewWorktree && !showNewProject && !showActivity && !showCleanup && !showCommandCenter && !showReview && !showSettings && !showMyWeek && !activeWorktreeId && worktrees.length > 0 && (
+        {!showNewWorktree && !showNewProject && !showActivity && !showCleanup && !showCommandCenter && !showReview && !showSettings && !showMyWeek && !showGuide && !activeWorktreeId && worktrees.length > 0 && (
           <div className="flex-1 flex items-center justify-center text-dim">
             Select a worktree to begin
           </div>
         )}
-        {!showNewWorktree && !showNewProject && !showActivity && !showCleanup && !showCommandCenter && !showReview && !showSettings && !showMyWeek && isPendingId(activeWorktreeId) && (() => {
+        {!showNewWorktree && !showNewProject && !showActivity && !showCleanup && !showCommandCenter && !showReview && !showSettings && !showMyWeek && !showGuide && isPendingId(activeWorktreeId) && (() => {
           const pending = pendingWorktrees.find((p) => p.id === activeWorktreeId)
           if (!pending) return null
           return (
@@ -1480,7 +1485,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
             />
           )
         })()}
-        {!showNewWorktree && !showNewProject && !showActivity && !showCleanup && !showCommandCenter && !showReview && !showSettings && !showMyWeek && activeWorktreeId && pendingDeletionByPath[activeWorktreeId] && (
+        {!showNewWorktree && !showNewProject && !showActivity && !showCleanup && !showCommandCenter && !showReview && !showSettings && !showMyWeek && !showGuide && activeWorktreeId && pendingDeletionByPath[activeWorktreeId] && (
           <DeletingWorktreeScreen
             deletion={pendingDeletionByPath[activeWorktreeId]}
             onDismiss={handleDismissPendingDeletion}
@@ -1492,10 +1497,10 @@ const setQuestStep = useCallback((next: QuestStep) => {
           onFinish={() => setQuestStep('done')}
         />
         {/* Right panel — hidden on the new-worktree screen so the form gets the full width */}
-        {!showNewWorktree && !showNewProject && !showActivity && !showCleanup && !showCommandCenter && !showReview && !showSettings && !showMyWeek && !rightColumnHidden && (
+        {!showNewWorktree && !showNewProject && !showActivity && !showCleanup && !showCommandCenter && !showReview && !showSettings && !showMyWeek && !showGuide && !rightColumnHidden && (
           <ResizeHandle onDelta={handleRightPanelResize} />
         )}
-        {!showNewWorktree && !showNewProject && !showActivity && !showCleanup && !showCommandCenter && !showReview && !showSettings && !showMyWeek && !rightColumnHidden && (
+        {!showNewWorktree && !showNewProject && !showActivity && !showCleanup && !showCommandCenter && !showReview && !showSettings && !showMyWeek && !showGuide && !rightColumnHidden && (
           <RightColumn
             width={rightPanelWidth}
             activeWorktreeId={activeWorktreeId}
@@ -1529,7 +1534,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
             onCollapse={() => setRightColumnHidden(true)}
           />
         )}
-        {!showNewWorktree && !showNewProject && !showActivity && !showCleanup && !showCommandCenter && !showReview && !showSettings && !showMyWeek && rightColumnHidden && (
+        {!showNewWorktree && !showNewProject && !showActivity && !showCleanup && !showCommandCenter && !showReview && !showSettings && !showMyWeek && !showGuide && rightColumnHidden && (
           <CollapsedRightPanel onExpand={() => setRightColumnHidden(false)} />
         )}
       </div>

@@ -9,7 +9,8 @@ import {
   CalendarDays,
   MessageSquare,
   Keyboard,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  BookOpen
 } from 'lucide-react'
 import { Tooltip } from './Tooltip'
 
@@ -42,6 +43,7 @@ interface CollapsedSidebarProps {
   onOpenActivity: () => void
   onOpenMyWeek: () => void
   onOpenReportIssue: () => void
+  onOpenWorktreeGuide: () => void
   onOpenHotkeyCheatsheet: () => void
   onOpenSettings: () => void
   activeOverlay: OverlayName | null
@@ -68,6 +70,7 @@ export function CollapsedSidebar({
   onOpenActivity,
   onOpenMyWeek,
   onOpenReportIssue,
+  onOpenWorktreeGuide,
   onOpenHotkeyCheatsheet,
   onOpenSettings,
   activeOverlay
@@ -154,6 +157,14 @@ export function CollapsedSidebar({
             className={btnClass(activeOverlay === 'reportIssue')}
           >
             <MessageSquare className="w-3.5 h-3.5" />
+          </button>
+        </Tooltip>
+        <Tooltip label="Worktree Guide" side="right">
+          <button
+            onClick={onOpenWorktreeGuide}
+            className={btnClass(activeOverlay === 'guide')}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
           </button>
         </Tooltip>
         <Tooltip label="Keyboard shortcuts" action="hotkeyCheatsheet" side="right">

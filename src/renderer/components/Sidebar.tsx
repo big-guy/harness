@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
-import { ChevronDown, ChevronRight, Plus, RefreshCw, FolderOpen, FolderPlus, Loader2, Settings as SettingsIcon, Sparkles, BarChart3, CalendarDays, Trash2, LayoutGrid, X, Layers, Rows3, AlertCircle, Keyboard, MessageSquare, PanelLeftClose } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, RefreshCw, FolderOpen, FolderPlus, Loader2, Settings as SettingsIcon, Sparkles, BarChart3, CalendarDays, Trash2, LayoutGrid, X, Layers, Rows3, AlertCircle, Keyboard, MessageSquare, PanelLeftClose, BookOpen } from 'lucide-react'
 import { openReportIssue } from './ReportIssueScreen'
 import { Tooltip } from './Tooltip'
 import { HotkeyBadge } from './HotkeyBadge'
@@ -55,6 +55,7 @@ interface SidebarProps {
    *  this handler (so it participates in the activeOverlay mutex).
    *  When omitted, falls back to the global openReportIssue() event. */
   onOpenReportIssue?: () => void
+  onOpenWorktreeGuide: () => void
   /** Which overlay (if any) is currently shown. Drives the active
    *  highlight on the corresponding toolbar button. Includes overlays
    *  not reachable from the toolbar (cleanup, newWorktree, review, guide)
@@ -119,6 +120,7 @@ export function Sidebar({
   onOpenCommandCenter,
   onOpenNewProject,
   onOpenReportIssue,
+  onOpenWorktreeGuide,
   activeOverlay,
   width,
   collapsedGroups: _collapsedGroups,
@@ -588,6 +590,14 @@ export function Sidebar({
             className={overlayButtonClass(activeOverlay === 'reportIssue')}
           >
             <MessageSquare className="w-3.5 h-3.5" />
+          </button>
+        </Tooltip>
+        <Tooltip label="Worktree Guide" side="top">
+          <button
+            onClick={onOpenWorktreeGuide}
+            className={overlayButtonClass(activeOverlay === 'guide')}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
           </button>
         </Tooltip>
         <Tooltip label="Settings" side="top">

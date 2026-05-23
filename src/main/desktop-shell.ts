@@ -404,6 +404,10 @@ export function startDesktopShell(deps: DesktopShellStartDeps): DesktopShellStar
         label: 'Help',
         submenu: [
           {
+            label: 'Worktree Guide',
+            click: () => transport.sendSignal('app:openWorktreeGuide')
+          },
+          {
             label: 'Keyboard Shortcuts',
             click: () => transport.sendSignal('app:openKeyboardShortcuts')
           },

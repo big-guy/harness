@@ -16,7 +16,6 @@ import { QRCodeSVG } from 'qrcode.react'
 
 interface SettingsProps {
   onClose: () => void
-  onOpenGuide: () => void
   initialSection?: SectionId
 }
 
@@ -97,7 +96,7 @@ function highlightMatch(text: string, query: string): React.ReactNode {
   )
 }
 
-export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps): JSX.Element {
+export function Settings({ onClose, initialSection }: SettingsProps): JSX.Element {
   const backend = useBackend()
   const [activeSection, setActiveSection] = useState<SectionId>(initialSection ?? 'appearance')
   const [activeSubSection, setActiveSubSection] = useState<SubSectionId | null>(null)
@@ -1257,16 +1256,6 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
             )
           }))}
 
-          <div className="mt-auto border-t border-border px-3 py-2">
-            <span className="text-xs font-medium text-dim">HELP</span>
-          </div>
-          <button
-            onClick={onOpenGuide}
-            className="flex items-center gap-2 px-3 py-2 text-left text-sm text-muted hover:bg-panel-raised hover:text-fg-bright transition-colors cursor-pointer"
-          >
-            <BookOpen className="w-3.5 h-3.5 shrink-0" />
-            <span>Worktree Guide</span>
-          </button>
         </div>
 
         {/* Main scrollable content */}

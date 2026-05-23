@@ -1,19 +1,34 @@
-import { ArrowLeft, GitBranch, Layers, Eye, Workflow, Lightbulb, ArrowRight, Folder, GitPullRequest, AlertTriangle, Smartphone } from 'lucide-react'
+import { useEffect } from 'react'
+import { ArrowLeft, GitBranch, Layers, Eye, Workflow, Lightbulb, Folder, GitPullRequest, AlertTriangle, Smartphone } from 'lucide-react'
 
 interface GuideProps {
   onClose: () => void
 }
 
 export function Guide({ onClose }: GuideProps): JSX.Element {
+  // Close on Escape, matching the other column-style overlays
+  // (Activity, Cleanup, Settings, etc.).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      if (e.defaultPrevented) return
+      e.preventDefault()
+      onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   return (
-    <div className="flex flex-col h-full bg-panel">
+    <div className="flex-1 flex flex-col min-w-0 h-full bg-panel">
       <div className="drag-region h-10 shrink-0 border-b border-border relative">
         <button
           onClick={onClose}
-          className="no-drag absolute left-20 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-xs text-muted hover:text-fg-bright transition-colors cursor-pointer"
+          className="no-drag absolute top-1/2 -translate-y-1/2 [left:calc(1rem+var(--harness-overlay-leading,0px))] flex items-center gap-1.5 text-xs text-muted hover:text-fg-bright transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           Back
+          <kbd className="text-xs text-faint bg-bg px-1.5 py-0.5 rounded border border-border font-mono">ESC</kbd>
         </button>
         <span className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 text-sm font-medium text-fg pointer-events-none">
           Worktree Guide
@@ -235,20 +250,6 @@ claude`}</CodeBlock>
               </li>
             </ul>
           </Section>
-
-          {/* CTA */}
-          <div className="mt-14 pt-8 border-t border-border flex items-center justify-between gap-4">
-            <p className="text-sm text-dim">
-              You can re-open this guide any time from Settings.
-            </p>
-            <button
-              onClick={onClose}
-              className="flex items-center gap-2 px-5 py-2.5 bg-accent/20 hover:bg-accent/30 border border-accent/40 rounded-lg text-sm font-medium text-fg-bright transition-colors cursor-pointer"
-            >
-              Close
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
         </div>
       </div>
     </div>
