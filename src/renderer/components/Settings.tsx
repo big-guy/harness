@@ -68,8 +68,8 @@ function cleanText(el: Element): string {
 
 /** Pixels added to the terminal font size for each UI scale step. Matches
  *  XTerminal's effectiveTerminalFontSize — kept in sync by hand. */
-function uiScaleOffsetForTerminal(scale: 'compact' | 'normal' | 'roomy'): number {
-  return scale === 'roomy' ? 4 : scale === 'normal' ? 2 : 0
+function uiScaleOffsetForTerminal(scale: 'small' | 'medium' | 'large' | 'x-large'): number {
+  return scale === 'x-large' ? 6 : scale === 'large' ? 4 : scale === 'medium' ? 2 : 0
 }
 
 function highlightMatch(text: string, query: string): React.ReactNode {
@@ -462,10 +462,19 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
   useEffect(() => { setDraftUiScale(uiScale) }, [uiScale])
   const uiScaleDirty = draftUiScale !== uiScale
   const draftUiScalePx =
-    draftUiScale === 'roomy' ? 20 : draftUiScale === 'normal' ? 18 : 16
-  const handleSelectUiScale = useCallback((value: 'compact' | 'normal' | 'roomy') => {
-    setDraftUiScale(value)
-  }, [])
+    draftUiScale === 'x-large'
+      ? 22
+      : draftUiScale === 'large'
+        ? 20
+        : draftUiScale === 'medium'
+          ? 18
+          : 16
+  const handleSelectUiScale = useCallback(
+    (value: 'small' | 'medium' | 'large' | 'x-large') => {
+      setDraftUiScale(value)
+    },
+    []
+  )
   const handleSaveUiScale = useCallback(() => {
     void backend.setUiScale(draftUiScale)
   }, [backend, draftUiScale])
@@ -1344,48 +1353,51 @@ export function Settings({ onClose, onOpenGuide, initialSection }: SettingsProps
               {/* UI scale — drives the root html font-size, so every rem
                   unit (text-xs/sm/base/lg, padding-*, gap-*) scales in
                   lockstep. Native range input gives free keyboard
-                  semantics; the three notches are also clickable labels. */}
+                  semantics; the four notches are also clickable labels. */}
               <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">UI size</h3>
               <p className="text-xs text-dim mb-3">
                 Scales the entire app — affects sidebar, panels, dialogs.
-                Roomy is friendlier for screen-sharing; compact packs more on screen.
+                Larger sizes are friendlier for screen-sharing; small packs more on screen.
               </p>
-              <input
-                type="range"
-                min={0}
-                max={2}
-                step={1}
-                value={draftUiScale === 'compact' ? 0 : draftUiScale === 'normal' ? 1 : 2}
-                onChange={(e) => {
-                  const v = Number(e.target.value)
-                  handleSelectUiScale(v === 0 ? 'compact' : v === 1 ? 'normal' : 'roomy')
-                }}
-                aria-label="UI size"
-                className="w-full accent-accent cursor-pointer"
-              />
-              <div className="mt-1 flex justify-between text-xs text-dim select-none">
-                <button
-                  type="button"
-                  onClick={() => handleSelectUiScale('compact')}
-                  className={`cursor-pointer transition-colors ${draftUiScale === 'compact' ? 'text-fg-bright' : 'hover:text-fg'}`}
-                >
-                  Compact
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSelectUiScale('normal')}
-                  className={`cursor-pointer transition-colors ${draftUiScale === 'normal' ? 'text-fg-bright' : 'hover:text-fg'}`}
-                >
-                  Normal
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSelectUiScale('roomy')}
-                  className={`cursor-pointer transition-colors ${draftUiScale === 'roomy' ? 'text-fg-bright' : 'hover:text-fg'}`}
-                >
-                  Roomy
-                </button>
-              </div>
+              {(() => {
+                const SCALES: { id: 'small' | 'medium' | 'large' | 'x-large'; label: string }[] = [
+                  { id: 'small', label: 'Small' },
+                  { id: 'medium', label: 'Medium' },
+                  { id: 'large', label: 'Large' },
+                  { id: 'x-large', label: 'X-Large' }
+                ]
+                const idx = SCALES.findIndex((s) => s.id === draftUiScale)
+                return (
+                  <>
+                    <input
+                      type="range"
+                      min={0}
+                      max={SCALES.length - 1}
+                      step={1}
+                      value={idx < 0 ? 0 : idx}
+                      onChange={(e) => {
+                        const v = Number(e.target.value)
+                        const next = SCALES[v]
+                        if (next) handleSelectUiScale(next.id)
+                      }}
+                      aria-label="UI size"
+                      className="w-full accent-accent cursor-pointer"
+                    />
+                    <div className="mt-1 flex justify-between text-xs text-dim select-none">
+                      {SCALES.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => handleSelectUiScale(s.id)}
+                          className={`cursor-pointer transition-colors ${draftUiScale === s.id ? 'text-fg-bright' : 'hover:text-fg'}`}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )
+              })()}
 
               {/* Scoped preview — uses inline pixel + em sizes so changing
                   the slider only resizes this box, not the whole app.

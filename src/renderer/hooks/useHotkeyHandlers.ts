@@ -267,11 +267,15 @@ export function useHotkeyHandlers(args: UseHotkeyHandlersArgs): {
       toggleSidebar: () => setSidebarVisible((v) => !v),
       toggleRightColumn: () => setRightColumnHidden((v) => !v),
       uiScaleUp: () => {
-        const next = uiScale === 'compact' ? 'normal' : uiScale === 'normal' ? 'roomy' : 'roomy'
+        const ladder = ['small', 'medium', 'large', 'x-large'] as const
+        const i = ladder.indexOf(uiScale)
+        const next = ladder[Math.min(i + 1, ladder.length - 1)]
         if (next !== uiScale) void backend.setUiScale(next)
       },
       uiScaleDown: () => {
-        const next = uiScale === 'roomy' ? 'normal' : uiScale === 'normal' ? 'compact' : 'compact'
+        const ladder = ['small', 'medium', 'large', 'x-large'] as const
+        const i = ladder.indexOf(uiScale)
+        const next = ladder[Math.max(i - 1, 0)]
         if (next !== uiScale) void backend.setUiScale(next)
       },
       openPR: () => {

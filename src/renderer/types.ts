@@ -293,7 +293,7 @@ export interface ElectronAPI {
   setJsonModeClaudeTabs(enabled: boolean): Promise<boolean>
   setDefaultClaudeTabType(value: 'xterm' | 'json'): Promise<boolean>
   setJsonModeChatDensity(value: 'compact' | 'comfy'): Promise<boolean>
-  setUiScale(value: 'compact' | 'normal' | 'roomy'): Promise<boolean>
+  setUiScale(value: 'small' | 'medium' | 'large' | 'x-large'): Promise<boolean>
   setJsonModeDefaultPermissionMode(
     value: 'default' | 'acceptEdits' | 'plan'
   ): Promise<boolean>

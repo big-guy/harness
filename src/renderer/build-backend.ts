@@ -235,7 +235,7 @@ export function buildBackend(
       req('config:setDefaultClaudeTabType', value),
     setJsonModeChatDensity: (value: 'compact' | 'comfy') =>
       req('config:setJsonModeChatDensity', value),
-    setUiScale: (value: 'compact' | 'normal' | 'roomy') =>
+    setUiScale: (value: 'small' | 'medium' | 'large' | 'x-large') =>
       req('config:setUiScale', value),
     setJsonModeDefaultPermissionMode: (value: 'default' | 'acceptEdits' | 'plan') =>
       req('config:setJsonModeDefaultPermissionMode', value),

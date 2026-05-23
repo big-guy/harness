@@ -91,10 +91,16 @@ export function buildInitialAppState(
       autoApproveSteerInstructions: config.autoApproveSteerInstructions || '',
       useSystemClaudeForJsonMode: config.useSystemClaudeForJsonMode === true,
       jsonModeChatDensity: config.jsonModeChatDensity === 'comfy' ? 'comfy' : 'compact',
+      // Accept the new names, plus migrate the pre-rename values
+      // (compact/normal/roomy) so existing configs don't lose their pick.
       uiScale:
-        config.uiScale === 'normal' || config.uiScale === 'roomy'
-          ? config.uiScale
-          : 'compact',
+        config.uiScale === 'medium' || config.uiScale === 'normal'
+          ? 'medium'
+          : config.uiScale === 'large' || config.uiScale === 'roomy'
+            ? 'large'
+            : config.uiScale === 'x-large'
+              ? 'x-large'
+              : 'small',
       jsonModeDefaultPermissionMode:
         config.jsonModeDefaultPermissionMode === 'default' ||
         config.jsonModeDefaultPermissionMode === 'plan'

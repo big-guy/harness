@@ -332,11 +332,17 @@ function DesktopApp(): JSX.Element {
   const settings = useSettings()
   const { hasGithubToken: hasGithubPat, githubAuthSource, nameClaudeSessions, defaultAgent } = settings
   // Apply the UI scale to the root html element so every rem-based size
-  // (text-xs / text-sm / padding-*, etc.) shifts in lockstep. compact = today's
-  // default (16px), normal = 18px, roomy = 20px.
+  // (text-xs / text-sm / padding-*, etc.) shifts in lockstep.
+  // small = 16px (today's default), medium = 18, large = 20, x-large = 22.
   useEffect(() => {
     const px =
-      settings.uiScale === 'roomy' ? 20 : settings.uiScale === 'normal' ? 18 : 16
+      settings.uiScale === 'x-large'
+        ? 22
+        : settings.uiScale === 'large'
+          ? 20
+          : settings.uiScale === 'medium'
+            ? 18
+            : 16
     document.documentElement.style.fontSize = `${px}px`
     return () => {
       // Reset to browser default if the App ever unmounts (test harnesses,

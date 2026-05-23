@@ -121,12 +121,12 @@ function applyFontToAll(): void {
 let fontCacheInitialized = false
 // `currentFontSize` holds the user-configured terminal size; the actual
 // pixel size we ship to xterm is shifted by `uiScaleOffset` to keep
-// terminals in step with the rest of the UI (compact = 0, normal = +2,
-// roomy = +4). Stored separately so the user's terminal preference
-// isn't overwritten when they toggle UI scale.
+// terminals in step with the rest of the UI (small = 0, medium = +2,
+// large = +4, x-large = +6). Stored separately so the user's terminal
+// preference isn't overwritten when they toggle UI scale.
 let uiScaleOffset = 0
-function uiScaleToOffset(scale: 'compact' | 'normal' | 'roomy'): number {
-  return scale === 'roomy' ? 4 : scale === 'normal' ? 2 : 0
+function uiScaleToOffset(scale: 'small' | 'medium' | 'large' | 'x-large'): number {
+  return scale === 'x-large' ? 6 : scale === 'large' ? 4 : scale === 'medium' ? 2 : 0
 }
 function effectiveTerminalFontSize(): number {
   return currentFontSize + uiScaleOffset

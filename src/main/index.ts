@@ -2603,10 +2603,12 @@ function registerIpcHandlers(): void {
 
   transport.onRequest(
     'config:setUiScale',
-    (_ctx, value: 'compact' | 'normal' | 'roomy') => {
-      const next: 'compact' | 'normal' | 'roomy' =
-        value === 'normal' || value === 'roomy' ? value : 'compact'
-      if (next === 'compact') {
+    (_ctx, value: 'small' | 'medium' | 'large' | 'x-large') => {
+      const next: 'small' | 'medium' | 'large' | 'x-large' =
+        value === 'medium' || value === 'large' || value === 'x-large'
+          ? value
+          : 'small'
+      if (next === 'small') {
         delete config.uiScale
       } else {
         config.uiScale = next

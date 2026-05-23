@@ -14,12 +14,12 @@ export type BrowserToolsMode = 'view' | 'full'
 
 export type JsonModeChatDensity = 'compact' | 'comfy'
 
-/** Three-step UI density. Controls the root `html` font-size so every
+/** Four-step UI density. Controls the root `html` font-size so every
  *  `rem`-based unit (and therefore the entire `text-xs` / `text-sm` /
  *  `text-base` / `text-lg` scale) shifts together.
- *  compact = 16px (browser default, unchanged from pre-uiScale builds),
- *  normal = 18px, roomy = 20px. */
-export type UiScale = 'compact' | 'normal' | 'roomy'
+ *  small = 16px (browser default, unchanged from pre-uiScale builds),
+ *  medium = 18px, large = 20px, x-large = 22px. */
+export type UiScale = 'small' | 'medium' | 'large' | 'x-large'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
@@ -131,7 +131,7 @@ export interface SettingsState {
    *  the chat root, so it's a pure styling switch. */
   jsonModeChatDensity: JsonModeChatDensity
   /** Global UI density. Maps to a root `html` font-size:
-   *  compact = 16px, normal = 18px, roomy = 20px. */
+   *  small = 16px, medium = 18px, large = 20px, x-large = 22px. */
   uiScale: UiScale
   /** Permission mode applied to a freshly-spawned json-mode session.
    *  Existing sessions keep whatever mode they were in (set via the
@@ -248,7 +248,7 @@ export const initialSettings: SettingsState = {
   autoApproveSteerInstructions: '',
   useSystemClaudeForJsonMode: false,
   jsonModeChatDensity: 'compact',
-  uiScale: 'compact',
+  uiScale: 'small',
   jsonModeDefaultPermissionMode: 'acceptEdits',
   autoSleepMinutes: 30,
   snoozeDefaultDays: 7,
