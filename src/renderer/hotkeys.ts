@@ -94,7 +94,7 @@ export const DEFAULT_HOTKEYS: Record<Action, HotkeyBinding> = {
   fileQuickOpen: { key: 'p', modifiers: { cmd: true } },
   splitPaneRight: { key: 'd', modifiers: { cmd: true } },
   splitPaneDown: { key: 'd', modifiers: { cmd: true, alt: true } },
-  toggleRightColumn: { key: 'b', modifiers: { cmd: true, alt: true } },
+  toggleRightColumn: { key: 'b', modifiers: { cmd: true, shift: true } },
   togglePerfMonitor: { key: 'd', modifiers: { cmd: true, shift: true } },
   hotkeyCheatsheet: { key: '/', modifiers: { cmd: true, shift: true } },
   openReview: { key: 'r', modifiers: { cmd: true, alt: true } },
