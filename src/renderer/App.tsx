@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useSettings, usePrs, useOnboarding, useHooks, useWorktrees, useTerminals, usePanes, useLastActive, useUpdater, useRepoConfigs, useSnooze } from './store'
+import { useSettings, usePrs, useOnboarding, useHooks, useWorktrees, useTerminals, usePanes, useLastActive, useUpdater, useRepoConfigs, useSnooze, useActiveBackend } from './store'
 import { useBackend } from './backend'
 import { useTailLineBuffer } from './hooks/useTailLineBuffer'
 import { useTabHandlers } from './hooks/useTabHandlers'
@@ -330,6 +330,7 @@ function DesktopApp(): JSX.Element {
   // nobody is currently looking at.
   const tailLines = useTailLineBuffer(showCommandCenter)
   const settings = useSettings()
+  const activeBackend = useActiveBackend()
   const { hasGithubToken: hasGithubPat, githubAuthSource, nameClaudeSessions, defaultAgent } = settings
   // Apply the UI scale to the root html element so every rem-based size
   // (text-xs / text-sm / padding-*, etc.) shifts in lockstep.
@@ -1541,7 +1542,13 @@ const setQuestStep = useCallback((next: QuestStep) => {
           />
         )}
         {!showNewWorktree && !showNewProject && !showActivity && !showCleanup && !showCommandCenter && !showReview && !showSettings && !showMyWeek && !showGuide && rightColumnHidden && (
-          <CollapsedRightPanel onExpand={() => setRightColumnHidden(false)} />
+          <CollapsedRightPanel
+            onExpand={() => setRightColumnHidden(false)}
+            activeWorktreePath={activeWorktreeId}
+            isLocalBackend={activeBackend.kind === 'local'}
+            onOpenInEditor={(p) => backend.openInEditor(p)}
+            onRevealInFinder={(p) => backend.openPath(p)}
+          />
         )}
       </div>
     </div>
