@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { X, SquareTerminal, Sparkles, SplitSquareHorizontal, SplitSquareVertical, Loader2, Globe, Users } from 'lucide-react'
+import { X, SquareTerminal, Sparkles, SplitSquareHorizontal, SplitSquareVertical, Loader2, Globe, Users, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   SortableContext,
   horizontalListSortingStrategy,
@@ -396,6 +396,33 @@ export function TerminalPanel({
   const showSpectatorChip =
     !!activeTab && (activeTab.type === 'agent' || activeTab.type === 'shell')
 
+  // Tab-list overflow scrolling. Chevron buttons appear on each side
+  // when there's hidden content in that direction, mirroring browsers'
+  // tab strip. Tracked via scroll position + a ResizeObserver so a
+  // window resize or tab add/remove re-evaluates.
+  const tabScrollRef = useRef<HTMLDivElement | null>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+  const updateTabScroll = useCallback(() => {
+    const el = tabScrollRef.current
+    if (!el) return
+    setCanScrollLeft(el.scrollLeft > 1)
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+  }, [])
+  useEffect(() => {
+    updateTabScroll()
+  }, [pane.tabs.length, updateTabScroll])
+  useEffect(() => {
+    const el = tabScrollRef.current
+    if (!el) return
+    const ro = new ResizeObserver(updateTabScroll)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [updateTabScroll])
+  const scrollTabsBy = useCallback((dx: number) => {
+    tabScrollRef.current?.scrollBy({ left: dx, behavior: 'smooth' })
+  }, [])
+
   return (
     <div ref={setPaneDropRef} className="flex-1 flex flex-col min-w-0 bg-app">
       {/* Tab bar */}
@@ -496,7 +523,21 @@ export function TerminalPanel({
           </Tooltip>
         </div>
         <div className="shrink-0 w-px h-4 bg-border mx-1" />
-        <div className="flex items-center h-full overflow-x-auto scrollbar-hidden flex-1 min-w-0">
+        {canScrollLeft && (
+          <button
+            type="button"
+            onClick={() => scrollTabsBy(-200)}
+            aria-label="Scroll tabs left"
+            className="no-drag shrink-0 px-1 h-full text-faint hover:text-fg transition-colors cursor-pointer"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </button>
+        )}
+        <div
+          ref={tabScrollRef}
+          onScroll={updateTabScroll}
+          className="flex items-center h-full overflow-x-auto scrollbar-hidden flex-1 min-w-0"
+        >
           <SortableContext items={pane.tabs.map((t) => t.id)} strategy={horizontalListSortingStrategy}>
             {pane.tabs.map((tab) => {
               const isClaudeAgent = tab.type === 'agent' && tab.agentKind === 'claude'
@@ -531,6 +572,16 @@ export function TerminalPanel({
           </SortableContext>
           {showSpectatorChip && activeTab && <SpectatorChip terminalId={activeTab.id} />}
         </div>
+        {canScrollRight && (
+          <button
+            type="button"
+            onClick={() => scrollTabsBy(200)}
+            aria-label="Scroll tabs right"
+            className="no-drag shrink-0 px-1 h-full text-faint hover:text-fg transition-colors cursor-pointer"
+          >
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Content slot host — WorkspaceView imperatively appends a stable
