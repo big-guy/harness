@@ -95,6 +95,11 @@ interface TerminalPanelProps {
   onFinishEditTab?: (tabId: string, label: string | null) => void
   showExpandRightColumn: boolean
   onShowRightColumn: () => void
+  /** When > 0, reserve this many pixels at the start of the top bar.
+   *  Used to clear the macOS traffic lights when the sidebar is
+   *  collapsed and the workspace is butted up against the window edge.
+   *  Only the leftmost / topmost pane receives a non-zero value. */
+  topBarLeadingPx?: number
 }
 
 const TAB_STATUS_DOT: Record<PtyStatus, string> = {
@@ -374,7 +379,8 @@ export function TerminalPanel({
   onStartEditTab,
   onFinishEditTab,
   showExpandRightColumn,
-  onShowRightColumn
+  onShowRightColumn,
+  topBarLeadingPx = 0
 }: TerminalPanelProps): JSX.Element {
   const backend = useBackend()
   // Droppable target for the pane itself — lets users drop a tab onto an
@@ -400,7 +406,10 @@ export function TerminalPanel({
   return (
     <div ref={setPaneDropRef} className="flex-1 flex flex-col min-w-0 bg-app">
       {/* Tab bar */}
-      <div className="drag-region flex items-center border-b border-border bg-panel h-10 shrink-0">
+      <div
+        className="drag-region flex items-center border-b border-border bg-panel h-10 shrink-0"
+        style={topBarLeadingPx > 0 ? { paddingLeft: topBarLeadingPx } : undefined}
+      >
         {repoLabel && (
           <div
             className="no-drag shrink-0 flex items-baseline gap-1.5 px-3 h-full text-xs whitespace-nowrap"

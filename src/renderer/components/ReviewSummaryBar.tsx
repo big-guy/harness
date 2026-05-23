@@ -38,7 +38,7 @@ export function ReviewSummaryBar({
       <div className="h-10 flex items-center gap-3 px-3">
         <button
           onClick={onClose}
-          className="no-drag flex items-center gap-1.5 text-xs text-muted hover:text-fg-bright transition-colors cursor-pointer"
+          className="no-drag flex items-center gap-1.5 text-xs text-muted hover:text-fg-bright transition-colors cursor-pointer [margin-left:var(--harness-overlay-leading,0px)]"
         >
           <ArrowLeft size={14} />
           Back

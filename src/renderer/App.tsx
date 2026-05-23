@@ -14,6 +14,7 @@ import { applyTheme, effectiveAppBg } from './theme-apply'
 import { getBackend } from './backend'
 import { HotkeysProvider, Tooltip } from './components/Tooltip'
 import { Sidebar } from './components/Sidebar'
+import { CollapsedSidebar } from './components/CollapsedSidebar'
 import { ResizeHandle } from './components/ResizeHandle'
 import { NewWorktreeScreen } from './components/NewWorktreeScreen'
 import { CreatingWorktreeScreen } from './components/CreatingWorktreeScreen'
@@ -724,6 +725,26 @@ const setQuestStep = useCallback((next: QuestStep) => {
     worktreePendingTools[wt.path] = pending
   }
 
+  // When the sidebar is collapsed, content butted against the collapsed
+  // toolbar (workspace top bar, overlay back buttons, etc.) needs leading
+  // padding to clear the macOS traffic lights. The CollapsedSidebar is
+  // 48px wide and traffic lights end at ~74px from the window edge, so
+  // 32px of extra padding gets us safely past them.
+  const overlayLeadingPx = sidebarVisible ? 0 : 32
+
+  // Highest-priority status across all worktrees other than the active one.
+  // Drives the dot in the collapsed sidebar so the user knows another
+  // worktree wants attention without expanding back.
+  let otherWorktreesBlocked: 'needs-approval' | 'waiting' | null = null
+  for (const [path, status] of Object.entries(worktreeStatuses)) {
+    if (path === activeWorktreeId) continue
+    if (status === 'needs-approval') {
+      otherWorktreesBlocked = 'needs-approval'
+      break
+    }
+    if (status === 'waiting') otherWorktreesBlocked = 'waiting'
+  }
+
   const worktreeShellActivity: Record<string, boolean> = {}
   for (const wt of worktrees) {
     const tabs = terminalTabs[wt.path] || []
@@ -1080,7 +1101,13 @@ const setQuestStep = useCallback((next: QuestStep) => {
 
   return (
     <HotkeysProvider bindings={resolvedHotkeys}>
-    <div className="flex h-full flex-col">
+    <div
+      className="flex h-full flex-col"
+      // Read by each overlay's Back button to shift right when the
+      // sidebar is collapsed so it doesn't sit underneath the macOS
+      // traffic lights. Zero when the sidebar is visible.
+      style={{ ['--harness-overlay-leading' as string]: `${overlayLeadingPx}px` }}
+    >
       {/* Update-ready banner */}
       {updaterStatus?.state === 'downloaded' && !updateBannerDismissed && (
         <div className="bg-success/15 border-b border-success/30 pl-20 pr-4 py-2.5 drag-region flex items-center gap-3 shrink-0">
@@ -1201,6 +1228,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
             repoRoots={repoRoots}
             onAddRepo={handleAddRepo}
             onRemoveRepo={handleRemoveRepo}
+            onCollapse={() => setSidebarVisible(false)}
             onOpenSettings={() => toggleOverlay('settings')}
             onOpenAddBackend={() => openOverlay('addBackend')}
             onOpenHotkeyCheatsheet={() => toggleOverlay('hotkeys')}
@@ -1219,6 +1247,26 @@ const setQuestStep = useCallback((next: QuestStep) => {
             onToggleRepo={toggleRepo}
             unifiedRepos={unifiedRepos}
             onToggleUnifiedRepos={() => setUnifiedRepos((v) => !v)}
+          />
+        )}
+        {!sidebarVisible && (
+          <CollapsedSidebar
+            onExpand={() => setSidebarVisible(true)}
+            onAddRepo={handleAddRepo}
+            onNewWorktree={() => {
+              setNewWorktreeRepoRoot(null)
+              openOverlay('newWorktree')
+            }}
+            onOpenCleanup={() => openOverlay('cleanup')}
+            onOpenCommandCenter={() => toggleOverlay('commandCenter')}
+            onOpenNewProject={() => toggleOverlay('newProject')}
+            onOpenActivity={() => toggleOverlay('activity')}
+            onOpenMyWeek={() => toggleOverlay('myWeek')}
+            onOpenReportIssue={() => toggleOverlay('reportIssue')}
+            onOpenHotkeyCheatsheet={() => toggleOverlay('hotkeys')}
+            onOpenSettings={() => toggleOverlay('settings')}
+            otherWorktreesBlocked={otherWorktreesBlocked}
+            activeOverlay={activeOverlay}
           />
         )}
         {sidebarVisible && <ResizeHandle onDelta={handleSidebarResize} />}
@@ -1278,38 +1326,46 @@ const setQuestStep = useCallback((next: QuestStep) => {
                   }}
                   rightColumnHidden={rightColumnHidden}
                   onShowRightColumn={() => setRightColumnHidden(false)}
+                  // Same traffic-light clearance the overlays use, applied
+                  // only to the leftmost pane's top bar (terminal body
+                  // stays full width).
+                  topBarLeadingPx={overlayLeadingPx}
                 />
               </ErrorBoundary>
             </div>
           )
         })}
         {showNewWorktree && (
-          <NewWorktreeScreen
-            onSubmit={handleSubmitNewWorktree}
-            onPRSubmit={handleSubmitNewPRWorktree}
-            onCancel={() => setShowNewWorktree(false)}
-            repoRoots={repoRoots}
-            // Hide the repo picker when the per-repo "Add worktree"
-            // button set the target explicitly; the active-worktree
-            // fallback is just a guess, so leave the picker visible.
-            repoLocked={newWorktreeRepoRoot != null}
-            defaultRepoRoot={
-              newWorktreeRepoRoot ??
-              (activeWorktreeId ? worktreeRepoByPath[activeWorktreeId] : undefined)
-            }
-          />
+          <div className="flex-1 min-w-0 flex">
+            <NewWorktreeScreen
+              onSubmit={handleSubmitNewWorktree}
+              onPRSubmit={handleSubmitNewPRWorktree}
+              onCancel={() => setShowNewWorktree(false)}
+              repoRoots={repoRoots}
+              // Hide the repo picker when the per-repo "Add worktree"
+              // button set the target explicitly; the active-worktree
+              // fallback is just a guess, so leave the picker visible.
+              repoLocked={newWorktreeRepoRoot != null}
+              defaultRepoRoot={
+                newWorktreeRepoRoot ??
+                (activeWorktreeId ? worktreeRepoByPath[activeWorktreeId] : undefined)
+              }
+            />
+          </div>
         )}
         {showNewProject && (
-          <NewProjectScreen
-            onCancel={() => setShowNewProject(false)}
-            onCreated={(createdPath) => {
-              setShowNewProject(false)
-              const main =
-                worktrees.find((w) => w.repoRoot === createdPath && w.isMain) ||
-                worktrees.find((w) => w.repoRoot === createdPath)
-              if (main) setActiveWorktreeId(main.path)
-            }}
-          />
+          <div className="flex-1 min-w-0 flex">
+            <NewProjectScreen
+              onCancel={() => setShowNewProject(false)}
+              onCreated={(createdPath) => {
+                setShowNewProject(false)
+                const main =
+                  worktrees.find((w) => w.repoRoot === createdPath && w.isMain) ||
+                  worktrees.find((w) => w.repoRoot === createdPath)
+                if (main) setActiveWorktreeId(main.path)
+              }}
+            />
+          </div>
         )}
         {reportIssueState !== null && (
           <ReportIssueScreen
@@ -1363,24 +1419,26 @@ const setQuestStep = useCallback((next: QuestStep) => {
           </div>
         )}
         {showCommandCenter && (
-          <CommandCenter
-            worktrees={worktrees}
-            worktreeStatuses={worktreeStatuses}
-            worktreePendingTools={worktreePendingTools}
-            prStatuses={prStatuses}
-            mergedPaths={mergedPaths}
-            lastActive={lastActive}
-            tailLines={tailLines}
-            terminalTabs={terminalTabs}
-            onClose={() => setShowCommandCenter(false)}
-            onSelect={(path) => {
-              setShowCommandCenter(false)
-              setShowNewWorktree(false)
-              setShowActivity(false)
-              setShowCleanup(false)
-              setActiveWorktreeId(path)
-            }}
-          />
+          <div className="flex-1 min-w-0 flex">
+            <CommandCenter
+              worktrees={worktrees}
+              worktreeStatuses={worktreeStatuses}
+              worktreePendingTools={worktreePendingTools}
+              prStatuses={prStatuses}
+              mergedPaths={mergedPaths}
+              lastActive={lastActive}
+              tailLines={tailLines}
+              terminalTabs={terminalTabs}
+              onClose={() => setShowCommandCenter(false)}
+              onSelect={(path) => {
+                setShowCommandCenter(false)
+                setShowNewWorktree(false)
+                setShowActivity(false)
+                setShowCleanup(false)
+                setActiveWorktreeId(path)
+              }}
+            />
+          </div>
         )}
         {showReview && activeWorktreeId && (() => {
           const reviewWt = worktrees.find((w) => w.path === activeWorktreeId)

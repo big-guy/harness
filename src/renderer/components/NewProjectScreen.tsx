@@ -107,7 +107,7 @@ export function NewProjectScreen({ onCancel, onCreated }: NewProjectScreenProps)
         <button
           onClick={onCancel}
           disabled={submitting}
-          className="no-drag absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-xs text-muted hover:text-fg-bright transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          className="no-drag absolute top-1/2 -translate-y-1/2 [left:calc(1rem+var(--harness-overlay-leading,0px))] flex items-center gap-1.5 text-xs text-muted hover:text-fg-bright transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <ArrowLeft size={14} />
           Back

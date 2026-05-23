@@ -226,7 +226,7 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, r
       <div className="drag-region h-10 shrink-0 relative border-b border-border">
         <button
           onClick={onCancel}
-          className="no-drag absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-xs text-muted hover:text-fg-bright transition-colors cursor-pointer"
+          className="no-drag absolute top-1/2 -translate-y-1/2 [left:calc(1rem+var(--harness-overlay-leading,0px))] flex items-center gap-1.5 text-xs text-muted hover:text-fg-bright transition-colors cursor-pointer"
         >
           <ArrowLeft size={14} />
           Back

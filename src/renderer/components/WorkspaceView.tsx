@@ -63,6 +63,10 @@ interface WorkspaceViewProps {
   rightColumnHidden: boolean
   onShowRightColumn: () => void
   crashedTabIds?: ReadonlySet<string>
+  /** Pixels to reserve at the start of the leftmost pane's top bar so
+   *  the workspace toolbar clears the macOS traffic lights when the
+   *  sidebar is collapsed. Plumbed through to the first leaf only. */
+  topBarLeadingPx?: number
 }
 
 function DebugCrashTrigger({ tabId }: { tabId: string }): JSX.Element {
@@ -159,7 +163,8 @@ function SplitRenderer({
   onResizeEnd,
   editingTabId,
   onStartEditTab,
-  onFinishEditTab
+  onFinishEditTab,
+  topBarLeadingPx
 }: {
   node: PaneNode
   worktreePath: string
@@ -191,6 +196,7 @@ function SplitRenderer({
   editingTabId?: string | null
   onStartEditTab?: (tabId: string) => void
   onFinishEditTab?: (tabId: string, label: string | null) => void
+  topBarLeadingPx?: number
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -228,6 +234,7 @@ function SplitRenderer({
           onFinishEditTab={onFinishEditTab}
           showExpandRightColumn={showExpandRightColumn && node.id === topRightLeafId}
           onShowRightColumn={onShowRightColumn}
+          topBarLeadingPx={showLabel ? topBarLeadingPx : 0}
         />
       </div>
     )
@@ -278,6 +285,7 @@ function SplitRenderer({
           editingTabId={editingTabId}
           onStartEditTab={onStartEditTab}
           onFinishEditTab={onFinishEditTab}
+          topBarLeadingPx={topBarLeadingPx}
         />
       </div>
       <PaneDivider
@@ -321,6 +329,7 @@ function SplitRenderer({
           editingTabId={editingTabId}
           onStartEditTab={onStartEditTab}
           onFinishEditTab={onFinishEditTab}
+          topBarLeadingPx={topBarLeadingPx}
         />
       </div>
     </div>
@@ -357,7 +366,8 @@ export function WorkspaceView({
   branch,
   rightColumnHidden,
   onShowRightColumn,
-  crashedTabIds
+  crashedTabIds,
+  topBarLeadingPx
 }: WorkspaceViewProps): JSX.Element {
   const backend = useBackend()
   // Stable slot DOM elements keyed by pane.id. Created imperatively and
@@ -549,6 +559,7 @@ export function WorkspaceView({
           editingTabId={editingTabId}
           onStartEditTab={onStartEditTab}
           onFinishEditTab={onFinishEditTab}
+          topBarLeadingPx={topBarLeadingPx}
         />
       </div>
 

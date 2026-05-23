@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
-import { ChevronDown, ChevronRight, Plus, RefreshCw, FolderOpen, FolderPlus, Loader2, Settings as SettingsIcon, Sparkles, BarChart3, CalendarDays, Trash2, LayoutGrid, X, Layers, Rows3, AlertCircle, Keyboard, MessageSquare } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, RefreshCw, FolderOpen, FolderPlus, Loader2, Settings as SettingsIcon, Sparkles, BarChart3, CalendarDays, Trash2, LayoutGrid, X, Layers, Rows3, AlertCircle, Keyboard, MessageSquare, PanelLeftClose } from 'lucide-react'
 import { openReportIssue } from './ReportIssueScreen'
 import { Tooltip } from './Tooltip'
 import { HotkeyBadge } from './HotkeyBadge'
@@ -42,6 +42,7 @@ interface SidebarProps {
   repoRoots: string[]
   onAddRepo: () => void
   onRemoveRepo: (repoRoot: string) => Promise<void>
+  onCollapse: () => void
   onOpenSettings: () => void
   onOpenAddBackend: () => void
   onOpenHotkeyCheatsheet: () => void
@@ -108,6 +109,7 @@ export function Sidebar({
   repoRoots,
   onAddRepo,
   onRemoveRepo,
+  onCollapse,
   onOpenSettings,
   onOpenAddBackend,
   onOpenHotkeyCheatsheet,
@@ -301,8 +303,15 @@ export function Sidebar({
 
       {/* Worktrees header */}
       <div className="px-3 py-1.5 flex items-center gap-2 shrink-0">
+        <Tooltip label="Collapse sidebar" action="toggleSidebar" side="bottom">
+          <button
+            onClick={onCollapse}
+            className="text-dim hover:text-fg hover:bg-surface rounded p-0.5 transition-colors cursor-pointer"
+          >
+            <PanelLeftClose size={12} />
+          </button>
+        </Tooltip>
         <span className="text-xs font-medium text-dim">WORKTREES</span>
-        {prLoading && <Loader2 size={10} className="text-faint animate-spin" />}
         <div className="ml-auto flex items-center gap-1">
           <Tooltip label="Add repository" side="bottom">
             <button
@@ -338,7 +347,7 @@ export function Sidebar({
               onClick={onRefresh}
               className="text-dim hover:text-fg hover:bg-surface rounded p-0.5 transition-colors cursor-pointer"
             >
-              <RefreshCw size={12} />
+              <RefreshCw size={12} className={prLoading ? 'animate-spin' : ''} />
             </button>
           </Tooltip>
         </div>

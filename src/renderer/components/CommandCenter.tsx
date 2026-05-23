@@ -282,7 +282,7 @@ export function CommandCenter({
       <div className="drag-region px-4 py-4 border-b border-border flex items-start gap-6 shrink-0">
         <button
           onClick={onClose}
-          className="no-drag flex items-center gap-1.5 px-2 py-1.5 text-xs text-muted hover:text-fg-bright transition-colors cursor-pointer self-center"
+          className="no-drag flex items-center gap-1.5 px-2 py-1.5 text-xs text-muted hover:text-fg-bright transition-colors cursor-pointer self-center [margin-left:var(--harness-overlay-leading,0px)]"
         >
           <ArrowLeft size={14} />
           Back
