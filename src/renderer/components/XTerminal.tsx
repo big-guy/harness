@@ -1,11 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { WebLinksAddon } from '@xterm/addon-web-links'
+import { ProgressAddon } from '@xterm/addon-progress'
+import { SearchAddon } from '@xterm/addon-search'
 import '@xterm/xterm/css/xterm.css'
 import type { StateEvent } from '../../shared/state'
 import { getClientId, useTerminalSession } from '../store'
 import { getBackend, useBackend } from '../backend'
-import { Eye } from 'lucide-react'
+import { Eye, X } from 'lucide-react'
 
 function ClaudeLoader() {
   return (
@@ -40,6 +43,15 @@ function ClaudeLoader() {
 const DEFAULT_TERMINAL_FONT_FAMILY =
   "'SF Mono', 'Monaco', 'Menlo', 'Courier New', monospace"
 const DEFAULT_TERMINAL_FONT_SIZE = 13
+
+const SEARCH_DECORATIONS = {
+  matchBackground: '#facc1540',
+  matchBorder: '#facc1580',
+  matchOverviewRuler: '#facc15',
+  activeMatchBackground: '#f59e0b',
+  activeMatchBorder: '#fbbf24',
+  activeMatchColorOverviewRuler: '#f59e0b'
+}
 
 /** Global registry so hotkeys can focus terminals without prop-drilling refs */
 const terminalRegistry = new Map<string, Terminal>()
@@ -200,6 +212,11 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
+  const searchAddonRef = useRef<SearchAddon | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<{ resultIndex: number; resultCount: number } | null>(null)
   const [loading, setLoading] = useState(type === 'agent')
   const visibleRef = useRef(visible)
   const initializedRef = useRef(false)
@@ -234,17 +251,40 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
     const bg = rootStyle.getPropertyValue('--color-app').trim() || '#0a0a0a'
     const fg = rootStyle.getPropertyValue('--color-fg-bright').trim() || '#e5e5e5'
 
+    const openUrlInBrowserTab = (uri: string): void => {
+      // Browser tabs live in panes alongside terminals; appending here
+      // bypasses the App-level handleAddBrowserTab so XTerminal stays
+      // self-contained. paneId is omitted — panesFSM falls back to the
+      // first leaf which is correct for the common single-pane case.
+      let label = 'Browser'
+      try {
+        label = new URL(uri).host || label
+      } catch {
+        // ignore; fall back to generic label
+      }
+      const id = `browser-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      void backend.panesAddTab(cwd, { id, type: 'browser', label, url: uri })
+    }
+
     const terminal = new Terminal({
       fontSize: currentFontSize,
       fontFamily: currentFontFamily,
       cursorBlink: true,
       cursorStyle: 'bar',
       allowProposedApi: true,
-      // Route OSC 8 hyperlink clicks to the system browser. Without this,
-      // xterm's default handler shows a confirm prompt and then calls
-      // window.open, which Electron silently swallows.
+      // Route OSC 8 hyperlink clicks: plain click sends the URL to the OS
+      // default browser; Cmd/Ctrl-click opens an in-app browser tab in this
+      // terminal's worktree. mailto: always goes external (in-app browser
+      // can't handle it).
       linkHandler: {
-        activate: (_event, uri) => {
+        activate: (event, uri) => {
+          const inApp = (event.metaKey || event.ctrlKey) && !uri.startsWith('mailto:')
+          if (inApp) {
+            if (uri.startsWith('http://') || uri.startsWith('https://')) {
+              openUrlInBrowserTab(uri)
+            }
+            return
+          }
           if (uri.startsWith('http://') || uri.startsWith('https://') || uri.startsWith('mailto:')) {
             backend.openExternal(uri)
           }
@@ -279,12 +319,58 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
     const fitAddon = new FitAddon()
     terminal.loadAddon(fitAddon)
 
+    const webLinksAddon = new WebLinksAddon((event, uri) => {
+      event.preventDefault()
+      const inApp = event.metaKey || event.ctrlKey
+      if (inApp) {
+        openUrlInBrowserTab(uri)
+      } else {
+        backend.openExternal(uri)
+      }
+    })
+    terminal.loadAddon(webLinksAddon)
+
+    const progressAddon = new ProgressAddon()
+    terminal.loadAddon(progressAddon)
+    // Only the controller dispatches — spectators parse the same OSC stream
+    // identically, so letting them all dispatch would 2x+ the IPC traffic
+    // and the reducer would dedup most of it anyway.
+    const progressSub = progressAddon.onChange((p) => {
+      if (!isControllerRef.current) return
+      backend.setTerminalProgress(terminalId, p.state, p.value)
+    })
+
+    const searchAddon = new SearchAddon()
+    terminal.loadAddon(searchAddon)
+    searchAddonRef.current = searchAddon
+    const searchResultsSub = searchAddon.onDidChangeResults((e) => {
+      setSearchResults({ resultIndex: e.resultIndex, resultCount: e.resultCount })
+    })
+
     // Translate Shift+Enter into "backslash + Enter" (\\\r). By default xterm
     // sends bare \r for both Enter and Shift+Enter, so Claude Code can't tell
     // them apart and treats Shift+Enter as submit. Sending `\` then Enter
     // matches Claude Code's documented line-continuation pattern and inserts
     // a newline regardless of cursor position.
     terminal.attachCustomKeyEventHandler((e) => {
+      // Intercept Cmd/Ctrl+F before any controller gating so spectators
+      // can search scrollback too.
+      if (
+        e.type === 'keydown' &&
+        (e.key === 'f' || e.key === 'F') &&
+        (e.metaKey || e.ctrlKey) &&
+        !e.altKey
+      ) {
+        e.preventDefault()
+        e.stopPropagation()
+        setSearchOpen(true)
+        // Defer focus until after React renders the input.
+        requestAnimationFrame(() => {
+          searchInputRef.current?.focus()
+          searchInputRef.current?.select()
+        })
+        return false
+      }
       if (!isControllerRef.current) {
         // Spectators shouldn't inject even our Shift+Enter escape;
         // main would drop the write too, but swallowing here keeps
@@ -496,6 +582,9 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
       resizeObserver.disconnect()
       cleanupData?.()
       cleanupExit?.()
+      searchResultsSub.dispose()
+      progressSub.dispose()
+      searchAddonRef.current = null
       terminal.dispose()
     }
   }, [terminalId, cwd, type])
@@ -612,6 +701,42 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
     }
   }
 
+  const closeSearch = (): void => {
+    setSearchOpen(false)
+    setSearchResults(null)
+    searchAddonRef.current?.clearDecorations()
+    terminalRef.current?.focus()
+  }
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      closeSearch()
+      return
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const addon = searchAddonRef.current
+      if (!addon || !searchQuery) return
+      const opts = { decorations: SEARCH_DECORATIONS }
+      if (e.shiftKey) addon.findPrevious(searchQuery, opts)
+      else addon.findNext(searchQuery, opts)
+    }
+  }
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const value = e.target.value
+    setSearchQuery(value)
+    const addon = searchAddonRef.current
+    if (!addon) return
+    if (!value) {
+      addon.clearDecorations()
+      setSearchResults(null)
+      return
+    }
+    addon.findNext(value, { decorations: SEARCH_DECORATIONS, incremental: true })
+  }
+
   const showSpectatorOverlay = session !== null && session.controllerClientId !== null && session.controllerClientId !== myClientId
 
   // Diagnostic for the controller/spectator UI flow. Logs the overlay
@@ -631,6 +756,33 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
       onDrop={handleDrop}
     >
       <div ref={containerRef} className="w-full h-full" />
+      {searchOpen && (
+        <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-md bg-panel/95 border border-border shadow-lg z-10">
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={handleSearchChange}
+            onKeyDown={handleSearchKeyDown}
+            placeholder="Find"
+            className="bg-transparent text-xs text-fg-bright outline-none placeholder:text-dim w-40"
+          />
+          <span className="text-xs text-dim tabular-nums min-w-[3rem] text-right">
+            {searchQuery
+              ? searchResults && searchResults.resultCount > 0
+                ? `${searchResults.resultIndex + 1}/${searchResults.resultCount}`
+                : '0/0'
+              : ''}
+          </span>
+          <button
+            onClick={closeSearch}
+            className="p-0.5 rounded text-dim hover:text-fg-bright hover:bg-border transition-colors"
+            aria-label="Close search"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-app/70 pointer-events-none">
           <div className="flex flex-col items-center gap-3 text-dim text-sm">

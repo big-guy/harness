@@ -2784,6 +2784,18 @@ function registerIpcHandlers(): void {
     ptyManager.resize(id, cols, rows)
   })
 
+  transport.onSignal('terminal:setProgress', (_ctx, id: string, state: number, value: number) => {
+    // OSC 9;4 progress, mirrored from the controller's xterm ProgressAddon.
+    // Reducer dedups identical updates so we don't fan out per token.
+    if (typeof id !== 'string' || !id) return
+    if (state !== 0 && state !== 1 && state !== 2 && state !== 3 && state !== 4) return
+    const v = Number(value)
+    store.dispatch({
+      type: 'terminals/progressChanged',
+      payload: { id, state, value: Number.isFinite(v) ? v : 0 }
+    })
+  })
+
   transport.onRequest('snooze:snooze', (_ctx, path: string, wakeAt: number) => {
     if (typeof path !== 'string' || !path) return false
     const wake = Number(wakeAt)

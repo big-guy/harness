@@ -469,6 +469,7 @@ export interface ElectronAPI {
   joinTerminal(id: string): void
   leaveTerminal(id: string): void
   takeTerminalControl(id: string, cols: number, rows: number): void
+  setTerminalProgress(id: string, state: 0 | 1 | 2 | 3 | 4, value: number): void
   onTerminalData(callback: (id: string, data: string) => void): () => void
   onTerminalExit(callback: (id: string, exitCode: number) => void): () => void
 

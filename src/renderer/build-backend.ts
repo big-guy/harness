@@ -450,6 +450,8 @@ export function buildBackend(
     leaveTerminal: (id: string) => sig('terminal:leave', id),
     takeTerminalControl: (id: string, cols: number, rows: number) =>
       sig('terminal:takeControl', id, cols, rows),
+    setTerminalProgress: (id: string, state: 0 | 1 | 2 | 3 | 4, value: number) =>
+      sig('terminal:setProgress', id, state, value),
     onTerminalData: (callback: DataCallback) =>
       onActiveSignal('terminal:data', (id, data) => {
         callback(id as string, data as string)
