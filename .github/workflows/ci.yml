@@ -40,3 +40,20 @@ jobs:
 
       - name: Tests
         run: npx vitest run
+
+      # The headless server bundle is built separately from the Electron
+      # build above (different vite config, different output dir). Builds
+      # both `dist-headless/main` and `dist-headless/web-client`.
+      - name: Build headless server
+        run: npm run build:headless
+
+      # End-to-end smoke test: launches the freshly-built headless server
+      # on an ephemeral port, verifies it serves the web client, rejects
+      # unauthenticated requests, accepts a WebSocket client with the
+      # token, and exits cleanly on SIGTERM. Catches the class of bugs
+      # where the tarball's module layout / chunk resolution / auth gate
+      # is broken — bugs that previously only surfaced after a tag-push
+      # release. Logic lives in scripts/smoke-headless.sh so it's
+      # runnable locally and not buried in YAML.
+      - name: Headless smoke test
+        run: bash scripts/smoke-headless.sh
