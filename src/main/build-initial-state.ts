@@ -115,13 +115,9 @@ export function buildInitialAppState(
       useSystemClaudeForJsonMode: config.useSystemClaudeForJsonMode === true,
       jsonModeChatDensity: config.jsonModeChatDensity === 'comfy' ? 'comfy' : 'compact',
       uiScale:
-        config.uiScale === 'medium' || config.uiScale === 'normal'
-          ? 'medium'
-          : config.uiScale === 'large' || config.uiScale === 'roomy'
-            ? 'large'
-            : config.uiScale === 'x-large'
-              ? 'x-large'
-              : 'small',
+        config.uiScale === 'medium' || config.uiScale === 'large' || config.uiScale === 'x-large'
+          ? config.uiScale
+          : 'small',
       jsonModeSendOnEnter: config.jsonModeSendOnEnter === true,
       jsonModeDefaultPermissionMode:
         config.jsonModeDefaultPermissionMode === 'default' ||
