@@ -212,7 +212,7 @@ function MergeLocallyBody({
                   title={hasConflict ? 'Resolve merge conflicts before merging' : undefined}
                   className="flex-1 text-xs bg-accent/20 hover:bg-accent/30 text-fg-bright px-2 py-1.5 rounded-l flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border-r border-accent/40"
                 >
-                  <GitMerge className="w-3 h-3" />
+                  <GitMerge className="icon-xs" />
                   {busy === 'merging' ? 'Merging…' : STRATEGY_BUTTON_LABELS[strategy]}
                 </button>
                 <button
@@ -222,7 +222,7 @@ function MergeLocallyBody({
                   aria-label="Change merge strategy"
                   title="Change merge strategy"
                 >
-                  <ChevronDown className="w-3 h-3" />
+                  <ChevronDown className="icon-xs" />
                 </button>
               </div>
 
@@ -240,7 +240,7 @@ function MergeLocallyBody({
                           }`}
                         >
                           <Check
-                            className={`w-3 h-3 mt-0.5 shrink-0 ${
+                            className={`icon-xs mt-0.5 shrink-0 ${
                               active ? 'text-accent' : 'opacity-0'
                             }`} />
                           <div className="min-w-0">
@@ -533,7 +533,7 @@ function ReviewSummary({
                 <span className="text-muted truncate">{review.user}</span>
                 <span className={`shrink-0 ${icon.color}`}>{icon.symbol}</span>
                 <ExternalLink
-                  className="w-2.5 h-2.5 shrink-0 text-faint opacity-0 group-hover:opacity-100 transition-opacity ml-auto" />
+                  className="icon-2xs shrink-0 text-faint opacity-0 group-hover:opacity-100 transition-opacity ml-auto" />
               </div>
             )
           })}
@@ -681,13 +681,13 @@ function usePRMergeAction(
         }`}
       >
         {merging ? (
-          <Loader2 className="w-3 h-3 animate-spin" />
+          <Loader2 className="icon-xs animate-spin" />
         ) : justMerged ? (
-          <Check className="w-3 h-3" />
+          <Check className="icon-xs" />
         ) : pr.hasConflict === true ? (
-          <GitMergeConflict className="w-3 h-3" />
+          <GitMergeConflict className="icon-xs" />
         ) : (
-          <GitMerge className="w-3 h-3" />
+          <GitMerge className="icon-xs" />
         )}
         {mergeLabel}
       </button>
@@ -753,7 +753,7 @@ export function PRStatusPanel({
         className="text-xs text-dim hover:text-fg flex items-center transition-colors cursor-pointer disabled:cursor-default"
         aria-label="Refresh PR status"
       >
-        <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+        <RefreshCw className={`icon-xs ${loading ? 'animate-spin' : ''}`} />
       </button>
     </Tooltip>
   ) : null
@@ -783,7 +783,7 @@ export function PRStatusPanel({
               onClick={onConnectGithub}
               className="w-full text-xs bg-info/25 hover:bg-info/35 text-info px-2 py-1.5 rounded flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <GitPullRequest className="w-3 h-3" />
+              <GitPullRequest className="icon-xs" />
               Connect GitHub
             </button>
           )}
@@ -891,7 +891,7 @@ export function PRStatusPanel({
                 className="flex items-center gap-0.5 text-warning shrink-0"
                 title={`${pr.behindBy} commit${pr.behindBy === 1 ? '' : 's'} behind ${pr.baseBranch}`}
               >
-                <ArrowDown className="w-3 h-3" />
+                <ArrowDown className="icon-xs" />
                 {pr.behindBy}
               </span>
             )}
@@ -952,9 +952,9 @@ export function PRStatusPanel({
                   }}
                 >
                   {iss.state === 'closed' ? (
-                    <CircleCheck className="w-3 h-3 shrink-0 text-dim" />
+                    <CircleCheck className="icon-xs shrink-0 text-dim" />
                   ) : (
-                    <CircleDot className="w-3 h-3 shrink-0 text-success" />
+                    <CircleDot className="icon-xs shrink-0 text-success" />
                   )}
                   <span className="font-mono text-faint shrink-0">#{iss.number}</span>
                   <span className={`truncate ${iss.state === 'closed' ? 'text-faint line-through' : 'text-fg'}`}>
@@ -1032,7 +1032,7 @@ export function PRStatusPanel({
                         </span>
                         {clickable && (
                           <ExternalLink
-                            className="w-2.5 h-2.5 shrink-0 text-faint opacity-0 group-hover:opacity-100 transition-opacity" />
+                            className="icon-2xs shrink-0 text-faint opacity-0 group-hover:opacity-100 transition-opacity" />
                         )}
                       </div>
                       {reason && (

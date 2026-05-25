@@ -266,7 +266,7 @@ export function ActivityCosts(): JSX.Element {
           <div className="text-xs uppercase tracking-wider text-dim mb-2">Total</div>
           {loading ? (
             <div className="flex items-center gap-2 text-muted">
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="icon-base animate-spin" />
               <span className="text-sm">Parsing session history…</span>
             </div>
           ) : (
@@ -289,7 +289,7 @@ export function ActivityCosts(): JSX.Element {
           </div>
           {loading ? (
             <div className="flex items-center gap-2 text-muted">
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="icon-base animate-spin" />
               <span className="text-sm">Computing breakdown…</span>
             </div>
           ) : total > 0 ? (
@@ -332,12 +332,12 @@ export function ActivityCosts(): JSX.Element {
             >
               {showAllRepos ? (
                 <>
-                  <ChevronUp className="w-3 h-3" />
+                  <ChevronUp className="icon-xs" />
                   Show top {DEFAULT_VISIBLE_REPOS}
                 </>
               ) : (
                 <>
-                  <ChevronDown className="w-3 h-3" />
+                  <ChevronDown className="icon-xs" />
                   Show {hiddenRepos} more {hiddenRepos === 1 ? 'repo' : 'repos'}
                 </>
               )}
@@ -348,7 +348,7 @@ export function ActivityCosts(): JSX.Element {
 
       <div className="text-center mt-6">
         <div className="inline-flex items-center gap-1.5 text-xs text-dim">
-          <Sparkles className="w-3 h-3 text-amber-400/70" />
+          <Sparkles className="icon-xs text-amber-400/70" />
           <span>
             Tracked locally by Harness{' '}
             <span className="text-faint">– https://harness.mikelyons.org/</span>
@@ -430,9 +430,9 @@ function RepoRow({
       >
         <div className="flex items-center gap-2 min-w-0">
           {isExpanded ? (
-            <ChevronDown className="w-3.5 h-3.5 text-muted shrink-0" />
+            <ChevronDown className="icon-sm text-muted shrink-0" />
           ) : (
-            <ChevronRight className="w-3.5 h-3.5 text-muted shrink-0" />
+            <ChevronRight className="icon-sm text-muted shrink-0" />
           )}
           <span
             className="text-fg-bright font-medium truncate"
@@ -613,12 +613,12 @@ function BreakdownPanel({
         >
           {showAll ? (
             <>
-              <ChevronUp className="w-2.5 h-2.5" />
+              <ChevronUp className="icon-2xs" />
               Show top {BREAKDOWN_VISIBLE_ROWS}
             </>
           ) : (
             <>
-              <ChevronDown className="w-2.5 h-2.5" />
+              <ChevronDown className="icon-2xs" />
               Show {hidden} more
             </>
           )}

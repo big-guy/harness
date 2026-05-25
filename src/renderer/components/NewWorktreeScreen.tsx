@@ -257,7 +257,7 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, d
           title="Close (Esc)"
           className="no-drag text-dim hover:text-fg p-1.5 rounded transition-colors cursor-pointer"
         >
-          <X className="w-4 h-4" />
+          <X className="icon-base" />
         </button>
       </div>
 
@@ -292,7 +292,7 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, d
                     : 'text-dim hover:text-fg'
                 }`}
               >
-                <Sparkles className="w-3 h-3" />
+                <Sparkles className="icon-xs" />
                 Fresh start
               </button>
               <button
@@ -308,7 +308,7 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, d
                     : 'text-dim hover:text-fg'
                 }`}
               >
-                <Radio className="w-3 h-3" />
+                <Radio className="icon-xs" />
                 Teleport from claude.ai
               </button>
               <button
@@ -321,7 +321,7 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, d
                     : 'text-dim hover:text-fg'
                 }`}
               >
-                <GitPullRequest className="w-3 h-3" />
+                <GitPullRequest className="icon-xs" />
                 Open PR
               </button>
             </div>
@@ -522,12 +522,12 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, d
                   >
                     {submitting ? (
                       <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <Loader2 className="icon-sm animate-spin" />
                         Creating…
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-3.5 h-3.5" />
+                        <Sparkles className="icon-sm" />
                         Create worktree
                       </>
                     )}
@@ -598,7 +598,7 @@ function PRPickerList({ prs, loading, error, disabled, pendingNumber, onPick }: 
   if (loading) {
     return (
       <div className="flex items-center justify-center gap-2 py-12 text-sm text-dim">
-        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        <Loader2 className="icon-sm animate-spin" />
         Fetching open PRs…
       </div>
     )
@@ -637,7 +637,7 @@ function PRPickerList({ prs, loading, error, disabled, pendingNumber, onPick }: 
               <span className="text-sm text-fg-bright font-medium truncate flex-1 min-w-0">
                 {pr.title}
               </span>
-              {isPending && <Loader2 className="w-3 h-3 animate-spin text-accent shrink-0" />}
+              {isPending && <Loader2 className="icon-xs animate-spin text-accent shrink-0" />}
             </div>
             <div className="mt-1 text-xs text-dim flex items-center gap-1.5 flex-wrap">
               {pr.author && <span>by {pr.author.login}</span>}
@@ -722,7 +722,7 @@ function AgentModelRow({
         onClick={() => setOpenOverride((v) => !v)}
         className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-dim hover:text-fg transition-colors cursor-pointer"
       >
-        {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+        {open ? <ChevronDown className="icon-xs" /> : <ChevronRight className="icon-xs" />}
         Advanced
         {!open && hasNonDefault && (
           <span className="ml-1 normal-case font-normal tracking-normal text-faint">

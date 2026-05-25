@@ -213,7 +213,7 @@ export function ReviewFileTree({
                 className="w-full flex items-center gap-1 px-2 py-1 text-xs font-medium text-dim uppercase tracking-wider bg-panel-raised/50 hover:bg-panel-raised cursor-pointer"
               >
                 <ChevronRight
-                  className={`w-2.5 h-2.5 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
+                  className={`icon-2xs transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
                 {group.dir}
               </button>
             )}
@@ -244,7 +244,7 @@ export function ReviewFileTree({
                           : 'border-border-strong text-transparent hover:border-faint'
                       }`}
                     >
-                      {isReviewed && <Check strokeWidth={3} className="w-2.5 h-2.5" />}
+                      {isReviewed && <Check strokeWidth={3} className="icon-2xs" />}
                     </button>
 
                     <span className={`shrink-0 w-3 font-mono text-xs ${STATUS_COLOR[file.status]}`}>

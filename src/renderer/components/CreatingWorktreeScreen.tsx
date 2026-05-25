@@ -112,8 +112,8 @@ export function CreatingWorktreeScreen({
             onClick={() => setLogsOpen((v) => !v)}
             className="flex items-center gap-1.5 text-xs text-dim hover:text-fg transition-colors cursor-pointer mb-2"
           >
-            {logsOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-            <TerminalIcon className="w-3 h-3" />
+            {logsOpen ? <ChevronDown className="icon-xs" /> : <ChevronRight className="icon-xs" />}
+            <TerminalIcon className="icon-xs" />
             {logsOpen ? 'Hide setup logs' : 'Show setup logs'}
           </button>
           {logsOpen && <ScriptLogViewer log={pending.setupLog || ''} />}

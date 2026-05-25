@@ -893,7 +893,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
               >
                 <div className="flex items-start gap-3 mb-3">
                   {step1Complete ? (
-                    <CheckCircle2 className="w-5 h-5 text-success shrink-0 mt-0.5" />
+                    <CheckCircle2 className="icon-lg text-success shrink-0 mt-0.5" />
                   ) : (
                     <div
                       className={`w-5 h-5 rounded-full border-2 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5 ${
@@ -950,7 +950,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
               >
                 <div className="flex items-start gap-3 mb-3">
                   {step2Complete ? (
-                    <CheckCircle2 className="w-5 h-5 text-success shrink-0 mt-0.5" />
+                    <CheckCircle2 className="icon-lg text-success shrink-0 mt-0.5" />
                   ) : (
                     <div
                       className={`w-5 h-5 rounded-full border-2 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5 ${
@@ -979,7 +979,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
                           : 'bg-panel border border-border text-dim hover:text-fg hover:border-border-strong'
                       }`}
                     >
-                      <AgentIcon kind={agent.kind} className="w-3.5 h-3.5" />
+                      <AgentIcon kind={agent.kind} className="icon-sm" />
                       {agent.displayName}
                     </button>
                   ))}
@@ -1007,7 +1007,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
               >
                 <div className="flex items-start gap-3 mb-3">
                   {step3Complete ? (
-                    <CheckCircle2 className="w-5 h-5 text-success shrink-0 mt-0.5" />
+                    <CheckCircle2 className="icon-lg text-success shrink-0 mt-0.5" />
                   ) : (
                     <div
                       className={`w-5 h-5 rounded-full border-2 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5 ${
@@ -1087,7 +1087,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
                     onClick={handleAddRepo}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer bg-fg-bright text-app hover:bg-fg border border-fg-bright"
                   >
-                    <FolderOpen className="w-4 h-4" />
+                    <FolderOpen className="icon-base" />
                     Open Repository
                   </button>
                   <span className="text-xs text-dim">

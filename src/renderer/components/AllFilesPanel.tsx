@@ -135,7 +135,7 @@ export function AllFilesPanel({
             }}
             className="text-faint hover:text-fg transition-colors cursor-pointer"
           >
-            <FolderOpen className="w-3 h-3" />
+            <FolderOpen className="icon-xs" />
           </button>
         </Tooltip>
       )}
@@ -147,7 +147,7 @@ export function AllFilesPanel({
           }}
           className="text-faint hover:text-fg transition-colors cursor-pointer"
         >
-          <RefreshCw className="w-3 h-3" />
+          <RefreshCw className="icon-xs" />
         </button>
       </Tooltip>
     </>
@@ -284,11 +284,11 @@ function DirRow({
       style={{ paddingLeft: 8 + depth * 12 }}
     >
       <ChevronRight
-        className={`w-2.5 h-2.5 shrink-0 text-faint transition-transform ${open ? 'rotate-90' : ''}`} />
+        className={`icon-2xs shrink-0 text-faint transition-transform ${open ? 'rotate-90' : ''}`} />
       {open ? (
-        <FolderOpen className="w-3 h-3 shrink-0 text-info" />
+        <FolderOpen className="icon-xs shrink-0 text-info" />
       ) : (
-        <Folder className="w-3 h-3 shrink-0 text-info" />
+        <Folder className="icon-xs shrink-0 text-info" />
       )}
       <span className="truncate text-fg">{name}</span>
     </div>
@@ -322,7 +322,7 @@ function FileRow({
         e.dataTransfer.effectAllowed = 'copy'
       }}
     >
-      <FileText className="w-3 h-3 shrink-0 text-faint" />
+      <FileText className="icon-xs shrink-0 text-faint" />
       <span className="truncate min-w-0 flex-1 text-fg">{name}</span>
       {onSendToAgent && (
         <Tooltip label="Reference in Claude" side="left">
@@ -333,7 +333,7 @@ function FileRow({
             }}
             className="shrink-0 opacity-0 group-hover:opacity-100 text-faint hover:text-fg transition-all cursor-pointer"
           >
-            <AtSign className="w-3 h-3" />
+            <AtSign className="icon-xs" />
           </button>
         </Tooltip>
       )}
@@ -345,7 +345,7 @@ function FileRow({
           }}
           className="shrink-0 opacity-0 group-hover:opacity-100 text-faint hover:text-fg transition-all cursor-pointer"
         >
-          <Code2 className="w-3 h-3" />
+          <Code2 className="icon-xs" />
         </button>
       </Tooltip>
     </div>

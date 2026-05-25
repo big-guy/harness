@@ -271,9 +271,9 @@ export function MobileTerminal({ worktreePath, tab }: MobileTerminalProps): JSX.
 
   const quickActions = useMemo(
     () => [
-      { label: 'Cancel', icon: <X className="w-3 h-3" />, onPress: () => writeRaw('\x03') },
-      { label: 'Submit', icon: <Send className="w-3 h-3" />, onPress: () => writeRaw('\r') },
-      { label: 'Newline', icon: <CornerDownLeft className="w-3 h-3" />, onPress: () => writeRaw('\\\r') }
+      { label: 'Cancel', icon: <X className="icon-xs" />, onPress: () => writeRaw('\x03') },
+      { label: 'Submit', icon: <Send className="icon-xs" />, onPress: () => writeRaw('\r') },
+      { label: 'Newline', icon: <CornerDownLeft className="icon-xs" />, onPress: () => writeRaw('\\\r') }
     ],
     [writeRaw]
   )
@@ -335,7 +335,7 @@ export function MobileTerminal({ worktreePath, tab }: MobileTerminalProps): JSX.
             onClick={handleJumpToBottom}
             className="absolute right-3 bottom-3 z-10 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs bg-surface/90 text-fg-bright border border-border shadow-lg"
           >
-            <ArrowDownToLine className="w-3 h-3" />
+            <ArrowDownToLine className="icon-xs" />
             Jump to bottom
           </button>
         )}
@@ -360,7 +360,7 @@ export function MobileTerminal({ worktreePath, tab }: MobileTerminalProps): JSX.
               onClick={focusInput}
               className="shrink-0 ml-auto inline-flex items-center gap-1 px-2 py-1 rounded text-xs text-fg-bright bg-accent/20 border border-accent/40"
             >
-              <Keyboard className="w-3 h-3" />
+              <Keyboard className="icon-xs" />
               Keyboard
             </button>
           )}

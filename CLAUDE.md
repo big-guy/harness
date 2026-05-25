@@ -593,21 +593,32 @@ These are how the user wants Claude to behave when working on this repo:
     in-between size, snap to the nearest canonical step — the per-px
     hierarchy doesn't earn its keep against the visual noise.
 
-    **Icons — use Tailwind `w-N h-N`, not the lucide `size={N}` prop.**
-    The `size` prop bakes pixel literals into the SVG `width` / `height`
-    attributes, so icons stay fixed regardless of root font-size. The
-    rem-based class scales correctly. Mapping cheat sheet:
+    **Icons — use the `icon-*` aliases, not the lucide `size={N}` prop
+    or raw `w-N h-N` classes.** The lucide `size` prop bakes pixel
+    literals into the SVG `width` / `height` attributes, so icons stay
+    fixed regardless of root font-size. `icon-*` is a rem-based alias
+    defined in `src/renderer/styles.css` via Tailwind v4's `@utility`,
+    and mirrors the `text-*` ladder. Pick from this set only:
 
-    | want | use |
-    |---|---|
-    | 10px | `w-2.5 h-2.5` |
-    | 12px | `w-3 h-3` |
-    | 14px | `w-3.5 h-3.5` |
-    | 16px | `w-4 h-4` |
-    | 18px | `w-[1.125rem] h-[1.125rem]` |
-    | 20px | `w-5 h-5` |
-    | 24px | `w-6 h-6` |
-    | 32px | `w-8 h-8` |
+    | utility    | px   |
+    |---         |---   |
+    | `icon-2xs` | 10px |
+    | `icon-xs`  | 12px |
+    | `icon-sm`  | 14px |
+    | `icon-base`| 16px |
+    | `icon-lg`  | 20px |
+    | `icon-xl`  | 32px |
+
+    Example: `<Loader2 className="icon-sm animate-spin" />`. If a
+    design genuinely wants 18px or 26px (one-offs), use
+    `w-[1.125rem] h-[1.125rem]` / `w-[1.625rem] h-[1.625rem]`. If the
+    rung you need would be the third callsite of that one-off, add a
+    new `@utility` entry in `styles.css` and use that instead.
+
+    Note: `w-N h-N` literals are still correct for *non-icon* fixed-size
+    boxes — checkboxes (`<input type="checkbox" className="w-4 h-4">`),
+    color swatches, decorative dots, avatar circles. Those aren't
+    icons; don't rename them to `icon-base`.
 
     Exceptions where pixel literals are correct (because the consumer
     isn't part of the rem grid): Monaco/XTerminal font sizes, the

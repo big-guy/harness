@@ -163,7 +163,7 @@ function FileDiffView({
               disabled={!dirty}
               className="shrink-0 text-faint hover:text-fg disabled:opacity-40 disabled:hover:text-faint cursor-pointer disabled:cursor-default"
             >
-              <Save className="w-3 h-3" />
+              <Save className="icon-xs" />
             </button>
           </Tooltip>
         )}
@@ -173,7 +173,7 @@ function FileDiffView({
               onClick={() => onSendToAgent(`@${filePath} `)}
               className="shrink-0 text-faint hover:text-fg cursor-pointer"
             >
-              <AtSign className="w-3 h-3" />
+              <AtSign className="icon-xs" />
             </button>
           </Tooltip>
         )}
@@ -277,7 +277,7 @@ function CommitDiffView({
                       }}
                       className="opacity-0 group-hover/line:opacity-100 text-faint hover:text-fg transition-opacity cursor-pointer"
                     >
-                      <AtSign className="w-2.5 h-2.5" />
+                      <AtSign className="icon-2xs" />
                     </button>
                   </Tooltip>
                 )}

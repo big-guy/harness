@@ -278,12 +278,12 @@ function Header({ worktree, tabs, selectedTabId, statuses, shellActivity, picker
                 {worktree.branch || worktree.path.split('/').pop()}
               </span>
             </span>
-            <ChevronDown className={'w-3.5 h-3.5 text-dim shrink-0 transition-transform ' + (pickerOpen ? 'rotate-180' : '')} />
+            <ChevronDown className={'icon-sm text-dim shrink-0 transition-transform ' + (pickerOpen ? 'rotate-180' : '')} />
           </>
         ) : (
           <span className="inline-flex items-center gap-1 text-sm text-fg">
             Select a worktree
-            <ChevronDown className="w-3.5 h-3.5" />
+            <ChevronDown className="icon-sm" />
           </span>
         )}
       </button>
@@ -318,7 +318,7 @@ function Header({ worktree, tabs, selectedTabId, statuses, shellActivity, picker
           }
           aria-label={rightPanelOpen ? 'Close worktree details' : 'Worktree details'}
         >
-          {rightPanelOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
+          {rightPanelOpen ? <PanelRightClose className="icon-base" /> : <PanelRightOpen className="icon-base" />}
         </button>
       )}
     </header>
@@ -413,29 +413,29 @@ function TabIcon({ tab, shellActivity, status }: { tab: TerminalTab; shellActivi
   if (tab.type === 'agent') {
     return (
       <span className="inline-flex items-center gap-1">
-        <AgentIcon kind={tab.agentKind ?? 'claude'} className="w-3 h-3" />
+        <AgentIcon kind={tab.agentKind ?? 'claude'} className="icon-xs" />
         <span className={'w-1.5 h-1.5 rounded-full ' + STATUS_DOT[status]} />
       </span>
     )
   }
   if (tab.type === 'shell') {
     return shellActivity?.active ? (
-      <Loader2 className="w-3 h-3 animate-spin text-fg-bright" />
+      <Loader2 className="icon-xs animate-spin text-fg-bright" />
     ) : (
-      <SquareTerminal className="w-3 h-3 text-dim" />
+      <SquareTerminal className="icon-xs text-dim" />
     )
   }
   if (tab.type === 'json-claude') {
     return (
       <span className="inline-flex items-center gap-1">
-        <AgentIcon kind="claude" className="w-3 h-3" />
+        <AgentIcon kind="claude" className="icon-xs" />
         <span className="w-1.5 h-1.5 rounded-full bg-accent" />
       </span>
     )
   }
-  if (tab.type === 'diff') return <FileDiff className="w-3 h-3 text-dim" />
-  if (tab.type === 'file') return <FileText className="w-3 h-3 text-dim" />
-  if (tab.type === 'browser') return <Globe className="w-3 h-3 text-dim" />
+  if (tab.type === 'diff') return <FileDiff className="icon-xs text-dim" />
+  if (tab.type === 'file') return <FileText className="icon-xs text-dim" />
+  if (tab.type === 'browser') return <Globe className="icon-xs text-dim" />
   return <span />
 }
 
@@ -473,14 +473,14 @@ function WorktreePickerSheet({ worktrees, prStatuses, mergedPaths, snoozedPaths,
             className="inline-flex items-center justify-center w-8 h-8 rounded text-dim hover:text-fg hover:bg-surface"
             aria-label="Refresh"
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            {loading ? <Loader2 className="icon-base animate-spin" /> : <RefreshCw className="icon-base" />}
           </button>
           <button
             onClick={onClose}
             className="inline-flex items-center justify-center w-8 h-8 rounded text-dim hover:text-fg hover:bg-surface"
             aria-label="Close"
           >
-            <X className="w-4 h-4" />
+            <X className="icon-base" />
           </button>
         </div>
       </div>
@@ -523,7 +523,7 @@ function WorktreePickerSheet({ worktrees, prStatuses, mergedPaths, snoozedPaths,
                           <span className="truncate">{wt.repoRoot.split('/').pop()}</span>
                           {pr && (
                             <span className="inline-flex items-center gap-1 shrink-0">
-                              <GitPullRequest className="w-3 h-3" />
+                              <GitPullRequest className="icon-xs" />
                               #{pr.number}
                             </span>
                           )}
@@ -565,7 +565,7 @@ function NonRunnableTabPlaceholder({ tab }: { tab: TerminalTab }): JSX.Element {
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-xs text-accent underline"
         >
-          <ExternalLink className="w-3 h-3" /> Open URL in browser
+          <ExternalLink className="icon-xs" /> Open URL in browser
         </a>
       )}
     </div>

@@ -110,7 +110,7 @@ export function NewProjectScreen({ onCancel, onCreated }: NewProjectScreenProps)
           disabled={submitting}
           className="no-drag text-dim hover:text-fg p-1.5 rounded transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          <X className="w-4 h-4" />
+          <X className="icon-base" />
         </button>
       </div>
 
@@ -173,7 +173,7 @@ export function NewProjectScreen({ onCancel, onCreated }: NewProjectScreenProps)
                   disabled={submitting}
                   className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg border-2 border-border-strong bg-app hover:border-accent text-sm text-fg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <FolderOpen className="w-3.5 h-3.5" />
+                  <FolderOpen className="icon-sm" />
                   Browse…
                 </button>
               </div>
@@ -253,12 +253,12 @@ export function NewProjectScreen({ onCancel, onCreated }: NewProjectScreenProps)
                 >
                   {submitting ? (
                     <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="icon-sm animate-spin" />
                       Creating…
                     </>
                   ) : (
                     <>
-                      <Sparkles className="w-3.5 h-3.5" />
+                      <Sparkles className="icon-sm" />
                       Create project
                     </>
                   )}

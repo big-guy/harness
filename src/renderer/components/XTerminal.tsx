@@ -834,7 +834,7 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
             className="p-0.5 rounded text-dim hover:text-fg-bright hover:bg-border transition-colors"
             aria-label="Close search"
           >
-            <X className="w-3 h-3" />
+            <X className="icon-xs" />
           </button>
         </div>
       )}
@@ -856,7 +856,7 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
       {showSpectatorOverlay && (
         <div className="absolute top-2 right-2 flex items-center gap-2 pointer-events-auto">
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-panel/90 border border-border text-xs text-dim">
-            <Eye className="w-3 h-3" />
+            <Eye className="icon-xs" />
             <span>Spectating</span>
           </div>
           <button
@@ -874,7 +874,7 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
               onClick={onSwitchToChat}
               className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs bg-panel/90 border border-border text-fg-bright hover:bg-border transition-colors"
             >
-              <Sparkles className="w-3 h-3 text-accent" />
+              <Sparkles className="icon-xs text-accent" />
               <span>Switch to the new Chat mode</span>
             </button>
           </Tooltip>
@@ -884,7 +884,7 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
               aria-label="Dismiss Chat mode promotion"
               className="p-1 rounded-md bg-panel/90 border border-border text-dim hover:text-fg-bright transition-colors"
             >
-              <X className="w-3 h-3" />
+              <X className="icon-xs" />
             </button>
           </Tooltip>
         </div>

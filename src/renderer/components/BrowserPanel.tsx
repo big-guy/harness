@@ -106,7 +106,7 @@ export function BrowserPanel({ tabId, visible, initialUrl }: BrowserPanelProps):
             disabled={!canGoBack}
             className="p-1 rounded text-faint hover:text-fg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
+            <ArrowLeft className="icon-sm" />
           </button>
         </Tooltip>
         <Tooltip label="Forward">
@@ -115,7 +115,7 @@ export function BrowserPanel({ tabId, visible, initialUrl }: BrowserPanelProps):
             disabled={!canGoForward}
             className="p-1 rounded text-faint hover:text-fg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            <ArrowRight className="w-3.5 h-3.5" />
+            <ArrowRight className="icon-sm" />
           </button>
         </Tooltip>
         <Tooltip label="Reload">
@@ -123,7 +123,7 @@ export function BrowserPanel({ tabId, visible, initialUrl }: BrowserPanelProps):
             onClick={() => void backend.browserReload(tabId)}
             className="p-1 rounded text-faint hover:text-fg transition-colors"
           >
-            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCw className="w-3.5 h-3.5" />}
+            {loading ? <Loader2 className="icon-sm animate-spin" /> : <RotateCw className="icon-sm" />}
           </button>
         </Tooltip>
         <input
@@ -151,7 +151,7 @@ export function BrowserPanel({ tabId, visible, initialUrl }: BrowserPanelProps):
             onClick={() => void backend.browserOpenDevTools(tabId)}
             className="p-1 rounded text-faint hover:text-fg transition-colors"
           >
-            <Wrench className="w-3.5 h-3.5" />
+            <Wrench className="icon-sm" />
           </button>
         </Tooltip>
       </div>

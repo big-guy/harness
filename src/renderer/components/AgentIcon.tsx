@@ -27,7 +27,7 @@ function CodexIcon({ className }: { className?: string }): JSX.Element {
   )
 }
 
-export function AgentIcon({ kind, className = 'w-4 h-4' }: AgentIconProps): JSX.Element {
+export function AgentIcon({ kind, className = 'icon-base' }: AgentIconProps): JSX.Element {
   switch (kind) {
     case 'codex':
       return <CodexIcon className={className} />

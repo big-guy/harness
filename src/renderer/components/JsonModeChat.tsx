@@ -140,7 +140,7 @@ function ThinkingCard({
         <span className="text-muted text-xs w-2 shrink-0 select-none">
           {expanded ? '▾' : '▸'}
         </span>
-        <Brain className="w-3 h-3 text-muted shrink-0" />
+        <Brain className="icon-xs text-muted shrink-0" />
         <span
           className="text-muted shrink-0"
           style={{ fontFamily: 'var(--chat-tool-name-family)' }}
@@ -222,7 +222,7 @@ function CompactCard({
         <span className="text-info/70 text-xs w-2 shrink-0 select-none">
           {expanded ? '▾' : '▸'}
         </span>
-        <Layers className="w-3 h-3 text-info shrink-0" />
+        <Layers className="icon-xs text-info shrink-0" />
         <span
           className="font-semibold shrink-0 text-info"
           style={{ fontFamily: 'var(--chat-tool-name-family)' }}
@@ -290,7 +290,7 @@ function SubprocessExitCard({
           fontSize: 'var(--chat-chrome-text)'
         }}
       >
-        <RotateCcw className="w-3 h-3 text-danger shrink-0" />
+        <RotateCcw className="icon-xs text-danger shrink-0" />
         <span
           className="font-semibold shrink-0 text-danger"
           style={{ fontFamily: 'var(--chat-tool-name-family)' }}
@@ -314,7 +314,7 @@ function SubprocessExitCard({
               })()
             }}
           >
-            <RotateCcw className="w-3 h-3" />
+            <RotateCcw className="icon-xs" />
             <span>Restart session</span>
           </button>
         ) : (
@@ -349,7 +349,7 @@ function AuthFailureCard({
           fontSize: 'var(--chat-chrome-text)'
         }}
       >
-        <ShieldAlert className="w-3 h-3 text-danger shrink-0" />
+        <ShieldAlert className="icon-xs text-danger shrink-0" />
         <span
           className="font-semibold shrink-0 text-danger"
           style={{ fontFamily: 'var(--chat-tool-name-family)' }}
@@ -437,7 +437,7 @@ function RateLimitWarningCard({
           fontSize: 'var(--chat-chrome-text)'
         }}
       >
-        <AlertTriangle className="w-3 h-3 text-warning shrink-0" />
+        <AlertTriangle className="icon-xs text-warning shrink-0" />
         <span
           className="font-semibold shrink-0 text-warning"
           style={{ fontFamily: 'var(--chat-tool-name-family)' }}
@@ -497,7 +497,7 @@ function RateLimitErrorCard({
           fontSize: 'var(--chat-chrome-text)'
         }}
       >
-        <AlertOctagon className="w-3 h-3 text-danger shrink-0" />
+        <AlertOctagon className="icon-xs text-danger shrink-0" />
         <span
           className="font-semibold shrink-0 text-danger"
           style={{ fontFamily: 'var(--chat-tool-name-family)' }}
@@ -583,7 +583,7 @@ function renderEntries(
                   title="Cancel queued message"
                   aria-label="Cancel queued message"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="icon-xs" />
                 </button>
               </div>
             </div>
@@ -1431,7 +1431,7 @@ export function JsonModeChat({ sessionId, worktreePath, mode = 'awake' }: JsonMo
         label: `/${r.name}`,
         labelMatchIndices: r.indices?.map((i) => i + 1), // shift past leading '/'
         description: BUILTIN_DESCRIPTIONS[r.name],
-        icon: <Terminal className="w-3 h-3" />
+        icon: <Terminal className="icon-xs" />
       }))
     }
     if (mentionTrigger !== null && files.length > 0) {
@@ -1448,7 +1448,7 @@ export function JsonModeChat({ sessionId, worktreePath, mode = 'awake' }: JsonMo
         key: r.item,
         label: r.item,
         labelMatchIndices: r.indices,
-        icon: <FileText className="w-3 h-3" />
+        icon: <FileText className="icon-xs" />
       }))
     }
     return []
@@ -1872,7 +1872,7 @@ export function JsonModeChat({ sessionId, worktreePath, mode = 'awake' }: JsonMo
             className="absolute right-4 bottom-4 z-10 px-3 py-1.5 rounded-full bg-accent text-white text-xs shadow-lg hover:bg-accent/90 cursor-pointer flex items-center gap-1.5"
             title="Jump to bottom"
           >
-            <ChevronDown className="w-3 h-3" />
+            <ChevronDown className="icon-xs" />
             <span>Jump to bottom</span>
           </button>
         )}
@@ -1891,7 +1891,7 @@ export function JsonModeChat({ sessionId, worktreePath, mode = 'awake' }: JsonMo
             title="Clear session auto-allow set"
             aria-label="Clear session auto-allow set"
           >
-            <X className="w-2.5 h-2.5" />
+            <X className="icon-2xs" />
           </button>
         </div>
       )}
@@ -1936,7 +1936,7 @@ export function JsonModeChat({ sessionId, worktreePath, mode = 'awake' }: JsonMo
                       className="absolute top-0.5 right-0.5 bg-app/80 hover:bg-app text-fg-bright rounded-full p-0.5 cursor-pointer"
                       aria-label={`Remove ${a.name}`}
                     >
-                      <X className="w-2.5 h-2.5" />
+                      <X className="icon-2xs" />
                     </button>
                   </div>
                 )
@@ -2054,7 +2054,7 @@ export function JsonModeChat({ sessionId, worktreePath, mode = 'awake' }: JsonMo
                 className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-danger hover:bg-danger/10 cursor-pointer"
                 title="Interrupt the current model turn"
               >
-                <Square fill="currentColor" className="w-2.5 h-2.5" /> interrupt
+                <Square fill="currentColor" className="icon-2xs" /> interrupt
               </button>
             )}
             <button

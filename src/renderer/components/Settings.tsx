@@ -1022,21 +1022,21 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
       case 'checking':
         return (
           <div className="flex items-center gap-2 text-xs text-muted">
-            <RefreshCw className="w-3 h-3 animate-spin" />
+            <RefreshCw className="icon-xs animate-spin" />
             Checking for updates...
           </div>
         )
       case 'not-available':
         return (
           <div className="flex items-center gap-2 text-xs text-success">
-            <Check className="w-3 h-3" />
+            <Check className="icon-xs" />
             You&apos;re up to date
           </div>
         )
       case 'available':
         return (
           <div className="flex items-center gap-2 text-xs text-warning">
-            <Download className="w-3 h-3" />
+            <Download className="icon-xs" />
             <span>
               <a
                 onClick={() => backend.openExternal(harnessReleaseNotesUrl(updaterStatus.version))}
@@ -1051,7 +1051,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
       case 'downloading':
         return (
           <div className="flex items-center gap-2 text-xs text-warning">
-            <Download className="w-3 h-3" />
+            <Download className="icon-xs" />
             <span>
               Downloading{' '}
               <a
@@ -1068,7 +1068,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
         return (
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2 text-xs text-success">
-              <Check className="w-3 h-3" />
+              <Check className="icon-xs" />
               <span>
                 <a
                   onClick={() => backend.openExternal(harnessReleaseNotesUrl(updaterStatus.version))}
@@ -1083,7 +1083,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
               onClick={handleRestart}
               className="self-start flex items-center gap-1.5 px-3 py-1.5 bg-success/20 hover:bg-success/30 rounded text-xs text-success transition-colors cursor-pointer"
             >
-              <RotateCw className="w-3 h-3" />
+              <RotateCw className="icon-xs" />
               Restart &amp; install
             </button>
           </div>
@@ -1091,7 +1091,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
       case 'error':
         return (
           <div className="flex items-center gap-2 text-xs text-danger">
-            <X className="w-3 h-3" />
+            <X className="icon-xs" />
             {updaterStatus.error}
           </div>
         )
@@ -1156,7 +1156,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
           onClick={onClose}
           className="no-drag absolute left-20 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-xs text-muted hover:text-fg-bright transition-colors cursor-pointer"
         >
-          <ArrowLeft className="w-3.5 h-3.5" />
+          <ArrowLeft className="icon-sm" />
           Back
           <kbd className="text-xs text-faint bg-bg px-1.5 py-0.5 rounded border border-border font-mono">ESC</kbd>
         </button>
@@ -1263,7 +1263,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                   onClick={() => scrollToSection(section.id)}
                   className={`w-full ${className} focus:bg-surface outline-none`}
                 >
-                  <Icon className="w-3.5 h-3.5 shrink-0" />
+                  <Icon className="icon-sm shrink-0" />
                   <span>{section.label}</span>
                 </button>
                 {section.children && (
@@ -1307,14 +1307,14 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
             onClick={onOpenGuide}
             className="flex items-center gap-2 px-3 py-2 text-left text-sm text-muted hover:bg-panel-raised hover:text-fg-bright transition-colors cursor-pointer"
           >
-            <BookOpen className="w-3.5 h-3.5 shrink-0" />
+            <BookOpen className="icon-sm shrink-0" />
             <span>Worktree Guide</span>
           </button>
           <button
             onClick={onOpenMyWeek}
             className="flex items-center gap-2 px-3 py-2 text-left text-sm text-muted hover:bg-panel-raised hover:text-fg-bright transition-colors cursor-pointer"
           >
-            <CalendarDays className="w-3.5 h-3.5 shrink-0" />
+            <CalendarDays className="icon-sm shrink-0" />
             <span>My week</span>
           </button>
         </div>
@@ -1575,7 +1575,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                       onClick={handleResetTerminalFontFamily}
                       className="mt-2 flex items-center gap-1 px-2 py-1 text-xs text-dim hover:text-fg transition-colors cursor-pointer"
                     >
-                      <RotateCcw className="w-3 h-3" />
+                      <RotateCcw className="icon-xs" />
                       Reset to default
                     </button>
                   )}
@@ -1631,7 +1631,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                           : 'bg-panel border border-border text-dim hover:text-fg hover:border-border-strong'
                       }`}
                     >
-                      <AgentIcon kind={agent.kind} className="w-3.5 h-3.5" />
+                      <AgentIcon kind={agent.kind} className="icon-sm" />
                       {agent.displayName}
                     </button>
                   ))}
@@ -1671,7 +1671,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                 <div className="flex items-center gap-2">
                   {hooksConsent === 'accepted' ? (
                     <>
-                      <span className="text-xs text-success flex items-center gap-1"><Check className="w-3 h-3" />Installed</span>
+                      <span className="text-xs text-success flex items-center gap-1"><Check className="icon-xs" />Installed</span>
                       <button
                         onClick={() => void backend.uninstallHooks()}
                         className="ml-auto px-3 py-1.5 bg-surface hover:bg-surface-hover rounded text-sm text-fg-bright transition-colors cursor-pointer"
@@ -1743,12 +1743,12 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                 <div className="flex items-center gap-2 mt-3">
                   <button onClick={handleSaveClaudeCommand} disabled={!claudeCommandDraft.trim()} className="px-3 py-1.5 bg-surface hover:bg-surface-hover disabled:opacity-40 rounded text-sm text-fg-bright transition-colors cursor-pointer">Save</button>
                   {claudeCommandDraft !== defaultClaudeCommand && defaultClaudeCommand && (
-                    <button onClick={handleResetClaudeCommand} className="flex items-center gap-1 px-3 py-1.5 text-sm text-dim hover:text-fg transition-colors cursor-pointer"><RotateCcw className="w-3 h-3" />Reset</button>
+                    <button onClick={handleResetClaudeCommand} className="flex items-center gap-1 px-3 py-1.5 text-sm text-dim hover:text-fg transition-colors cursor-pointer"><RotateCcw className="icon-xs" />Reset</button>
                   )}
                 </div>
                 {claudeSaveResult && (
                   <div className={`mt-3 text-xs flex items-center gap-1.5 ${claudeSaveResult.ok ? 'text-success' : 'text-danger'}`}>
-                    {claudeSaveResult.ok ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}{claudeSaveResult.message}
+                    {claudeSaveResult.ok ? <Check className="icon-xs" /> : <X className="icon-xs" />}{claudeSaveResult.message}
                   </div>
                 )}
 
@@ -1824,7 +1824,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                       />
                       <Tooltip label={litellmAuthRevealed ? 'Hide token' : 'Reveal token'}>
                         <button onClick={() => setLitellmAuthRevealed((v) => !v)} className="p-1.5 text-dim hover:text-fg transition-colors cursor-pointer">
-                          {litellmAuthRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          {litellmAuthRevealed ? <EyeOff className="icon-sm" /> : <Eye className="icon-sm" />}
                         </button>
                       </Tooltip>
                     </div>
@@ -1838,7 +1838,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                 </div>
                 {litellmSaveResult && (
                   <div className={`mt-3 text-xs flex items-center gap-1.5 ${litellmSaveResult.ok ? 'text-success' : 'text-danger'}`}>
-                    {litellmSaveResult.ok ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}{litellmSaveResult.message}
+                    {litellmSaveResult.ok ? <Check className="icon-xs" /> : <X className="icon-xs" />}{litellmSaveResult.message}
                   </div>
                 )}
               </div>
@@ -1857,20 +1857,20 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                           <input type="text" value={row.key} onChange={(e) => handleUpdateEnvRow(index, 'key', e.target.value)} placeholder="NAME" spellCheck={false} className="w-44 bg-panel border border-border-strong rounded px-2 py-1.5 text-xs text-fg-bright placeholder-faint outline-none focus:border-fg font-mono" />
                           <span className="text-dim text-xs">=</span>
                           <input type={revealed ? 'text' : 'password'} value={row.value} onChange={(e) => handleUpdateEnvRow(index, 'value', e.target.value)} placeholder="value" spellCheck={false} className="flex-1 bg-panel border border-border-strong rounded px-2 py-1.5 text-xs text-fg-bright placeholder-faint outline-none focus:border-fg font-mono" />
-                          <Tooltip label={revealed ? 'Hide value' : 'Reveal value'}><button onClick={() => handleToggleRevealEnvRow(index)} className="p-1.5 text-dim hover:text-fg transition-colors cursor-pointer">{revealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}</button></Tooltip>
-                          <Tooltip label="Remove"><button onClick={() => handleRemoveEnvRow(index)} className="p-1.5 text-dim hover:text-danger transition-colors cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button></Tooltip>
+                          <Tooltip label={revealed ? 'Hide value' : 'Reveal value'}><button onClick={() => handleToggleRevealEnvRow(index)} className="p-1.5 text-dim hover:text-fg transition-colors cursor-pointer">{revealed ? <EyeOff className="icon-sm" /> : <Eye className="icon-sm" />}</button></Tooltip>
+                          <Tooltip label="Remove"><button onClick={() => handleRemoveEnvRow(index)} className="p-1.5 text-dim hover:text-danger transition-colors cursor-pointer"><Trash2 className="icon-sm" /></button></Tooltip>
                         </div>
                       )
                     })}
                   </div>
                 )}
                 <div className="flex items-center gap-2">
-                  <button onClick={handleAddEnvRow} className="flex items-center gap-1 px-3 py-1.5 bg-surface hover:bg-surface-hover rounded text-sm text-fg-bright transition-colors cursor-pointer"><Plus className="w-3 h-3" />Add variable</button>
+                  <button onClick={handleAddEnvRow} className="flex items-center gap-1 px-3 py-1.5 bg-surface hover:bg-surface-hover rounded text-sm text-fg-bright transition-colors cursor-pointer"><Plus className="icon-xs" />Add variable</button>
                   <button onClick={handleSaveClaudeEnvVars} className="px-3 py-1.5 bg-surface hover:bg-surface-hover rounded text-sm text-fg-bright transition-colors cursor-pointer">Save</button>
                 </div>
                 {envSaveResult && (
                   <div className={`mt-3 text-xs flex items-center gap-1.5 ${envSaveResult.ok ? 'text-success' : 'text-danger'}`}>
-                    {envSaveResult.ok ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}{envSaveResult.message}
+                    {envSaveResult.ok ? <Check className="icon-xs" /> : <X className="icon-xs" />}{envSaveResult.message}
                   </div>
                 )}
               </div>
@@ -2058,12 +2058,12 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                 <div className="flex items-center gap-2 mt-3">
                   <button onClick={handleSaveCodexCommand} disabled={!codexCommandDraft.trim()} className="px-3 py-1.5 bg-surface hover:bg-surface-hover disabled:opacity-40 rounded text-sm text-fg-bright transition-colors cursor-pointer">Save</button>
                   {codexCommandDraft !== 'codex' && (
-                    <button onClick={handleResetCodexCommand} className="flex items-center gap-1 px-3 py-1.5 text-sm text-dim hover:text-fg transition-colors cursor-pointer"><RotateCcw className="w-3 h-3" />Reset</button>
+                    <button onClick={handleResetCodexCommand} className="flex items-center gap-1 px-3 py-1.5 text-sm text-dim hover:text-fg transition-colors cursor-pointer"><RotateCcw className="icon-xs" />Reset</button>
                   )}
                 </div>
                 {codexSaveResult && (
                   <div className={`mt-3 text-xs flex items-center gap-1.5 ${codexSaveResult.ok ? 'text-success' : 'text-danger'}`}>
-                    {codexSaveResult.ok ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}{codexSaveResult.message}
+                    {codexSaveResult.ok ? <Check className="icon-xs" /> : <X className="icon-xs" />}{codexSaveResult.message}
                   </div>
                 )}
                 {(() => {
@@ -2094,20 +2094,20 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                           <input type="text" value={row.key} onChange={(e) => { setCodexEnvRows((prev) => prev.map((r, i) => (i === index ? { ...r, key: e.target.value } : r))); setCodexEnvSaveResult(null) }} placeholder="NAME" spellCheck={false} className="w-44 bg-panel border border-border-strong rounded px-2 py-1.5 text-xs text-fg-bright placeholder-faint outline-none focus:border-fg font-mono" />
                           <span className="text-dim text-xs">=</span>
                           <input type={revealed ? 'text' : 'password'} value={row.value} onChange={(e) => { setCodexEnvRows((prev) => prev.map((r, i) => (i === index ? { ...r, value: e.target.value } : r))); setCodexEnvSaveResult(null) }} placeholder="value" spellCheck={false} className="flex-1 bg-panel border border-border-strong rounded px-2 py-1.5 text-xs text-fg-bright placeholder-faint outline-none focus:border-fg font-mono" />
-                          <Tooltip label={revealed ? 'Hide value' : 'Reveal value'}><button onClick={() => setCodexRevealedEnvRows((prev) => { const next = new Set(prev); if (next.has(index)) next.delete(index); else next.add(index); return next })} className="p-1.5 text-dim hover:text-fg transition-colors cursor-pointer">{revealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}</button></Tooltip>
-                          <Tooltip label="Remove"><button onClick={() => { setCodexEnvRows((prev) => prev.filter((_, i) => i !== index)); setCodexEnvSaveResult(null) }} className="p-1.5 text-dim hover:text-danger transition-colors cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button></Tooltip>
+                          <Tooltip label={revealed ? 'Hide value' : 'Reveal value'}><button onClick={() => setCodexRevealedEnvRows((prev) => { const next = new Set(prev); if (next.has(index)) next.delete(index); else next.add(index); return next })} className="p-1.5 text-dim hover:text-fg transition-colors cursor-pointer">{revealed ? <EyeOff className="icon-sm" /> : <Eye className="icon-sm" />}</button></Tooltip>
+                          <Tooltip label="Remove"><button onClick={() => { setCodexEnvRows((prev) => prev.filter((_, i) => i !== index)); setCodexEnvSaveResult(null) }} className="p-1.5 text-dim hover:text-danger transition-colors cursor-pointer"><Trash2 className="icon-sm" /></button></Tooltip>
                         </div>
                       )
                     })}
                   </div>
                 )}
                 <div className="flex items-center gap-2">
-                  <button onClick={() => { setCodexEnvRows((prev) => [...prev, { key: '', value: '' }]); setCodexEnvSaveResult(null) }} className="flex items-center gap-1 px-3 py-1.5 bg-surface hover:bg-surface-hover rounded text-sm text-fg-bright transition-colors cursor-pointer"><Plus className="w-3 h-3" />Add variable</button>
+                  <button onClick={() => { setCodexEnvRows((prev) => [...prev, { key: '', value: '' }]); setCodexEnvSaveResult(null) }} className="flex items-center gap-1 px-3 py-1.5 bg-surface hover:bg-surface-hover rounded text-sm text-fg-bright transition-colors cursor-pointer"><Plus className="icon-xs" />Add variable</button>
                   <button onClick={handleSaveCodexEnvVars} className="px-3 py-1.5 bg-surface hover:bg-surface-hover rounded text-sm text-fg-bright transition-colors cursor-pointer">Save</button>
                 </div>
                 {codexEnvSaveResult && (
                   <div className={`mt-3 text-xs flex items-center gap-1.5 ${codexEnvSaveResult.ok ? 'text-success' : 'text-danger'}`}>
-                    {codexEnvSaveResult.ok ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}{codexEnvSaveResult.message}
+                    {codexEnvSaveResult.ok ? <Check className="icon-xs" /> : <X className="icon-xs" />}{codexEnvSaveResult.message}
                   </div>
                 )}
               </div>
@@ -2170,13 +2170,13 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                         onClick={handleResetSystemPrompt}
                         className="flex items-center gap-1 px-3 py-1.5 text-sm text-dim hover:text-fg transition-colors cursor-pointer"
                       >
-                        <RotateCcw className="w-3 h-3" />
+                        <RotateCcw className="icon-xs" />
                         Reset to defaults
                       </button>
                     </div>
                     {systemPromptSaveResult && (
                       <div className={`mt-3 text-xs flex items-center gap-1.5 ${systemPromptSaveResult.ok ? 'text-success' : 'text-danger'}`}>
-                        {systemPromptSaveResult.ok ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}{systemPromptSaveResult.message}
+                        {systemPromptSaveResult.ok ? <Check className="icon-xs" /> : <X className="icon-xs" />}{systemPromptSaveResult.message}
                       </div>
                     )}
                     <p className="mt-3 text-xs text-faint">Changes apply to new sessions only.</p>
@@ -2421,7 +2421,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                 </button>
                 {scriptsSaveResult && (
                   <span className={`text-xs flex items-center gap-1.5 ${scriptsSaveResult.ok ? 'text-success' : 'text-danger'}`}>
-                    {scriptsSaveResult.ok ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                    {scriptsSaveResult.ok ? <Check className="icon-xs" /> : <X className="icon-xs" />}
                     {scriptsSaveResult.message}
                   </span>
                 )}
@@ -2498,13 +2498,13 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                       onClick={handleResetPrReviewPrompt}
                       className="flex items-center gap-1 px-3 py-1.5 text-sm text-dim hover:text-fg transition-colors cursor-pointer"
                     >
-                      <RotateCcw className="w-3 h-3" />
+                      <RotateCcw className="icon-xs" />
                       Reset to default
                     </button>
                   </div>
                   {prReviewPromptSaveResult && (
                     <div className={`mt-3 text-xs flex items-center gap-1.5 ${prReviewPromptSaveResult.ok ? 'text-success' : 'text-danger'}`}>
-                      {prReviewPromptSaveResult.ok ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}{prReviewPromptSaveResult.message}
+                      {prReviewPromptSaveResult.ok ? <Check className="icon-xs" /> : <X className="icon-xs" />}{prReviewPromptSaveResult.message}
                     </div>
                   )}
                 </>
@@ -2542,9 +2542,9 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                           : 'border-border hover:border-border-strong text-muted hover:text-fg'
                       }`}
                     >
-                      <Code2 className={`w-3.5 h-3.5 ${isActive ? 'text-accent' : 'text-faint'}`} />
+                      <Code2 className={`icon-sm ${isActive ? 'text-accent' : 'text-faint'}`} />
                       <span className="flex-1">{ed.name}</span>
-                      {isActive && <Check className="w-3 h-3 text-accent" />}
+                      {isActive && <Check className="icon-xs text-accent" />}
                     </button>
                   )
                 })}
@@ -2583,7 +2583,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                     className="w-3.5 h-3.5 accent-warning cursor-pointer"
                   />
                   <Star
-                    className={`w-3.5 h-3.5 ${harnessStarred ? 'text-warning fill-warning shrink-0' : 'text-warning shrink-0'}`} />
+                    className={`icon-sm ${harnessStarred ? 'text-warning fill-warning shrink-0' : 'text-warning shrink-0'}`} />
                   <span className="text-sm text-fg group-hover:text-fg-bright transition-colors">
                     Star Harness on GitHub
                   </span>
@@ -2593,7 +2593,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
               {authSource === 'gh-cli' && !hasToken && (
                 <div className="mb-4 rounded-lg p-4 border bg-success/10 border-success/30">
                   <div className="flex items-center gap-2 text-sm text-success">
-                    <Check className="w-3.5 h-3.5" />
+                    <Check className="icon-sm" />
                     <span>Using <code className="bg-panel-raised px-1 rounded">gh</code> CLI token (auto-detected)</span>
                   </div>
                   {!showPatForm && (
@@ -2615,7 +2615,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
 
                 {hasToken && (
                   <div className="flex items-center gap-2 mb-3 text-xs text-success">
-                    <Check className="w-3.5 h-3.5" />
+                    <Check className="icon-sm" />
                     <span>A token is currently saved {authSource === 'pat' ? '(in use)' : ''}</span>
                   </div>
                 )}
@@ -2632,7 +2632,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                     onClick={() => setShowToken(!showToken)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-dim hover:text-fg transition-colors cursor-pointer"
                   >
-                    {showToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    {showToken ? <EyeOff className="icon-sm" /> : <Eye className="icon-sm" />}
                   </button>
                 </div>
 
@@ -2656,7 +2656,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
 
                 {tokenResult && (
                   <div className={`mt-3 text-xs flex items-center gap-1.5 ${tokenResult.ok ? 'text-success' : 'text-danger'}`}>
-                    {tokenResult.ok ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                    {tokenResult.ok ? <Check className="icon-xs" /> : <X className="icon-xs" />}
                     {tokenResult.message}
                   </div>
                 )}
@@ -2703,7 +2703,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                     onClick={handleResetAllHotkeys}
                     className="flex items-center gap-1 text-xs text-dim hover:text-fg transition-colors cursor-pointer"
                   >
-                    <RotateCcw className="w-3 h-3" />
+                    <RotateCcw className="icon-xs" />
                     Reset all to defaults
                   </button>
                 )}
@@ -2727,7 +2727,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                               onClick={() => handleResetHotkey(action)}
                               className="text-xs text-dim hover:text-fg transition-colors cursor-pointer"
                             >
-                              <RotateCcw className="w-3 h-3" />
+                              <RotateCcw className="icon-xs" />
                             </button>
                           </Tooltip>
                         )}
@@ -2828,7 +2828,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                     disabled={checking || updaterStatus?.state === 'checking' || updaterStatus?.state === 'downloading'}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-surface hover:bg-surface-hover disabled:opacity-40 rounded text-sm text-fg-bright transition-colors cursor-pointer"
                   >
-                    <RefreshCw className={`w-3 h-3 ${checking ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`icon-xs ${checking ? 'animate-spin' : ''}`} />
                     Check for updates
                   </button>
                 </div>
@@ -2900,7 +2900,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                   onClick={() => openReportIssue({ kind: 'bug' })}
                   className="flex items-center gap-2 px-3 py-2 bg-panel-raised border border-border rounded-lg text-sm text-fg-bright hover:bg-surface transition-colors cursor-pointer"
                 >
-                  <Bug className="w-3.5 h-3.5" />
+                  <Bug className="icon-sm" />
                   Report a bug
                 </button>
                 <button
@@ -2908,7 +2908,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                   onClick={() => openReportIssue({ kind: 'feature' })}
                   className="flex items-center gap-2 px-3 py-2 bg-panel-raised border border-border rounded-lg text-sm text-fg-bright hover:bg-surface transition-colors cursor-pointer"
                 >
-                  <Lightbulb className="w-3.5 h-3.5" />
+                  <Lightbulb className="icon-sm" />
                   Request a feature
                 </button>
               </div>
@@ -2933,7 +2933,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                     }}
                     className="flex items-center gap-2 px-3 py-2 bg-panel border border-border rounded-lg text-sm text-fg-bright hover:bg-surface transition-colors cursor-pointer"
                   >
-                    <FileText className="w-3.5 h-3.5" />
+                    <FileText className="icon-sm" />
                     Open debug log
                   </button>
                   <button
@@ -2944,7 +2944,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                     }}
                     className="flex items-center gap-2 px-3 py-2 bg-panel border border-border rounded-lg text-sm text-fg-bright hover:bg-surface transition-colors cursor-pointer"
                   >
-                    <FolderOpen className="w-3.5 h-3.5" />
+                    <FolderOpen className="icon-sm" />
                     Show in Finder
                   </button>
                 </div>
@@ -3092,7 +3092,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                         <span
                           className={`text-xs flex items-center gap-1 ${autoApproveSteerSaveResult.ok ? 'text-success' : 'text-danger'}`}
                         >
-                          {autoApproveSteerSaveResult.ok ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                          {autoApproveSteerSaveResult.ok ? <Check className="icon-xs" /> : <X className="icon-xs" />}
                           {autoApproveSteerSaveResult.message}
                         </span>
                       )}
@@ -3178,7 +3178,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                             disabled={!wsInfo}
                             className="p-1.5 text-dim hover:text-fg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                           >
-                            {showWsToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            {showWsToken ? <EyeOff className="icon-sm" /> : <Eye className="icon-sm" />}
                           </button>
                         </Tooltip>
                         <Tooltip label={wsUrlCopied ? 'Copied' : 'Copy URL'}>
@@ -3187,7 +3187,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                             disabled={!wsInfo}
                             className="p-1.5 text-dim hover:text-fg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                           >
-                            {wsUrlCopied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                            {wsUrlCopied ? <Check className="icon-sm text-success" /> : <Copy className="icon-sm" />}
                           </button>
                         </Tooltip>
                         <Tooltip label="Open in browser">
@@ -3196,7 +3196,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                             disabled={!wsInfo}
                             className="p-1.5 text-dim hover:text-fg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                           >
-                            <ExternalLink className="w-3.5 h-3.5" />
+                            <ExternalLink className="icon-sm" />
                           </button>
                         </Tooltip>
                         <Tooltip label="Rotate token (invalidates existing URLs)">
@@ -3205,7 +3205,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                             disabled={!wsInfo}
                             className="p-1.5 text-dim hover:text-warning transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                           >
-                            <RotateCcw className="w-3.5 h-3.5" />
+                            <RotateCcw className="icon-sm" />
                           </button>
                         </Tooltip>
                       </div>
@@ -3269,7 +3269,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
 
                 {wsNeedsRestart && (
                   <div className="mt-4 pt-3 border-t border-border flex items-center gap-2">
-                    <RefreshCw className="w-3 h-3 text-warning shrink-0" />
+                    <RefreshCw className="icon-xs text-warning shrink-0" />
                     <p className="text-xs text-warning">{wsNeedsRestart}</p>
                   </div>
                 )}
@@ -3398,11 +3398,11 @@ function ThemeRow({
               copied ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'
             }`}
           >
-            {copied ? <CopyCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? <CopyCheck className="icon-sm" /> : <Copy className="icon-sm" />}
           </span>
         </Tooltip>
       )}
-      {isActive && <Check className="w-3.5 h-3.5 text-success shrink-0" />}
+      {isActive && <Check className="icon-sm text-success shrink-0" />}
     </button>
   )
 }
