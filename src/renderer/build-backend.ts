@@ -245,7 +245,7 @@ export function buildBackend(
       req('config:setChatPromotionDismissed', value),
     setJsonModeChatDensity: (value: 'compact' | 'comfy') =>
       req('config:setJsonModeChatDensity', value),
-    setUiScale: (value: 'small' | 'medium' | 'large' | 'x-large') =>
+    setUiScale: (value: 'x-small' | 'small' | 'medium' | 'large' | 'x-large') =>
       req('config:setUiScale', value),
     setJsonModeSendOnEnter: (enabled: boolean) =>
       req('config:setJsonModeSendOnEnter', enabled),

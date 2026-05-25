@@ -14,12 +14,12 @@ export type BrowserToolsMode = 'view' | 'full'
 
 export type JsonModeChatDensity = 'compact' | 'comfy'
 
-/** Four-step UI density. Controls the root `html` font-size so every
+/** Five-step UI density. Controls the root `html` font-size so every
  *  `rem`-based unit (and therefore the entire `text-xs` / `text-sm` /
  *  `text-base` / `text-lg` scale and every `w-N` / `h-N` icon) shifts
  *  together. See SCALES below for the authoritative table — adding a
- *  fifth rung later is a one-line change there. */
-export type UiScale = 'small' | 'medium' | 'large' | 'x-large'
+ *  sixth rung later is a one-line change there. */
+export type UiScale = 'x-small' | 'small' | 'medium' | 'large' | 'x-large'
 
 export interface UiScaleSpec {
   id: UiScale
@@ -32,6 +32,7 @@ export interface UiScaleSpec {
 }
 
 export const SCALES: readonly UiScaleSpec[] = [
+  { id: 'x-small', label: 'X-Small', rootPx: 14, terminalOffset: -2 },
   { id: 'small', label: 'Small', rootPx: 16, terminalOffset: 0 },
   { id: 'medium', label: 'Medium', rootPx: 18, terminalOffset: 2 },
   { id: 'large', label: 'Large', rootPx: 20, terminalOffset: 4 },
