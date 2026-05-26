@@ -196,10 +196,17 @@ function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect
     if (!editing) return
     setEditing(false)
     const next = editValue.trim()
-    // Pass through trimmed-empty as "" so the reducer drops the field.
-    if (next === (tab.customLabel ?? '')) return
+    const current = tab.customLabel ?? ''
+    if (next === current) return
+    // Typing the auto-label exactly is treated as clearing — otherwise we'd
+    // pin a customLabel that happens to match the default and look the same
+    // until the underlying label changes.
+    if (next === tab.label) {
+      if (current !== '') onRename('')
+      return
+    }
     onRename(next)
-  }, [editing, editValue, tab.customLabel, onRename])
+  }, [editing, editValue, tab.customLabel, tab.label, onRename])
   const cancelEdit = useCallback(() => {
     setEditing(false)
     setEditValue(displayLabel)
@@ -215,7 +222,17 @@ function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect
           ? 'border-muted text-fg-bright'
           : 'border-transparent text-dim hover:text-fg'
       }`}
-      onClick={onSelect}
+      onClick={(e) => {
+        // dnd-kit's pointer sensor swallows the native dblclick event, so
+        // detect double-clicks via MouseEvent.detail instead.
+        if (e.detail >= 2) {
+          e.preventDefault()
+          e.stopPropagation()
+          startEditing()
+          return
+        }
+        onSelect()
+      }}
       onMouseDown={(e) => {
         if (e.button === 1) e.preventDefault()
       }}
@@ -229,11 +246,6 @@ function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect
       onContextMenu={(e) => {
         e.preventDefault()
         setMenu({ x: e.clientX, y: e.clientY })
-      }}
-      onDoubleClick={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        startEditing()
       }}
     >
       {tab.type === 'shell' ? (
