@@ -41,6 +41,20 @@ describe('settingsReducer', () => {
     expect(next.themeDark).toBe('dracula')
   })
 
+  it('themeRedGreenFriendlyOnlyChanged toggles the filter', () => {
+    expect(initialSettings.themeRedGreenFriendlyOnly).toBe(false)
+    const on = apply(initialSettings, {
+      type: 'settings/themeRedGreenFriendlyOnlyChanged',
+      payload: true
+    })
+    expect(on.themeRedGreenFriendlyOnly).toBe(true)
+    const off = apply(on, {
+      type: 'settings/themeRedGreenFriendlyOnlyChanged',
+      payload: false
+    })
+    expect(off.themeRedGreenFriendlyOnly).toBe(false)
+  })
+
   it('customThemesChanged replaces the array', () => {
     expect(initialSettings.customThemes).toEqual([])
     const next = apply(initialSettings, {

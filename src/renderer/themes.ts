@@ -6,6 +6,10 @@ export interface ThemeOption {
   description: string
   swatches: string[]
   mode: ThemeMode
+  /** Marks themes whose accent palette stays distinguishable for the
+   *  most common form of color-vision deficiency (deuteranopia /
+   *  protanopia). Drives the "red-green friendly" filter in Settings. */
+  redGreenFriendly?: boolean
 }
 
 export const THEME_OPTIONS: ThemeOption[] = [
@@ -42,14 +46,16 @@ export const THEME_OPTIONS: ThemeOption[] = [
     label: 'Tokyo Night',
     description: 'Inspired by the neon lights of downtown Tokyo.',
     swatches: ['#1a1b26', '#292e42', '#c0caf5', '#7aa2f7'],
-    mode: 'dark'
+    mode: 'dark',
+    redGreenFriendly: true
   },
   {
     id: 'catppuccin-mocha',
     label: 'Catppuccin Mocha',
     description: 'Soothing pastel theme, mocha flavor.',
     swatches: ['#1e1e2e', '#313244', '#cdd6f4', '#cba6f7'],
-    mode: 'dark'
+    mode: 'dark',
+    redGreenFriendly: true
   },
   {
     id: 'one-dark',
@@ -63,14 +69,16 @@ export const THEME_OPTIONS: ThemeOption[] = [
     label: 'Solarized Dark',
     description: 'Ethan Schoonover’s classic low-contrast dark palette.',
     swatches: ['#002b36', '#073642', '#93a1a1', '#268bd2'],
-    mode: 'dark'
+    mode: 'dark',
+    redGreenFriendly: true
   },
   {
     id: 'solarized-light',
     label: 'Solarized Light',
     description: 'The light half of Solarized — easy on the eyes in daylight.',
     swatches: ['#fdf6e3', '#eee8d5', '#657b83', '#268bd2'],
-    mode: 'light'
+    mode: 'light',
+    redGreenFriendly: true
   }
 ]
 

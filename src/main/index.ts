@@ -1883,6 +1883,18 @@ function registerIpcHandlers(): void {
     return true
   })
 
+  transport.onRequest('config:setThemeRedGreenFriendlyOnly', (_ctx, enabled: boolean) => {
+    const next = enabled === true
+    if (next) {
+      config.themeRedGreenFriendlyOnly = true
+    } else {
+      delete config.themeRedGreenFriendlyOnly
+    }
+    saveConfig(config)
+    store.dispatch({ type: 'settings/themeRedGreenFriendlyOnlyChanged', payload: next })
+    return true
+  })
+
   // Fire-and-forget: the renderer reports the hex it just applied so we can
   // use it as the BrowserWindow backgroundColor on the next launch. No
   // dispatch — this never needs to be reflected in slice state.

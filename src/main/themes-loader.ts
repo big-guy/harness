@@ -67,7 +67,8 @@ function parseTheme(id: string, raw: unknown): CustomTheme | null {
       if (typeof v === 'string' && v.length > 0) colors[k] = v
     }
   }
-  return { id, name, mode, colors }
+  const redGreenFriendly = obj.redGreenFriendly === true ? true : undefined
+  return { id, name, mode, colors, ...(redGreenFriendly ? { redGreenFriendly } : {}) }
 }
 
 /** Read and validate every JSON file in `<userData>/themes/`. */

@@ -328,6 +328,7 @@ export interface ElectronAPI {
   setThemeMode(mode: 'light' | 'dark' | 'system'): Promise<boolean>
   setThemeLight(theme: string): Promise<boolean>
   setThemeDark(theme: string): Promise<boolean>
+  setThemeRedGreenFriendlyOnly(enabled: boolean): Promise<boolean>
   setLastEffectiveAppBg(hex: string): void
   /** Rescan `<userData>/themes/*.json` and update the slice. Returns
    *  the new theme count. */

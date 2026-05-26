@@ -85,6 +85,9 @@ export interface Config {
   themeLight?: string
   // Theme id used when `themeMode` resolves to 'dark'. Default 'dark'.
   themeDark?: string
+  // When true, the theme pickers hide themes that haven't declared
+  // `redGreenFriendly`. Default off (undefined treated as false).
+  themeRedGreenFriendlyOnly?: boolean
   // App-background hex the renderer last applied. Used at next boot to
   // pick the BrowserWindow background color so the first paint doesn't
   // flash. Written from the renderer via a fire-and-forget IPC after each

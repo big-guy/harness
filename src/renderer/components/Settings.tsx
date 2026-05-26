@@ -166,6 +166,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
     themeMode,
     themeLight,
     themeDark,
+    themeRedGreenFriendlyOnly,
     customThemes,
     hotkeys: hotkeyOverrides,
     defaultAgent,
@@ -1033,7 +1034,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
               {/* Mode picker — native radio inputs styled as a segmented
                    control. Radios give us proper keyboard semantics for free
                    (arrow keys move focus, space activates) */}
-              <fieldset className="mb-6">
+              <fieldset className="mb-4">
                 <legend className="text-sm font-semibold text-fg-bright mb-2">Mode</legend>
                 <div className="grid grid-cols-3 gap-2">
                   {([
@@ -1066,11 +1067,25 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                 </div>
               </fieldset>
 
+              <label className="flex items-start gap-2 mb-6 cursor-pointer text-sm text-muted hover:text-fg-bright">
+                <input
+                  type="checkbox"
+                  checked={themeRedGreenFriendlyOnly}
+                  onChange={(e) => { void backend.setThemeRedGreenFriendlyOnly(e.target.checked) }}
+                  className="mt-0.5 accent-fg cursor-pointer"
+                />
+                <span>Only show themes that work well with red-green color deficiency</span>
+              </label>
+
               <ThemeModePicker
                 title="Light theme"
                 hint="Used when mode is Light, or when System resolves to light."
-                builtIns={BUILT_IN_THEMES_BY_MODE.light}
-                customs={customThemes.filter((t) => t.mode === 'light')}
+                builtIns={BUILT_IN_THEMES_BY_MODE.light.filter(
+                  (t) => !themeRedGreenFriendlyOnly || t.redGreenFriendly
+                )}
+                customs={customThemes.filter(
+                  (t) => t.mode === 'light' && (!themeRedGreenFriendlyOnly || t.redGreenFriendly)
+                )}
                 activeId={themeLight}
                 disabled={themeMode === 'dark'}
                 onSelect={handleSelectLightTheme}
@@ -1081,8 +1096,12 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
               <ThemeModePicker
                 title="Dark theme"
                 hint="Used when mode is Dark, or when System resolves to dark."
-                builtIns={BUILT_IN_THEMES_BY_MODE.dark}
-                customs={customThemes.filter((t) => t.mode === 'dark')}
+                builtIns={BUILT_IN_THEMES_BY_MODE.dark.filter(
+                  (t) => !themeRedGreenFriendlyOnly || t.redGreenFriendly
+                )}
+                customs={customThemes.filter(
+                  (t) => t.mode === 'dark' && (!themeRedGreenFriendlyOnly || t.redGreenFriendly)
+                )}
                 activeId={themeDark}
                 disabled={themeMode === 'light'}
                 onSelect={handleSelectDarkTheme}

@@ -31,6 +31,10 @@ export interface CustomTheme {
    *  doesn't enforce which keys are present — apply just sets whichever
    *  are listed. */
   colors: Record<string, string>
+  /** Optional self-declaration that the palette stays distinguishable
+   *  under red-green color-vision deficiency. Drives the accessibility
+   *  filter in the theme picker. */
+  redGreenFriendly?: boolean
 }
 
 /** Shared empty-array reference so the initial reducer and "no themes on
@@ -59,6 +63,11 @@ export interface SettingsState {
   themeLight: string
   /** Theme id used when `themeMode` resolves to 'dark'. */
   themeDark: string
+  /** When true, the theme pickers in Settings hide any theme that
+   *  hasn't declared `redGreenFriendly`. Persisted because users
+   *  with color-vision deficiency shouldn't have to re-enable the
+   *  filter on every launch. */
+  themeRedGreenFriendlyOnly: boolean
   /** User-authored themes loaded from `<userData>/themes/*.json` at boot
    *  (and on reload). Replaced wholesale on rescan — array reference
    *  changes only when the on-disk contents actually change. */
@@ -172,6 +181,7 @@ export type SettingsEvent =
   | { type: 'settings/themeModeChanged'; payload: ThemeMode }
   | { type: 'settings/themeLightChanged'; payload: string }
   | { type: 'settings/themeDarkChanged'; payload: string }
+  | { type: 'settings/themeRedGreenFriendlyOnlyChanged'; payload: boolean }
   | { type: 'settings/customThemesChanged'; payload: CustomTheme[] }
   | { type: 'settings/hotkeysChanged'; payload: Record<string, string> | null }
   | { type: 'settings/defaultAgentChanged'; payload: AgentKindSetting }
@@ -228,6 +238,7 @@ export const initialSettings: SettingsState = {
   themeMode: 'system',
   themeLight: DEFAULT_LIGHT_THEME,
   themeDark: DEFAULT_DARK_THEME,
+  themeRedGreenFriendlyOnly: false,
   customThemes: EMPTY_CUSTOM_THEMES,
   hotkeys: null,
   defaultAgent: 'claude',
@@ -284,6 +295,8 @@ export function settingsReducer(state: SettingsState, event: SettingsEvent): Set
       return { ...state, themeLight: event.payload }
     case 'settings/themeDarkChanged':
       return { ...state, themeDark: event.payload }
+    case 'settings/themeRedGreenFriendlyOnlyChanged':
+      return { ...state, themeRedGreenFriendlyOnly: event.payload }
     case 'settings/customThemesChanged':
       return { ...state, customThemes: event.payload }
     case 'settings/hotkeysChanged':

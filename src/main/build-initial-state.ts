@@ -57,6 +57,7 @@ export function buildInitialAppState(
           : 'system',
       themeLight: config.themeLight || DEFAULT_LIGHT_THEME,
       themeDark: config.themeDark || DEFAULT_DARK_THEME,
+      themeRedGreenFriendlyOnly: config.themeRedGreenFriendlyOnly === true,
       hotkeys: config.hotkeys || null,
       defaultAgent: config.defaultAgent || 'claude',
       claudeCommand: config.claudeCommand || DEFAULT_CLAUDE_COMMAND,
