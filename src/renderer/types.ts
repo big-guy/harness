@@ -380,6 +380,7 @@ export interface ElectronAPI {
     fromId: string,
     toId: string
   ): Promise<boolean>
+  panesRenameTab(wtPath: string, tabId: string, label: string): Promise<boolean>
   panesMoveTabToPane(
     wtPath: string,
     tabId: string,
@@ -443,6 +444,9 @@ export interface ElectronAPI {
   onOpenSettings(callback: () => void): () => void
   onTogglePerfMonitor(callback: () => void): () => void
   onOpenKeyboardShortcuts(callback: () => void): () => void
+  onCloseFocusedTab(callback: () => void): () => void
+  onSplitPaneRight(callback: () => void): () => void
+  onSplitPaneDown(callback: () => void): () => void
   onOpenNewProject(callback: () => void): () => void
   onOpenReportIssue(callback: () => void): () => void
   onDebugCrashFocusedTab(callback: () => void): () => void

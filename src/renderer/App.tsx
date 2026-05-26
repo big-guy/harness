@@ -642,6 +642,30 @@ const setQuestStep = useCallback((next: QuestStep) => {
     setShowSettings
   })
 
+  // File → Close Tab (Cmd+W). The accelerator lives on the menu item
+  // so it fires even when focus is inside a WebContentsView (browser
+  // tab). Closes the currently active tab in the active worktree.
+  useEffect(() => {
+    const cleanup = backend.onCloseFocusedTab(() => {
+      if (!activeWorktreeId) return
+      const tabId = activeTabId[activeWorktreeId]
+      if (tabId) handleCloseTab(activeWorktreeId, tabId)
+    })
+    return cleanup
+  }, [backend, activeWorktreeId, activeTabId, handleCloseTab])
+
+  // Window → Split Pane Right / Down — accelerators on the menu so they
+  // fire from any focus context (browser tab, etc.). Delegates to the
+  // same handler the renderer-side hotkey binding uses.
+  useEffect(() => {
+    const a = backend.onSplitPaneRight(() => hotkeyActions.splitPaneRight?.())
+    const b = backend.onSplitPaneDown(() => hotkeyActions.splitPaneDown?.())
+    return () => {
+      a()
+      b()
+    }
+  }, [backend, hotkeyActions])
+
   // Compute aggregate status per worktree (worst status wins)
   const worktreeStatuses: Record<string, PtyStatus> = {}
   const worktreePendingTools: Record<string, PendingTool | null> = {}
@@ -1321,7 +1345,6 @@ const setQuestStep = useCallback((next: QuestStep) => {
                   onRestartAgentTab={handleRestartAgentTab}
                   onReorderTabs={handleReorderTabs}
                   onMoveTabToPane={handleMoveTabToPane}
-                  onSplitPane={handleSplitPane}
                   onSendToAgent={handleSendToAgent}
                   rightColumnHidden={rightColumnHidden}
                   onShowRightColumn={() => setRightColumnHidden(false)}

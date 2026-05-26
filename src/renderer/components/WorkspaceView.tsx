@@ -49,7 +49,6 @@ interface WorkspaceViewProps {
   onRestartAgentTab: (worktreePath: string, tabId: string) => void
   onReorderTabs: (worktreePath: string, paneId: string, fromId: string, toId: string) => void
   onMoveTabToPane: (worktreePath: string, tabId: string, toPaneId: string, toIndex?: number) => void
-  onSplitPane: (worktreePath: string, fromPaneId: string, direction?: 'horizontal' | 'vertical') => void
   onSendToAgent?: (worktreePath: string, text: string) => void
   rightColumnHidden: boolean
   onShowRightColumn: () => void
@@ -145,8 +144,6 @@ function SplitRenderer({
   onConvertTabType,
   onSleepTab,
   onCloseTab,
-  onSplitRight,
-  onSplitDown,
   onResizeEnd
 }: {
   node: PaneNode
@@ -173,8 +170,6 @@ function SplitRenderer({
   onConvertTabType?: (tabId: string, newType: 'agent' | 'json-claude') => void
   onSleepTab: (tabId: string) => void
   onCloseTab: (tabId: string) => void
-  onSplitRight: (paneId: string) => void
-  onSplitDown: (paneId: string) => void
   onResizeEnd: (splitId: string, delta: number, containerSize: number) => void
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -206,8 +201,6 @@ function SplitRenderer({
           onConvertTabType={onConvertTabType}
           onSleepTab={onSleepTab}
           onCloseTab={onCloseTab}
-          onSplitRight={() => onSplitRight(node.id)}
-          onSplitDown={() => onSplitDown(node.id)}
           showExpandRightColumn={showExpandRightColumn && node.id === topRightLeafId}
           onShowRightColumn={onShowRightColumn}
         />
@@ -254,8 +247,6 @@ function SplitRenderer({
           onConvertTabType={onConvertTabType}
           onSleepTab={onSleepTab}
           onCloseTab={onCloseTab}
-          onSplitRight={onSplitRight}
-          onSplitDown={onSplitDown}
           onResizeEnd={onResizeEnd}
         />
       </div>
@@ -294,8 +285,6 @@ function SplitRenderer({
           onConvertTabType={onConvertTabType}
           onSleepTab={onSleepTab}
           onCloseTab={onCloseTab}
-          onSplitRight={onSplitRight}
-          onSplitDown={onSplitDown}
           onResizeEnd={onResizeEnd}
         />
       </div>
@@ -324,7 +313,6 @@ export function WorkspaceView({
   onRestartAgentTab,
   onReorderTabs,
   onMoveTabToPane,
-  onSplitPane,
   onSendToAgent,
   repoLabel,
   branch,
@@ -516,8 +504,6 @@ export function WorkspaceView({
           defaultClaudeTabType={defaultClaudeTabType}
           onSleepTab={(tabId) => onSleepTab(worktreePath, tabId)}
           onCloseTab={(tabId) => onCloseTab(worktreePath, tabId)}
-          onSplitRight={(paneId) => onSplitPane(worktreePath, paneId, 'horizontal')}
-          onSplitDown={(paneId) => onSplitPane(worktreePath, paneId, 'vertical')}
           onResizeEnd={handleResizeEnd}
         />
       </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { X, SquareTerminal, Sparkles, Code2, SplitSquareHorizontal, SplitSquareVertical, Loader2, PanelRightOpen, Globe, Users } from 'lucide-react'
+import { X, SquareTerminal, Sparkles, Loader2, PanelRightOpen, Globe, Users, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   SortableContext,
   horizontalListSortingStrategy,
@@ -80,8 +80,6 @@ interface TerminalPanelProps {
   defaultAgent: AgentKind
   onSleepTab: (tabId: string) => void
   onCloseTab: (tabId: string) => void
-  onSplitRight: () => void
-  onSplitDown: () => void
   showExpandRightColumn: boolean
   onShowRightColumn: () => void
 }
@@ -109,6 +107,8 @@ interface SortableTabProps {
    *  the right-click menu shows a "Sleep" item. Sleeping tears down
    *  the subprocess but leaves the tab record intact. */
   onSleepTab?: () => void
+  /** Commit a renamed label. Empty/whitespace clears the override. */
+  onRename: (label: string) => void
 }
 
 const PROGRESS_COLOR: Record<1 | 2 | 3 | 4, string> = {
@@ -141,7 +141,7 @@ function TabProgressBar({ terminalId }: { terminalId: string }): JSX.Element | n
   )
 }
 
-function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect, onClose, onConvertTabType, onSleepTab }: SortableTabProps): JSX.Element {
+function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect, onClose, onConvertTabType, onSleepTab, onRename }: SortableTabProps): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tab.id
   })
@@ -174,6 +174,55 @@ function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect
       window.removeEventListener('blur', close)
     }
   }, [menu])
+
+  const displayLabel = tab.customLabel ?? tab.label
+  const [editing, setEditing] = useState(false)
+  const [editValue, setEditValue] = useState(displayLabel)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const startEditing = useCallback(() => {
+    setEditValue(displayLabel)
+    setEditing(true)
+  }, [displayLabel])
+  useEffect(() => {
+    if (editing) {
+      const el = inputRef.current
+      if (el) {
+        el.focus()
+        el.select()
+      }
+    }
+  }, [editing])
+  const commitEdit = useCallback(() => {
+    if (!editing) return
+    setEditing(false)
+    const next = editValue.trim()
+    const current = tab.customLabel ?? ''
+    if (next === current) return
+    // Typing the auto-label exactly is treated as clearing — otherwise we'd
+    // pin a customLabel that happens to match the default and look the same
+    // until the underlying label changes.
+    if (next === tab.label) {
+      if (current !== '') onRename('')
+      return
+    }
+    onRename(next)
+  }, [editing, editValue, tab.customLabel, tab.label, onRename])
+  const cancelEdit = useCallback(() => {
+    setEditing(false)
+    setEditValue(displayLabel)
+  }, [displayLabel])
+  // Cmd+L hotkey path: App-level handler dispatches a window CustomEvent
+  // naming the tabId; the matching SortableTab self-activates edit mode.
+  // A custom event keeps the editing state local to this component
+  // instead of threading another prop down through WorkspaceView.
+  useEffect(() => {
+    const handler = (e: Event): void => {
+      const ce = e as CustomEvent<{ tabId?: string }>
+      if (ce.detail?.tabId === tab.id) startEditing()
+    }
+    window.addEventListener('harness:rename-tab', handler)
+    return () => window.removeEventListener('harness:rename-tab', handler)
+  }, [tab.id, startEditing])
   return (
     <div
       ref={setRefs}
@@ -185,7 +234,17 @@ function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect
           ? 'border-muted text-fg-bright'
           : 'border-transparent text-dim hover:text-fg'
       }`}
-      onClick={onSelect}
+      onClick={(e) => {
+        // dnd-kit's pointer sensor swallows the native dblclick event, so
+        // detect double-clicks via MouseEvent.detail instead.
+        if (e.detail >= 2) {
+          e.preventDefault()
+          e.stopPropagation()
+          startEditing()
+          return
+        }
+        onSelect()
+      }}
       onMouseDown={(e) => {
         if (e.button === 1) e.preventDefault()
       }}
@@ -196,14 +255,10 @@ function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect
           onClose()
         }
       }}
-      onContextMenu={
-        onConvertTabType || onSleepTab
-          ? (e) => {
-              e.preventDefault()
-              setMenu({ x: e.clientX, y: e.clientY })
-            }
-          : undefined
-      }
+      onContextMenu={(e) => {
+        e.preventDefault()
+        setMenu({ x: e.clientX, y: e.clientY })
+      }}
     >
       {tab.type === 'shell' ? (
         shellActivity?.active ? (
@@ -218,7 +273,32 @@ function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect
       ) : tab.type !== 'diff' && tab.type !== 'file' ? (
         <span className={`w-1.5 h-1.5 rounded-full ${TAB_STATUS_DOT[status]}`} />
       ) : null}
-      <span>{tab.label}</span>
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              commitEdit()
+            } else if (e.key === 'Escape') {
+              e.preventDefault()
+              cancelEdit()
+            }
+            e.stopPropagation()
+          }}
+          onBlur={commitEdit}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+          className="bg-transparent outline-none border-b border-muted text-fg-bright px-0 w-24 min-w-0"
+          aria-label="Rename tab"
+        />
+      ) : (
+        <span>{displayLabel}</span>
+      )}
       <TabProgressBar terminalId={tab.id} />
       {showClose && (
         <Tooltip label="Close tab" action="closeTab">
@@ -234,12 +314,34 @@ function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect
           </button>
         </Tooltip>
       )}
-      {menu && (onConvertTabType || onSleepTab) && (
+      {menu && (
         <div
           className="fixed z-50 bg-panel-raised border border-border-strong rounded shadow-lg text-xs py-1 min-w-[12rem]"
           style={{ left: menu.x, top: menu.y }}
           onMouseDown={(e) => e.stopPropagation()}
         >
+          <button
+            className="block w-full text-left px-3 py-1.5 hover:bg-panel text-fg-bright cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation()
+              setMenu(null)
+              startEditing()
+            }}
+          >
+            Rename Tab
+          </button>
+          {tab.customLabel !== undefined && (
+            <button
+              className="block w-full text-left px-3 py-1.5 hover:bg-panel text-fg-bright cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation()
+                setMenu(null)
+                onRename('')
+              }}
+            >
+              Reset Name
+            </button>
+          )}
           {onSleepTab && tab.type === 'json-claude' && (tab.mode ?? 'awake') === 'awake' && (
             <button
               className="block w-full text-left px-3 py-1.5 hover:bg-panel text-fg-bright cursor-pointer"
@@ -301,14 +403,10 @@ export function TerminalPanel({
   defaultAgent,
   onSleepTab,
   onCloseTab,
-  onSplitRight,
-  onSplitDown,
   showExpandRightColumn,
   onShowRightColumn
 }: TerminalPanelProps): JSX.Element {
   const backend = useBackend()
-  // Droppable target for the pane itself — lets users drop a tab onto an
-  // empty pane or past the last tab.
   const { setNodeRef: setPaneDropRef } = useDroppable({ id: pane.id })
   const slotHostRef = useRef<HTMLDivElement | null>(null)
 
@@ -327,6 +425,29 @@ export function TerminalPanel({
   const showSpectatorChip =
     !!activeTab && (activeTab.type === 'agent' || activeTab.type === 'shell')
 
+  const tabScrollRef = useRef<HTMLDivElement | null>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+  const updateTabScroll = useCallback(() => {
+    const el = tabScrollRef.current
+    if (!el) return
+    setCanScrollLeft(el.scrollLeft > 1)
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+  }, [])
+  useEffect(() => {
+    updateTabScroll()
+  }, [pane.tabs.length, updateTabScroll])
+  useEffect(() => {
+    const el = tabScrollRef.current
+    if (!el) return
+    const ro = new ResizeObserver(updateTabScroll)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [updateTabScroll])
+  const scrollTabsBy = useCallback((dx: number) => {
+    tabScrollRef.current?.scrollBy({ left: dx, behavior: 'smooth' })
+  }, [])
+
   return (
     <div ref={setPaneDropRef} className="flex-1 flex flex-col min-w-0 bg-app">
       {/* Tab bar */}
@@ -342,34 +463,7 @@ export function TerminalPanel({
             <span className="text-fg-bright font-medium">{branch}</span>
           </div>
         )}
-        <div className="flex items-center h-full overflow-x-auto scrollbar-hidden pl-2 flex-1 min-w-0">
-          <SortableContext items={pane.tabs.map((t) => t.id)} strategy={horizontalListSortingStrategy}>
-            {pane.tabs.map((tab) => {
-              const isClaudeAgent = tab.type === 'agent' && tab.agentKind === 'claude'
-              const isJsonClaude = tab.type === 'json-claude'
-              const convertible = !!onConvertTabType && (isClaudeAgent || isJsonClaude)
-              return (
-                <SortableTab
-                  key={tab.id}
-                  tab={tab}
-                  isActive={tab.id === pane.activeTabId}
-                  status={statuses[tab.id] || 'idle'}
-                  shellActivity={shellActivity[tab.id]}
-                  showClose={pane.tabs.length > 1 || paneCount > 1}
-                  onSelect={() => onSelectTab(tab.id)}
-                  onClose={() => onCloseTab(tab.id)}
-                  onConvertTabType={
-                    convertible
-                      ? (newType) => onConvertTabType!(tab.id, newType)
-                      : undefined
-                  }
-                  onSleepTab={
-                    isJsonClaude ? () => onSleepTab(tab.id) : undefined
-                  }
-                />
-              )
-            })}
-          </SortableContext>
+        <div className="no-drag shrink-0 flex items-center h-full pl-2">
           <Tooltip
             label={(() => {
               const chatIsDefault = !!onAddJsonClaudeTab && defaultClaudeTabType === 'json'
@@ -432,32 +526,65 @@ export function TerminalPanel({
               <Globe size={12} />
             </button>
           </Tooltip>
-          <Tooltip label="Split pane right" action="splitPaneRight">
-            <button
-              onClick={onSplitRight}
-              className="no-drag shrink-0 px-2 h-full text-faint hover:text-fg text-sm transition-colors cursor-pointer"
-            >
-              <SplitSquareHorizontal size={12} />
-            </button>
-          </Tooltip>
-          <Tooltip label="Split pane down" action="splitPaneDown">
-            <button
-              onClick={onSplitDown}
-              className="no-drag shrink-0 px-2 h-full text-faint hover:text-fg text-sm transition-colors cursor-pointer"
-            >
-              <SplitSquareVertical size={12} />
-            </button>
-          </Tooltip>
-          {showSpectatorChip && activeTab && <SpectatorChip terminalId={activeTab.id} />}
         </div>
-        <Tooltip label="Open worktree in editor" action="openInEditor" side="left">
+        <div className="shrink-0 w-px h-4 bg-border-strong mx-1" />
+        {canScrollLeft && (
           <button
-            onClick={() => backend.openInEditor(worktreePath)}
-            className="no-drag shrink-0 px-3 h-full text-faint hover:text-fg transition-colors cursor-pointer"
+            type="button"
+            onClick={() => scrollTabsBy(-200)}
+            aria-label="Scroll tabs left"
+            className="no-drag shrink-0 px-1 h-full text-faint hover:text-fg transition-colors cursor-pointer"
           >
-            <Code2 size={13} />
+            <ChevronLeft className="w-3.5 h-3.5" />
           </button>
-        </Tooltip>
+        )}
+        <div
+          ref={tabScrollRef}
+          onScroll={updateTabScroll}
+          className="flex items-center h-full overflow-x-auto scrollbar-hidden flex-1 min-w-0"
+        >
+          <SortableContext items={pane.tabs.map((t) => t.id)} strategy={horizontalListSortingStrategy}>
+            {pane.tabs.map((tab) => {
+              const isClaudeAgent = tab.type === 'agent' && tab.agentKind === 'claude'
+              const isJsonClaude = tab.type === 'json-claude'
+              const convertible = !!onConvertTabType && (isClaudeAgent || isJsonClaude)
+              return (
+                <SortableTab
+                  key={tab.id}
+                  tab={tab}
+                  isActive={tab.id === pane.activeTabId}
+                  status={statuses[tab.id] || 'idle'}
+                  shellActivity={shellActivity[tab.id]}
+                  showClose={pane.tabs.length > 1 || paneCount > 1}
+                  onSelect={() => onSelectTab(tab.id)}
+                  onClose={() => onCloseTab(tab.id)}
+                  onConvertTabType={
+                    convertible
+                      ? (newType) => onConvertTabType!(tab.id, newType)
+                      : undefined
+                  }
+                  onSleepTab={
+                    isJsonClaude ? () => onSleepTab(tab.id) : undefined
+                  }
+                  onRename={(label) => {
+                    void backend.panesRenameTab(worktreePath, tab.id, label)
+                  }}
+                />
+              )
+            })}
+          </SortableContext>
+        </div>
+        {canScrollRight && (
+          <button
+            type="button"
+            onClick={() => scrollTabsBy(200)}
+            aria-label="Scroll tabs right"
+            className="no-drag shrink-0 px-1 h-full text-faint hover:text-fg transition-colors cursor-pointer"
+          >
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {showSpectatorChip && activeTab && <SpectatorChip terminalId={activeTab.id} />}
         {showExpandRightColumn && (
           <Tooltip label="Show right column" action="toggleRightColumn" side="left">
             <button
