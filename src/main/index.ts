@@ -85,6 +85,7 @@ import { getAllSessionCosts } from './cost-aggregator'
 import { getClaudeAuthStatus } from './claude-auth'
 import { listDir as fsListDir, resolveHome as fsResolveHome } from './fs-listing'
 import { listConfiguredHosts } from './ssh-config'
+import { SshTunnelManager } from './ssh-tunnel-manager'
 import { startControlServer } from './control-server'
 import { writeMcpConfigForTerminal, pruneMcpConfigs, getBridgeScriptPath } from './mcp-config'
 import { getControlServerInfo } from './control-server'
@@ -348,6 +349,13 @@ const jsonClaudeManager = new JsonClaudeManager(store, {
 const perfMonitor = new PerfMonitor()
 setGitHubApiRecorder(() => perfMonitor.recordGitHubApiCall())
 setGitHubApiLoggingEnabled(config.expandedDiagnosticLoggingEnabled === true)
+
+// Active SSH tunnels keyed by backend id. Populated by the
+// ssh:bootstrap / ssh:reconnect handlers; entries are torn down on
+// connections:remove and on app quit. The remote `harness-server` is
+// intentionally NOT killed on unregister — it stays alive for future
+// reconnects + other Harnesses. See plans/remote-main.md §4.
+const sshTunnelManager = new SshTunnelManager()
 
 // In Electron mode createDesktopShell applies the dev-mode userData
 // override (must run before anything reads paths) and constructs the
@@ -3612,6 +3620,9 @@ if (desktopShellMod && desktopEarly) {
     onBeforeQuit: () => {
       jsonClaudeManager.killAll()
       approvalBridge.stopAll()
+      // Close local tunnel ends — the remote `harness-server` is left
+      // running (intentional; see plans/remote-main.md §4).
+      sshTunnelManager.closeAll()
     },
     setWarnBeforeQuitting
   })
@@ -3633,6 +3644,7 @@ if (desktopShellMod && desktopEarly) {
     jsonClaudeManager.killAll()
     approvalBridge.stopAll()
     browserManager.destroyAll()
+    sshTunnelManager.closeAll()
     sealAllActive()
     saveConfigSync(config)
     process.exit(0)

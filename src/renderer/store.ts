@@ -607,6 +607,23 @@ export function useScratchpad(worktreePath: string | null): string {
   )
 }
 
+/** Per-bootstrap progress for the AddBackendModal SSH tab. Returns null
+ *  when the bootstrap id is unknown (e.g. just cleared) so the modal can
+ *  render a fresh state without dereferencing undefined. */
+export function useSshBootstrap(bootstrapId: string | null) {
+  return useAppState((s) =>
+    bootstrapId ? (s.sshBootstrap.byId[bootstrapId] ?? null) : null
+  )
+}
+
+/** All in-flight + recently-finished SSH bootstrap entries. Used by the
+ *  chip strip when it wants to show "reconnecting…" on boot-time
+ *  reconnects (commit 4). */
+export function useSshBootstrapAll() {
+  return useAppState((s) => s.sshBootstrap.byId)
+}
+
+
 export function useBrowser() {
   return useAppState((s) => s.browser)
 }
