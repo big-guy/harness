@@ -12,6 +12,7 @@ import { AGENT_REGISTRY, agentDisplayName } from '../../shared/agent-registry'
 import { Tooltip } from './Tooltip'
 import { repoNameColor } from './RepoIcon'
 import { getClientId, useTerminalProgress, useTerminalSession } from '../store'
+import { useBackend } from '../backend'
 
 /** Chip shown in the tab bar when other clients are attached to the
  *  active terminal. Click-through is intentional — taking/releasing
@@ -108,6 +109,8 @@ interface SortableTabProps {
    *  the right-click menu shows a "Sleep" item. Sleeping tears down
    *  the subprocess but leaves the tab record intact. */
   onSleepTab?: () => void
+  /** Commit a renamed label. Empty/whitespace clears the override. */
+  onRename: (label: string) => void
 }
 
 const PROGRESS_COLOR: Record<1 | 2 | 3 | 4, string> = {
@@ -140,7 +143,7 @@ function TabProgressBar({ terminalId }: { terminalId: string }): JSX.Element | n
   )
 }
 
-function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect, onClose, onConvertTabType, onSleepTab }: SortableTabProps): JSX.Element {
+function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect, onClose, onConvertTabType, onSleepTab, onRename }: SortableTabProps): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tab.id
   })
@@ -173,6 +176,36 @@ function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect
       window.removeEventListener('blur', close)
     }
   }, [menu])
+
+  const displayLabel = tab.customLabel ?? tab.label
+  const [editing, setEditing] = useState(false)
+  const [editValue, setEditValue] = useState(displayLabel)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const startEditing = useCallback(() => {
+    setEditValue(displayLabel)
+    setEditing(true)
+  }, [displayLabel])
+  useEffect(() => {
+    if (editing) {
+      const el = inputRef.current
+      if (el) {
+        el.focus()
+        el.select()
+      }
+    }
+  }, [editing])
+  const commitEdit = useCallback(() => {
+    if (!editing) return
+    setEditing(false)
+    const next = editValue.trim()
+    // Pass through trimmed-empty as "" so the reducer drops the field.
+    if (next === (tab.customLabel ?? '')) return
+    onRename(next)
+  }, [editing, editValue, tab.customLabel, onRename])
+  const cancelEdit = useCallback(() => {
+    setEditing(false)
+    setEditValue(displayLabel)
+  }, [displayLabel])
   return (
     <div
       ref={setRefs}
@@ -195,14 +228,15 @@ function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect
           onClose()
         }
       }}
-      onContextMenu={
-        onConvertTabType || onSleepTab
-          ? (e) => {
-              e.preventDefault()
-              setMenu({ x: e.clientX, y: e.clientY })
-            }
-          : undefined
-      }
+      onContextMenu={(e) => {
+        e.preventDefault()
+        setMenu({ x: e.clientX, y: e.clientY })
+      }}
+      onDoubleClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        startEditing()
+      }}
     >
       {tab.type === 'shell' ? (
         shellActivity?.active ? (
@@ -217,7 +251,32 @@ function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect
       ) : tab.type !== 'diff' && tab.type !== 'file' ? (
         <span className={`w-1.5 h-1.5 rounded-full ${TAB_STATUS_DOT[status]}`} />
       ) : null}
-      <span>{tab.label}</span>
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              commitEdit()
+            } else if (e.key === 'Escape') {
+              e.preventDefault()
+              cancelEdit()
+            }
+            e.stopPropagation()
+          }}
+          onBlur={commitEdit}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+          className="bg-transparent outline-none border-b border-muted text-fg-bright px-0 w-24 min-w-0"
+          aria-label="Rename tab"
+        />
+      ) : (
+        <span>{displayLabel}</span>
+      )}
       <TabProgressBar terminalId={tab.id} />
       {showClose && (
         <Tooltip label="Close tab" action="closeTab">
@@ -233,12 +292,34 @@ function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect
           </button>
         </Tooltip>
       )}
-      {menu && (onConvertTabType || onSleepTab) && (
+      {menu && (
         <div
           className="fixed z-50 bg-panel-raised border border-border-strong rounded shadow-lg text-xs py-1 min-w-[12rem]"
           style={{ left: menu.x, top: menu.y }}
           onMouseDown={(e) => e.stopPropagation()}
         >
+          <button
+            className="block w-full text-left px-3 py-1.5 hover:bg-panel text-fg-bright cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation()
+              setMenu(null)
+              startEditing()
+            }}
+          >
+            Rename Tab
+          </button>
+          {tab.customLabel !== undefined && (
+            <button
+              className="block w-full text-left px-3 py-1.5 hover:bg-panel text-fg-bright cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation()
+                setMenu(null)
+                onRename('')
+              }}
+            >
+              Reset Name
+            </button>
+          )}
           {onSleepTab && tab.type === 'json-claude' && (tab.mode ?? 'awake') === 'awake' && (
             <button
               className="block w-full text-left px-3 py-1.5 hover:bg-panel text-fg-bright cursor-pointer"
@@ -305,8 +386,7 @@ export function TerminalPanel({
   showExpandRightColumn,
   onShowRightColumn
 }: TerminalPanelProps): JSX.Element {
-  // Droppable target for the pane itself — lets users drop a tab onto an
-  // empty pane or past the last tab.
+  const backend = useBackend()
   const { setNodeRef: setPaneDropRef } = useDroppable({ id: pane.id })
   const slotHostRef = useRef<HTMLDivElement | null>(null)
 
@@ -401,6 +481,9 @@ export function TerminalPanel({
                   onSleepTab={
                     isJsonClaude ? () => onSleepTab(tab.id) : undefined
                   }
+                  onRename={(label) => {
+                    void backend.panesRenameTab(worktreePath, tab.id, label)
+                  }}
                 />
               )
             })}
