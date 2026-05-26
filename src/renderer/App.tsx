@@ -1377,7 +1377,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
           /></div>
         )}
         {!singleScreenMode && sidebarVisible && (
-          <div className="mt-10 shrink-0"><ResizeHandle onDelta={handleSidebarResize} /></div>
+          <div className="mt-10 shrink-0 flex"><ResizeHandle onDelta={handleSidebarResize} /></div>
         )}
         {/* Render ALL worktrees' terminals to keep PTYs alive across switches */}
         {worktrees.map((wt) => {
@@ -1548,7 +1548,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
         {/* Right panel — hidden on the new-worktree screen so the form gets the full width.
             Pushed down 40px so the workspace tab bar can extend across the top, full width. */}
         {!singleScreenMode && !showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && !showReview && reportIssueState === null && !rightColumnHidden && (
-          <div className="mt-10 shrink-0"><ResizeHandle onDelta={handleRightPanelResize} /></div>
+          <div className="mt-10 shrink-0 flex"><ResizeHandle onDelta={handleRightPanelResize} /></div>
         )}
         {!singleScreenMode && !showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && !showReview && reportIssueState === null && !rightColumnHidden && (
           <div className="mt-10 shrink-0 flex"><RightColumn
