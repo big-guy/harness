@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { X, SquareTerminal, Sparkles, SplitSquareHorizontal, SplitSquareVertical, Loader2, PanelRightOpen, Globe, Users, ChevronLeft, ChevronRight } from 'lucide-react'
+import { X, SquareTerminal, Sparkles, Loader2, PanelRightOpen, Globe, Users, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   SortableContext,
   horizontalListSortingStrategy,
@@ -80,8 +80,6 @@ interface TerminalPanelProps {
   defaultAgent: AgentKind
   onSleepTab: (tabId: string) => void
   onCloseTab: (tabId: string) => void
-  onSplitRight: () => void
-  onSplitDown: () => void
   showExpandRightColumn: boolean
   onShowRightColumn: () => void
 }
@@ -381,8 +379,6 @@ export function TerminalPanel({
   defaultAgent,
   onSleepTab,
   onCloseTab,
-  onSplitRight,
-  onSplitDown,
   showExpandRightColumn,
   onShowRightColumn
 }: TerminalPanelProps): JSX.Element {
@@ -548,22 +544,6 @@ export function TerminalPanel({
               className="no-drag shrink-0 px-2 h-full text-faint hover:text-fg text-sm transition-colors cursor-pointer"
             >
               <Globe size={12} />
-            </button>
-          </Tooltip>
-          <Tooltip label="Split pane right" action="splitPaneRight">
-            <button
-              onClick={onSplitRight}
-              className="no-drag shrink-0 px-2 h-full text-faint hover:text-fg text-sm transition-colors cursor-pointer"
-            >
-              <SplitSquareHorizontal size={12} />
-            </button>
-          </Tooltip>
-          <Tooltip label="Split pane down" action="splitPaneDown">
-            <button
-              onClick={onSplitDown}
-              className="no-drag shrink-0 px-2 h-full text-faint hover:text-fg text-sm transition-colors cursor-pointer"
-            >
-              <SplitSquareVertical size={12} />
             </button>
           </Tooltip>
           {showSpectatorChip && activeTab && <SpectatorChip terminalId={activeTab.id} />}

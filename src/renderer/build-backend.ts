@@ -413,6 +413,10 @@ export function buildBackend(
       onLocalSignal('app:openKeyboardShortcuts', () => callback()),
     onCloseFocusedTab: (callback: () => void) =>
       onLocalSignal('app:closeFocusedTab', () => callback()),
+    onSplitPaneRight: (callback: () => void) =>
+      onLocalSignal('app:splitPaneRight', () => callback()),
+    onSplitPaneDown: (callback: () => void) =>
+      onLocalSignal('app:splitPaneDown', () => callback()),
     onOpenNewProject: (callback: () => void) =>
       onLocalSignal('menu:newProject', () => callback()),
     onOpenReportIssue: (callback: () => void) =>

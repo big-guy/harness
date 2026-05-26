@@ -653,6 +653,18 @@ const setQuestStep = useCallback((next: QuestStep) => {
     return cleanup
   }, [backend, activeWorktreeId, activeTabId, handleCloseTab])
 
+  // Window → Split Pane Right / Down — accelerators on the menu so they
+  // fire from any focus context (browser tab, etc.). Delegates to the
+  // same handler the renderer-side hotkey binding uses.
+  useEffect(() => {
+    const a = backend.onSplitPaneRight(() => hotkeyActions.splitPaneRight?.())
+    const b = backend.onSplitPaneDown(() => hotkeyActions.splitPaneDown?.())
+    return () => {
+      a()
+      b()
+    }
+  }, [backend, hotkeyActions])
+
   // Compute aggregate status per worktree (worst status wins)
   const worktreeStatuses: Record<string, PtyStatus> = {}
   const worktreePendingTools: Record<string, PendingTool | null> = {}
@@ -1332,7 +1344,6 @@ const setQuestStep = useCallback((next: QuestStep) => {
                   onRestartAgentTab={handleRestartAgentTab}
                   onReorderTabs={handleReorderTabs}
                   onMoveTabToPane={handleMoveTabToPane}
-                  onSplitPane={handleSplitPane}
                   onSendToAgent={handleSendToAgent}
                   rightColumnHidden={rightColumnHidden}
                   onShowRightColumn={() => setRightColumnHidden(false)}

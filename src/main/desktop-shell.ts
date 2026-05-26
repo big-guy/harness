@@ -411,6 +411,17 @@ export function startDesktopShell(deps: DesktopShellStartDeps): DesktopShellStar
           { role: 'minimize' },
           { role: 'zoom' },
           { type: 'separator' },
+          {
+            label: 'Split Pane Right',
+            accelerator: 'CmdOrCtrl+D',
+            click: () => transport.sendSignal('app:splitPaneRight')
+          },
+          {
+            label: 'Split Pane Down',
+            accelerator: 'CmdOrCtrl+Alt+D',
+            click: () => transport.sendSignal('app:splitPaneDown')
+          },
+          { type: 'separator' },
           { role: 'front' }
         ]
       },
