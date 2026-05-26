@@ -638,7 +638,8 @@ const setQuestStep = useCallback((next: QuestStep) => {
     handleCloseTab,
     handleSelectTab,
     handleSplitPane,
-    handleRefreshWorktrees
+    handleRefreshWorktrees,
+    setShowSettings
   })
 
   // File → Close Tab (Cmd+W). The accelerator lives on the menu item

@@ -68,6 +68,7 @@ import { registerRepoRoot } from './repo-roots'
 import type { AddRepoResult } from '../shared/repo-pick'
 import { isWorktreeMerged } from '../shared/state/prs'
 import { MAX_WAKE } from '../shared/state/snooze'
+import { hasScratchpadNote } from '../shared/state/scratchpad'
 import {
   DEFAULT_LIGHT_THEME,
   DEFAULT_DARK_THEME,
@@ -968,6 +969,38 @@ store.subscribe((event) => {
   }
 })
 
+// Same idea for scratchpad notes: drop slice entries for removed
+// worktrees, and prune them from the on-disk config so the file
+// doesn't accumulate orphan paths.
+store.subscribe((event) => {
+  if (event.type !== 'worktrees/listChanged') return
+  const live = new Set(store.getSnapshot().state.worktrees.list.map((w) => w.path))
+  const byPath = store.getSnapshot().state.scratchpad.byWorktreePath
+  let prunedDisk = false
+  for (const path of Object.keys(byPath)) {
+    if (live.has(path)) continue
+    store.dispatch({ type: 'scratchpad/worktreeRemoved', payload: path })
+    if (config.scratchpadNotes) {
+      for (const repoRoot of Object.keys(config.scratchpadNotes)) {
+        const repoMap = config.scratchpadNotes[repoRoot]
+        if (repoMap && path in repoMap) {
+          delete repoMap[path]
+          if (Object.keys(repoMap).length === 0) {
+            delete config.scratchpadNotes[repoRoot]
+          }
+          prunedDisk = true
+        }
+      }
+    }
+  }
+  if (prunedDisk) {
+    if (config.scratchpadNotes && Object.keys(config.scratchpadNotes).length === 0) {
+      delete config.scratchpadNotes
+    }
+    saveConfig(config)
+  }
+})
+
 const snoozeTimer = new SnoozeTimer(store)
 snoozeTimer.start()
 
@@ -1046,7 +1079,9 @@ function registerIpcHandlers(): void {
   )
 
   transport.onRequest('worktree:isDirty', async (_ctx, path: string) => {
-    return isWorktreeDirty(path)
+    const git = await isWorktreeDirty(path)
+    const scratchpad = hasScratchpadNote(store.getSnapshot().state.scratchpad, path)
+    return { git, scratchpad }
   })
 
   transport.onRequest('worktree:remove', async (_ctx, 
@@ -2539,6 +2574,64 @@ function registerIpcHandlers(): void {
     jsonClaudeManager.interrupt(sessionId)
     return true
   })
+
+  // Rewind to a clicked assistant message. Orchestrates: interrupt
+  // in-flight stream (if any) → await `result` boundary (≤1500ms) so
+  // the jsonl is quiesced → deny pending approvals for the session →
+  // manager.rewindTo (truncate jsonl + kill + slice prune) → respawn
+  // via --resume. The renderer restricts the menu to assistant rows,
+  // so the manager validates the same invariant defensively.
+  transport.onRequest(
+    'jsonClaude:rewindTo',
+    async (
+      _ctx,
+      sessionId: string,
+      entryId: string
+    ): Promise<{ ok: boolean; reason?: string }> => {
+      if (!sessionId || !entryId) return { ok: false, reason: 'missing args' }
+      const startSession = store.getSnapshot().state.jsonClaude.sessions[sessionId]
+      if (!startSession) return { ok: false, reason: 'unknown session' }
+
+      // Quiesce in-flight stream. Subscribe first, then send the
+      // interrupt so we can't miss the resulting busy=false dispatch.
+      if (startSession.busy) {
+        await new Promise<void>((resolve) => {
+          let done = false
+          const finish = (): void => {
+            if (done) return
+            done = true
+            unsub()
+            clearTimeout(timer)
+            resolve()
+          }
+          const unsub = store.subscribe((event) => {
+            if (
+              event.type === 'jsonClaude/busyChanged' &&
+              event.payload.sessionId === sessionId &&
+              event.payload.busy === false
+            ) {
+              finish()
+            }
+          })
+          const timer = setTimeout(finish, 1500)
+          jsonClaudeManager.interrupt(sessionId)
+        })
+      }
+
+      approvalBridge.cancelPendingForSession(sessionId)
+
+      const outcome = jsonClaudeManager.rewindTo(sessionId, entryId)
+      if (!outcome.ok) return { ok: false, reason: outcome.reason }
+
+      // Respawn so --resume re-seeds the slice from the truncated jsonl
+      // (authoritative — our optimistic dispatch in rewindTo is the
+      // pre-respawn fallback).
+      startJsonClaudeSession(sessionId, startSession.worktreePath)
+
+      return { ok: true }
+    }
+  )
+
   transport.onRequest(
     'jsonClaude:openAuthLoginTab',
     (_ctx, worktreePath: string): { ok: true; tabId: string } | { ok: false; error: string } => {
@@ -2932,6 +3025,44 @@ function registerIpcHandlers(): void {
     store.dispatch({ type: 'snooze/clear', payload: path })
     return true
   })
+
+  transport.onRequest(
+    'scratchpad:setText',
+    (_ctx, worktreePath: string, text: string) => {
+      if (typeof worktreePath !== 'string' || !worktreePath) return false
+      if (typeof text !== 'string') return false
+      const wt = store
+        .getSnapshot()
+        .state.worktrees.list.find((w) => w.path === worktreePath)
+      const repoRoot = wt?.repoRoot
+      if (repoRoot) {
+        const notes = config.scratchpadNotes || {}
+        const repoMap = notes[repoRoot] ? { ...notes[repoRoot] } : {}
+        if (text === '') {
+          delete repoMap[worktreePath]
+        } else {
+          repoMap[worktreePath] = text
+        }
+        const nextNotes = { ...notes }
+        if (Object.keys(repoMap).length === 0) {
+          delete nextNotes[repoRoot]
+        } else {
+          nextNotes[repoRoot] = repoMap
+        }
+        if (Object.keys(nextNotes).length === 0) {
+          delete config.scratchpadNotes
+        } else {
+          config.scratchpadNotes = nextNotes
+        }
+        saveConfig(config)
+      }
+      store.dispatch({
+        type: 'scratchpad/textChanged',
+        payload: { worktreePath, text }
+      })
+      return true
+    }
+  )
 
   transport.onRequest('config:setSnoozeDefaultDays', (_ctx, days: number) => {
     const n = Number(days)

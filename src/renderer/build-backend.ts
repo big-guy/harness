@@ -347,6 +347,9 @@ export function buildBackend(
     unsnooze: (path: string) => req('snooze:unsnooze', path),
     setSnoozeDefaultDays: (days: number) => req('config:setSnoozeDefaultDays', days),
 
+    setScratchpadText: (worktreePath: string, text: string) =>
+      req('scratchpad:setText', worktreePath, text),
+
     openInEditor: (worktreePath: string, filePath?: string) =>
       req('editor:open', worktreePath, filePath),
 
@@ -516,6 +519,8 @@ export function buildBackend(
       req('jsonClaude:getEntries', sessionId),
     killJsonClaude: (id: string) => req('jsonClaude:kill', id),
     interruptJsonClaude: (id: string) => req('jsonClaude:interrupt', id),
+    rewindJsonClaudeTo: (id: string, entryId: string) =>
+      req('jsonClaude:rewindTo', id, entryId),
     openJsonClaudeAuthLoginTab: (worktreePath: string) =>
       req('jsonClaude:openAuthLoginTab', worktreePath),
     setJsonClaudePermissionMode: (

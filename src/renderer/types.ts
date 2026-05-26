@@ -16,6 +16,15 @@ export type { SessionCostSummary, ClaudeAuthInfo, SubscriptionTier }
 import type { AddRepoResult } from '../shared/repo-pick'
 export type { AddRepoResult }
 
+/** Per-kind dirtiness flags for a worktree. `git` reflects
+ *  uncommitted changes; `scratchpad` reflects a non-empty scratchpad
+ *  note. The delete-worktree flow surfaces each kind separately so the
+ *  confirm dialog can name what would actually be lost. */
+export interface WorktreeDirtyStatus {
+  git: boolean
+  scratchpad: boolean
+}
+
 export interface FsEntry {
   name: string
   isDir: boolean
@@ -201,7 +210,7 @@ export interface ElectronAPI {
     newBranchName: string,
     baseBranch?: string
   ): Promise<{ worktree: Worktree; stashReapplied: boolean; stashConflict: boolean }>
-  isWorktreeDirty(path: string): Promise<boolean>
+  isWorktreeDirty(path: string): Promise<WorktreeDirtyStatus>
   removeWorktree(
     repoRoot: string,
     path: string,
@@ -353,6 +362,7 @@ export interface ElectronAPI {
   snooze(path: string, wakeAt: number): Promise<boolean>
   unsnooze(path: string): Promise<boolean>
   setSnoozeDefaultDays(days: number): Promise<boolean>
+  setScratchpadText(worktreePath: string, text: string): Promise<boolean>
   openInEditor(worktreePath: string, filePath?: string): Promise<{ ok: true } | { ok: false; error: string }>
 
   panesAddTab(wtPath: string, tab: TerminalTab, paneId?: string): Promise<boolean>
@@ -519,6 +529,10 @@ export interface ElectronAPI {
   getJsonClaudeEntries(sessionId: string): Promise<JsonClaudeChatEntry[]>
   killJsonClaude(id: string): Promise<boolean>
   interruptJsonClaude(id: string): Promise<boolean>
+  rewindJsonClaudeTo(
+    id: string,
+    entryId: string
+  ): Promise<{ ok: boolean; reason?: string }>
   openJsonClaudeAuthLoginTab(
     worktreePath: string
   ): Promise<{ ok: true; tabId: string } | { ok: false; error: string }>
