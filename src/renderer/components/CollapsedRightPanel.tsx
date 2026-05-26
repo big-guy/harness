@@ -11,6 +11,7 @@ import {
   Check,
   Pencil,
   GitCommitHorizontal,
+  NotebookPen,
   RefreshCw,
   CircleX
 } from 'lucide-react'
@@ -18,6 +19,7 @@ import { Tooltip } from './Tooltip'
 import { useActiveBackend, usePrs, useRepoConfigs, useSettings, useWorktrees } from '../store'
 import { useBackend } from '../backend'
 import { useWatchedQuery } from '../hooks/useWatchedQuery'
+import { effectiveHiddenRightPanels } from '../../shared/state/repo-configs'
 import type {
   BranchCommit,
   ChangedFile,
@@ -109,6 +111,18 @@ export function CollapsedRightPanel({
     (changedFilesData?.working.length ?? 0) + (changedFilesData?.branch.length ?? 0)
   const commitsCount = commitsData?.length ?? 0
   const hasUnpushedCommits = !!commitsData?.some((c) => !c.pushed)
+
+  const onOpenScratchpad = useCallback(() => {
+    onExpand()
+    if (!worktree) return
+    const repoRoot = worktree.repoRoot
+    const currentConfig = repoConfigs[repoRoot] ?? null
+    const currentHidden = effectiveHiddenRightPanels(currentConfig)
+    if (currentHidden.scratchpad === false) return
+    void backend.setRepoConfig(repoRoot, {
+      hiddenRightPanels: { ...currentHidden, scratchpad: false }
+    })
+  }, [onExpand, worktree, repoConfigs, backend])
 
   const handleRefreshAll = useCallback(() => {
     refreshChangedFiles()
@@ -359,6 +373,19 @@ export function CollapsedRightPanel({
             aria-label="Find file in worktree"
           >
             <FolderSearch2 size={14} />
+          </button>
+        </Tooltip>
+
+        <div className="h-px w-6 bg-border my-1" />
+
+        <Tooltip label="Open Scratchpad" side="left">
+          <button
+            onClick={onOpenScratchpad}
+            disabled={!worktree}
+            className="text-dim hover:text-fg hover:bg-surface rounded p-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-dim"
+            aria-label="Open Scratchpad"
+          >
+            <NotebookPen size={14} />
           </button>
         </Tooltip>
       </div>
