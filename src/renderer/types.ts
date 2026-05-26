@@ -453,6 +453,9 @@ export interface ElectronAPI {
   onDebugCrashFocusedTab(callback: () => void): () => void
   onDebugPreviewOnboarding(callback: () => void): () => void
   onOpenAddBackend(callback: () => void): () => void
+  onUiScaleUp(callback: () => void): () => void
+  onUiScaleDown(callback: () => void): () => void
+  onUiScaleReset(callback: () => void): () => void
 
   acceptHooks(): Promise<boolean>
   declineHooks(): Promise<boolean>

@@ -432,6 +432,12 @@ export function buildBackend(
       onLocalSignal('app:debugPreviewOnboarding', () => callback()),
     onOpenAddBackend: (callback: () => void) =>
       onLocalSignal('app:openAddBackend', () => callback()),
+    onUiScaleUp: (callback: () => void) =>
+      onLocalSignal('app:uiScaleUp', () => callback()),
+    onUiScaleDown: (callback: () => void) =>
+      onLocalSignal('app:uiScaleDown', () => callback()),
+    onUiScaleReset: (callback: () => void) =>
+      onLocalSignal('app:uiScaleReset', () => callback()),
 
     acceptHooks: () => req('hooks:accept'),
     declineHooks: () => req('hooks:decline'),

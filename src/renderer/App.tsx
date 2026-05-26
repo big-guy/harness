@@ -9,7 +9,7 @@ import type { Worktree, TerminalTab, PtyStatus, PendingTool, QuestStep, PendingW
 import { getLeaves, findLeaf } from '../shared/state/terminals'
 import { CheckCircle2, FolderOpen } from 'lucide-react'
 import { BUILT_IN_THEMES_BY_MODE } from './themes'
-import { scaleSpec } from '../shared/state/settings'
+import { SCALES, scaleSpec } from '../shared/state/settings'
 import { useActiveTheme } from './hooks/useActiveTheme'
 import { applyTheme, effectiveAppBg } from './theme-apply'
 import { getBackend } from './backend'
@@ -341,6 +341,27 @@ const setQuestStep = useCallback((next: QuestStep) => {
     const cleanup = backend.onTogglePerfMonitor(() => setShowPerfMonitor((v) => !v))
     return cleanup
   }, [])
+
+  // UI size — View menu items (Cmd+= / Cmd+- / Cmd+0). Read the current
+  // rung from the slice on each fire (a useEffect snapshot would stale-
+  // close over the value) and step through SCALES.
+  useEffect(() => {
+    const step = (delta: number): void => {
+      const cur = settings.uiScale
+      const i = SCALES.findIndex((s) => s.id === cur)
+      const idx = i < 0 ? 0 : i
+      const target = SCALES[Math.max(0, Math.min(SCALES.length - 1, idx + delta))]
+      if (target && target.id !== cur) void backend.setUiScale(target.id)
+    }
+    const cleanups = [
+      backend.onUiScaleUp(() => step(1)),
+      backend.onUiScaleDown(() => step(-1)),
+      backend.onUiScaleReset(() => {
+        if (settings.uiScale !== 'small') void backend.setUiScale('small')
+      })
+    ]
+    return () => { for (const c of cleanups) c() }
+  }, [settings.uiScale])
 
   // Open Keyboard Shortcuts from the menu
   useEffect(() => {

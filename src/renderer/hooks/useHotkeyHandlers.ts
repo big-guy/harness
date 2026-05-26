@@ -320,6 +320,9 @@ export function useHotkeyHandlers(args: UseHotkeyHandlersArgs): {
         const i = SCALES.findIndex((s) => s.id === uiScale)
         const next = SCALES[Math.max(i < 0 ? 0 : i - 1, 0)]
         if (next && next.id !== uiScale) void backend.setUiScale(next.id)
+      },
+      uiScaleReset: () => {
+        if (uiScale !== 'small') void backend.setUiScale('small')
       }
     }),
     [
