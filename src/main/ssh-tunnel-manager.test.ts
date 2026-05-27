@@ -72,7 +72,7 @@ describe('SshTunnelManager', () => {
     const mgr = new SshTunnelManager()
     const entry = fakeEntry('a')
     mgr.register(entry)
-    expect(mgr.buildLocalUrl('a')).toBe(`http://127.0.0.1:${entry.localPort}/?token=${entry.token}`)
+    expect(mgr.buildLocalUrl('a')).toBe(`ws://127.0.0.1:${entry.localPort}/?token=${entry.token}`)
   })
 
   it('buildLocalUrl returns null when backendId is unknown', () => {
