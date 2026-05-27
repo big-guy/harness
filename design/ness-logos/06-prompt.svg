@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <text x="46" y="172"
+        font-family="ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace"
+        font-weight="700" font-size="140" fill="#f5f5f5">N</text>
+
+  <text x="146" y="172" filter="url(#glow)"
+        font-family="ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace"
+        font-weight="700" font-size="140" fill="#22c55e">&#62;</text>
+</svg>

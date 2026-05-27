@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ness — logo concepts</title>
+<style>
+  :root {
+    color-scheme: dark;
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #0a0a0a;
+    color: #f5f5f5;
+    font-family: -apple-system, BlinkMacSystemFont, system-ui, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 56px 48px 96px;
+  }
+  header {
+    margin-bottom: 56px;
+  }
+  h1 {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin: 0 0 8px;
+  }
+  .subtitle {
+    color: #a3a3a3;
+    font-size: 15px;
+  }
+  .legend {
+    margin-top: 20px;
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: #737373;
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  .swatch {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .swatch i {
+    width: 10px;
+    height: 10px;
+    display: inline-block;
+    border-radius: 2px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 40px 56px;
+  }
+  @media (max-width: 880px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+  .concept {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+  .mark {
+    width: 220px;
+    height: 220px;
+    background: #0a0a0a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mark img {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .body {
+    padding-top: 8px;
+  }
+  .num {
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+    color: #737373;
+    letter-spacing: 1.5px;
+  }
+  .name {
+    font-size: 17px;
+    font-weight: 600;
+    margin: 6px 0 10px;
+    letter-spacing: -0.2px;
+  }
+  .rationale {
+    color: #a3a3a3;
+    line-height: 1.55;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>Ness — logo exploration</h1>
+      <div class="subtitle">10 directions, all on the dark canvas. Palette held to Harness primary green + neutrals.</div>
+      <div class="legend">
+        <span class="swatch"><i style="background:#22c55e"></i>#22c55e primary</span>
+        <span class="swatch"><i style="background:#fbbf24"></i>#fbbf24 amber accent</span>
+        <span class="swatch"><i style="background:#f5f5f5"></i>#f5f5f5 neutral</span>
+        <span class="swatch"><i style="background:#262626;border:1px solid #333"></i>#262626 grid dark</span>
+        <span class="swatch"><i style="background:#0a0a0a;border:1px solid #333"></i>#0a0a0a canvas</span>
+      </div>
+    </header>
+
+    <div class="grid">
+
+      <div class="concept">
+        <div class="mark"><img src="01-wordmark-cursor.svg" alt="Wordmark with cursor"></div>
+        <div class="body">
+          <div class="num">01 — WORDMARK</div>
+          <div class="name">Lowercase wordmark with terminal cursor</div>
+          <div class="rationale">Geometric sans, set tight, with a solid green block cursor pinned to the end. Pure dev-tool identity: declares the CLI heritage with no decoration and works as plain text in a headline.</div>
+        </div>
+      </div>
+
+      <div class="concept">
+        <div class="mark"><img src="02-monogram-lanes.svg" alt="Monogram N as parallel lanes"></div>
+        <div class="body">
+          <div class="num">02 — MONOGRAM</div>
+          <div class="name">N as parallel lanes</div>
+          <div class="rationale">The two posts and the diagonal of the N are rendered as track-style bars with an inner stripe. Reads as the letter at a glance, as parallel agents / worktrees on inspection. Direct metaphor for the product.</div>
+        </div>
+      </div>
+
+      <div class="concept">
+        <div class="mark"><img src="03-loch-humps.svg" alt="Loch Ness humps cresting the water"></div>
+        <div class="body">
+          <div class="num">03 — WINK</div>
+          <div class="name">Loch Ness humps cresting the water</div>
+          <div class="rationale">A continuous wave silhouette of four humps over a dashed waterline, with the wordmark below. Mythic, geographic, a smile — the kind of mark that earns affection rather than respect.</div>
+        </div>
+      </div>
+
+      <div class="concept">
+        <div class="mark"><img src="04-headland.svg" alt="Headland silhouette"></div>
+        <div class="body">
+          <div class="num">04 — ETYMOLOGY</div>
+          <div class="name">Headland silhouette</div>
+          <div class="rationale">"Ness" means promontory. A jagged green coastline juts into a dark sea, paired with an italic serif wordmark. Quiet, editorial, leans into the geography without invoking the monster.</div>
+        </div>
+      </div>
+
+      <div class="concept">
+        <div class="mark"><img src="05-dot-grid-n.svg" alt="N built from status dots"></div>
+        <div class="body">
+          <div class="num">05 — HERITAGE</div>
+          <div class="name">N built from status dots</div>
+          <div class="rationale">A 7×7 grid where the N is picked out in green and the rest are dim gray, with a single amber accent for callback. Strong visual continuity with the existing Harness icon — feels like an evolution, not a reset.</div>
+        </div>
+      </div>
+
+      <div class="concept">
+        <div class="mark"><img src="06-prompt.svg" alt="N> terminal prompt"></div>
+        <div class="body">
+          <div class="num">06 — CLI</div>
+          <div class="name">N&gt; terminal prompt</div>
+          <div class="rationale">An uppercase N followed by a glowing green chevron, set in monospace. Reads instantly as a shell prompt; compact enough to work as a favicon. Most "this is a developer tool" of the set.</div>
+        </div>
+      </div>
+
+      <div class="concept">
+        <div class="mark"><img src="07-braided-n.svg" alt="Braided N monogram"></div>
+        <div class="body">
+          <div class="num">07 — MONOGRAM</div>
+          <div class="name">Braided N — two strands meeting</div>
+          <div class="rationale">The diagonal splits into two arcing strands that meet at the center. Carries the "harness" rope/yoke legacy quietly, plus a hint of merging branches. Posts are heavy, weave is the focal point.</div>
+        </div>
+      </div>
+
+      <div class="concept">
+        <div class="mark"><img src="08-ripple-n.svg" alt="N over concentric ripples"></div>
+        <div class="body">
+          <div class="num">08 — DEPTH</div>
+          <div class="name">N with concentric ripples</div>
+          <div class="rationale">A solid green N sits on top of three concentric ellipses, like a stone landing on a lake. Loch Ness reference without the creature, plus an honest evocation of focus and depth.</div>
+        </div>
+      </div>
+
+      <div class="concept">
+        <div class="mark"><img src="09-cutout-tile.svg" alt="Negative-space N in a rounded tile"></div>
+        <div class="body">
+          <div class="num">09 — APP ICON</div>
+          <div class="name">Negative-space N in a rounded tile</div>
+          <div class="rationale">A rounded square tile with the N punched through to reveal green. Reads correctly at favicon size and on a Mac dock. Modern, abstract, makes no claims about the name's heritage.</div>
+        </div>
+      </div>
+
+      <div class="concept">
+        <div class="mark"><img src="10-wedge.svg" alt="Abstract green wedge"></div>
+        <div class="body">
+          <div class="num">10 — ABSTRACT</div>
+          <div class="name">Single green wedge</div>
+          <div class="rationale">No letterform at all — just one tapered green diagonal slicing a dark field. Suggests the spine of an N or a single agent lane in isolation. Confident, quiet, defers naming to the wordmark.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

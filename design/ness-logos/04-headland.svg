@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- distant horizon line -->
+  <line x1="0" y1="148" x2="256" y2="148"
+        stroke="#22c55e" stroke-width="1.5" opacity="0.3"/>
+
+  <!-- headland silhouette — a jagged promontory jutting into the dark sea -->
+  <path d="M 16 148
+           L 48 112
+           L 82 134
+           L 118 86
+           L 154 122
+           L 190 100
+           L 222 130
+           L 240 148 Z"
+        fill="#22c55e"/>
+
+  <!-- subtle reflection -->
+  <path d="M 16 150
+           L 48 174
+           L 82 158
+           L 118 192
+           L 154 166
+           L 190 184
+           L 222 162
+           L 240 150 Z"
+        fill="#22c55e" opacity="0.12"/>
+
+  <!-- wordmark, set in a quieter serif -->
+  <text x="128" y="226" text-anchor="middle"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-style="italic" font-weight="400" font-size="34"
+        fill="#f5f5f5" letter-spacing="3">Ness</text>
+</svg>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- concentric ripples viewed in low-angle perspective (lake surface) -->
+  <ellipse cx="128" cy="138" rx="118" ry="30" fill="none"
+           stroke="#22c55e" stroke-width="1.5" opacity="0.18"/>
+  <ellipse cx="128" cy="138" rx="92"  ry="22" fill="none"
+           stroke="#22c55e" stroke-width="1.5" opacity="0.32"/>
+  <ellipse cx="128" cy="138" rx="66"  ry="14" fill="none"
+           stroke="#22c55e" stroke-width="1.5" opacity="0.55"/>
+
+  <!-- N centered on the ripple's origin -->
+  <text x="128" y="160" text-anchor="middle"
+        font-family="-apple-system, system-ui, 'SF Pro Display', sans-serif"
+        font-weight="800" font-size="120" fill="#22c55e">N</text>
+</svg>

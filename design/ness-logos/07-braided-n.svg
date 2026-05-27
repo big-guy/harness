@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- N posts -->
+  <line x1="58" y1="44" x2="58" y2="212"
+        stroke="#22c55e" stroke-width="22" stroke-linecap="round"/>
+  <line x1="198" y1="44" x2="198" y2="212"
+        stroke="#22c55e" stroke-width="22" stroke-linecap="round"/>
+
+  <!-- diagonal woven from two strands meeting at center -->
+  <!-- strand A bows below the centerline -->
+  <path d="M 58 56 Q 108 168 198 200"
+        stroke="#22c55e" stroke-width="14" fill="none" stroke-linecap="round"/>
+  <!-- strand B bows above the centerline -->
+  <path d="M 58 56 Q 148 88 198 200"
+        stroke="#f5f5f5" stroke-width="14" fill="none" stroke-linecap="round"/>
+
+  <!-- small green seam where the strands cross to keep the over/under reading -->
+  <circle cx="128" cy="128" r="11" fill="#22c55e"/>
+</svg>
