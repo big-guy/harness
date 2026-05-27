@@ -161,7 +161,7 @@ Once added, the chip appears at the bottom of the sidebar. Click to switch — `
 
 5. **If you skipped step 1** and already deleted the app, you can remove the hooks by hand. Open `~/.claude/settings.json` and delete any hook entries whose object contains `"_marker": "__claude_harness__"` — every Harness-managed hook is tagged with that marker, so they're safe to identify and remove.
 
-6. **Optional — clean up worktrees.** Harness may have created git worktrees under `claude-harness-worktrees/` next to your repos. These are normal git worktrees and aren't removed automatically. To clean them up:
+6. **Optional — clean up worktrees.** Harness may have created git worktrees under `<repo>-worktrees/` next to your repos (e.g. `harness-worktrees/` next to a `harness` clone). These are normal git worktrees and aren't removed automatically. To clean them up:
 
    ```sh
    cd <your-repo>
@@ -181,7 +181,7 @@ Once added, the chip appears at the bottom of the sidebar. Click to switch — `
 - **Status at a glance** — sidebar dots show which agent is working, waiting, or needs approval (powered by Claude Code hooks)
 - **Command center** — bird's-eye grid of every worktree with mini activity timelines
 - **Tabs + vertical split panes** — Claude, shells, and editor/diff tabs scoped to each checkout, splittable side-by-side
-- **9 themes** — dark, dracula, nord, gruvbox, tokyo night, catppuccin, one dark, solarized dark/light
+- **10 themes** — dark, dracula, nord, gruvbox, tokyo night, catppuccin, one dark, solarized dark/light, cyberfunk. Plus system-theme follow and custom themes loaded from a JSON file on disk.
 - **Configurable hotkeys** — ⌘1–⌘9 to jump between worktrees, all rebindable
 - **MCP: Claude controls Harness** — a built-in MCP server lets Claude create and list worktrees on its own
 
@@ -201,7 +201,7 @@ The main benefit of this is that your worktrees stay organized, and it's very ob
 
 This app assumes that you are going to want to use worktrees (otherwise what's the point)
 
-It will create a worktree directory at `../<your repo folder>-worktree` and start making worktrees there. This directory will probably be changable at some point
+It will create a worktree directory at `../<your repo folder>-worktrees` and start making worktrees there. This directory will probably be changable at some point
 
 # Roadmap
 
@@ -217,7 +217,7 @@ cd harness
 npm install --legacy-peer-deps
 ```
 
-> The `--legacy-peer-deps` flag is required because `electron-vite@5` declares a peer range that npm's strict resolver rejects against the installed `vite@7`.
+> The `--legacy-peer-deps` flag is required because `electron-vite@5` declares a peer range that npm's strict resolver rejects against the installed `vite@8`.
 
 Common commands:
 
