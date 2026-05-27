@@ -270,7 +270,7 @@ export function CollapsedRightPanel({
             className="text-dim hover:text-fg hover:bg-surface rounded p-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-dim"
             aria-label="Open PR in browser"
           >
-            <GitPullRequest size={14} />
+            <GitPullRequest className="icon-sm" />
           </button>
         </Tooltip>
         <Tooltip label={mergeTooltip} side="left">
@@ -280,7 +280,7 @@ export function CollapsedRightPanel({
             className={`${mergeColor} hover:text-fg hover:bg-surface rounded p-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent`}
             aria-label="Merge PR on GitHub"
           >
-            <MergeIcon size={14} className={merging ? 'animate-spin' : undefined} />
+            <MergeIcon className={`icon-sm ${merging ? 'animate-spin' : ''}`} />
           </button>
         </Tooltip>
         {failedChecksCount > 0 && (
@@ -293,7 +293,7 @@ export function CollapsedRightPanel({
               className="text-danger hover:bg-surface rounded px-1 py-1 transition-colors cursor-pointer flex items-center gap-0.5"
               aria-label={`${failedChecksCount} failed checks`}
             >
-              <CircleX size={12} />
+              <CircleX className="icon-xs" />
               <span className="text-[10px] tabular-nums leading-none">{failedChecksCount}</span>
             </button>
           </Tooltip>
@@ -307,7 +307,7 @@ export function CollapsedRightPanel({
             className="text-dim hover:text-fg hover:bg-surface rounded p-1.5 transition-colors cursor-pointer"
             aria-label="Review changes"
           >
-            <ClipboardCheck size={14} />
+            <ClipboardCheck className="icon-sm" />
           </button>
         </Tooltip>
 
@@ -320,7 +320,7 @@ export function CollapsedRightPanel({
             className="text-dim hover:text-fg hover:bg-surface rounded px-1 py-1 transition-colors cursor-pointer flex items-center gap-0.5"
             aria-label={`${changedFilesCount} changed files`}
           >
-            <Pencil size={12} />
+            <Pencil className="icon-xs" />
             <span className="text-[10px] tabular-nums leading-none">{changedFilesCount}</span>
           </button>
         </Tooltip>
@@ -337,7 +337,7 @@ export function CollapsedRightPanel({
             className={`${hasUnpushedCommits ? 'text-warning' : 'text-dim'} hover:text-fg hover:bg-surface rounded px-1 py-1 transition-colors cursor-pointer flex items-center gap-0.5`}
             aria-label={`${commitsCount} commits`}
           >
-            <GitCommitHorizontal size={12} />
+            <GitCommitHorizontal className="icon-xs" />
             <span className="text-[10px] tabular-nums leading-none">{commitsCount}</span>
           </button>
         </Tooltip>
@@ -372,7 +372,7 @@ export function CollapsedRightPanel({
             className="text-dim hover:text-fg hover:bg-surface rounded p-1.5 transition-colors cursor-pointer"
             aria-label="Find file in worktree"
           >
-            <FolderSearch2 size={14} />
+            <FolderSearch2 className="icon-sm" />
           </button>
         </Tooltip>
 
@@ -385,7 +385,7 @@ export function CollapsedRightPanel({
             className="text-dim hover:text-fg hover:bg-surface rounded p-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-dim"
             aria-label="Open Scratchpad"
           >
-            <NotebookPen size={14} />
+            <NotebookPen className="icon-sm" />
           </button>
         </Tooltip>
       </div>
@@ -400,7 +400,7 @@ export function CollapsedRightPanel({
             className="text-dim hover:text-fg hover:bg-surface rounded p-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             aria-label="Refresh PR, commits, and changed files"
           >
-            <RefreshCw size={14} className={refreshing ? 'animate-spin' : undefined} />
+            <RefreshCw className={`icon-sm ${refreshing ? 'animate-spin' : ''}`} />
           </button>
         </Tooltip>
       </div>
