@@ -263,9 +263,13 @@ export function Sidebar({
           </linearGradient>
         </defs>
       </svg>
-      {/* Title bar drag region with app name — vertically aligned with traffic lights at y:12 */}
+      {/* Title bar drag region with app name — vertically aligned with traffic lights at y:12.
+          Pixel-locked (left, top, font-size) because the traffic lights are
+          native macOS chrome that doesn't scale with uiScale — letting the
+          title shrink along with the rem grid causes it to overlap the
+          traffic lights at the smaller rungs. */}
       <div className="drag-region h-10 relative shrink-0">
-        <span className="absolute left-20 right-2 top-[11px] text-xs font-semibold whitespace-nowrap overflow-hidden text-ellipsis">
+        <span className="absolute left-[80px] right-2 top-[11px] text-[12px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis">
           <span className="gradient-text">Harness</span>
           {import.meta.env.DEV && __HARNESS_DEV_BRANCH__ && (
             <span className="text-faint font-normal ml-1">({__HARNESS_DEV_BRANCH__})</span>
