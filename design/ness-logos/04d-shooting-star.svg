@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <clipPath id="sq"><rect width="256" height="256" rx="56" ry="56"/></clipPath>
+    <linearGradient id="trail" gradientUnits="userSpaceOnUse"
+                    x1="38" y1="62" x2="186" y2="100">
+      <stop offset="0%"   stop-color="#fbbf24" stop-opacity="0"/>
+      <stop offset="55%"  stop-color="#fbbf24" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#fbbf24" stop-opacity="0.95"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%"   stop-color="#fbbf24" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#fbbf24" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="256" height="256" rx="56" ry="56" fill="#0a0a0a"/>
+
+  <g clip-path="url(#sq)">
+    <!-- glow halo around the star -->
+    <circle cx="192" cy="100" r="34" fill="url(#halo)"/>
+
+    <!-- tapered trail, tip on the left -->
+    <polygon points="38,62 186,93 186,108" fill="url(#trail)"/>
+
+    <!-- gray spark accents along the trail -->
+    <circle cx="66"  cy="74"  r="2.4" fill="#a3a3a3" opacity="0.65"/>
+    <circle cx="92"  cy="80"  r="2"   fill="#a3a3a3" opacity="0.55"/>
+    <circle cx="114" cy="83"  r="2.6" fill="#737373" opacity="0.85"/>
+    <circle cx="134" cy="88"  r="2"   fill="#a3a3a3" opacity="0.6"/>
+    <circle cx="154" cy="93"  r="3"   fill="#a3a3a3" opacity="0.85"/>
+    <!-- a couple of slightly-off-trail bits for sparkle -->
+    <circle cx="80"  cy="92"  r="1.6" fill="#737373" opacity="0.45"/>
+    <circle cx="126" cy="74"  r="1.6" fill="#737373" opacity="0.4"/>
+    <circle cx="104" cy="98"  r="1.5" fill="#a3a3a3" opacity="0.45"/>
+
+    <!-- shooting star head -->
+    <circle cx="192" cy="100" r="9.5" fill="#fbbf24"/>
+
+    <!-- green headland silhouette, quieter so the star carries -->
+    <path d="M -8 174
+             L 28 142
+             L 64 162
+             L 96 126
+             L 128 110
+             L 160 126
+             L 196 156
+             L 232 138
+             L 264 174
+             L 264 268 L -8 268 Z"
+          fill="#22c55e"/>
+  </g>
+</svg>
