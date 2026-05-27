@@ -9,29 +9,32 @@
       <stop offset="100%" stop-color="#fbbf24" stop-opacity="0.95"/>
     </linearGradient>
 
-    <linearGradient id="grayAccent" gradientUnits="userSpaceOnUse"
-                    x1="60" y1="56" x2="200" y2="86">
-      <stop offset="0%"   stop-color="#737373" stop-opacity="0"/>
-      <stop offset="65%"  stop-color="#737373" stop-opacity="0.55"/>
-      <stop offset="100%" stop-color="#737373" stop-opacity="0"/>
+    <linearGradient id="trailReflect" gradientUnits="userSpaceOnUse"
+                    x1="38" y1="219" x2="200" y2="197">
+      <stop offset="0%"   stop-color="#a3a3a3" stop-opacity="0"/>
+      <stop offset="55%"  stop-color="#a3a3a3" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#a3a3a3" stop-opacity="0.45"/>
     </linearGradient>
   </defs>
 
   <rect width="256" height="256" rx="56" ry="56" fill="#0a0a0a"/>
 
   <g clip-path="url(#sq)">
-    <!-- single gray accent along the lower edge of the streak -->
-    <polygon points="60,58 200,84 200,90" fill="url(#grayAccent)"/>
-
-    <!-- yellow shooting star tapered trail -->
-    <polygon points="38,46 200,72 200,84" fill="url(#trail)"/>
-
-    <!-- shooting star head, no glow -->
-    <circle cx="200" cy="78" r="9.5" fill="#fbbf24"/>
-
     <!-- original 04 horizon line -->
     <line x1="0" y1="148" x2="256" y2="148"
           stroke="#22c55e" stroke-width="1.5" opacity="0.3"/>
+
+    <!-- yellow shooting star trail (above horizon) -->
+    <polygon points="38,46 200,72 200,84" fill="url(#trail)"/>
+
+    <!-- shooting star head -->
+    <circle cx="200" cy="78" r="9.5" fill="#fbbf24"/>
+
+    <!-- gray reflected trail, mirrored + compressed like the mountain reflection -->
+    <polygon points="38,219 200,201 200,193" fill="url(#trailReflect)"/>
+
+    <!-- gray reflected star head -->
+    <circle cx="200" cy="197" r="8" fill="#a3a3a3" opacity="0.45"/>
 
     <!-- original 04 mountain silhouette -->
     <path d="M 16 148
@@ -44,7 +47,7 @@
              L 240 148 Z"
           fill="#22c55e"/>
 
-    <!-- original 04 reflection -->
+    <!-- original 04 mountain reflection -->
     <path d="M 16 150
              L 48 174
              L 82 158
