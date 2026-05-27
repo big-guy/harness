@@ -1,5 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
-  <!-- pure abstract: a single diagonal wedge crossing a dark field.
-       reads as the spine of an N, or a single agent lane. -->
-  <polygon points="56,32 110,32 224,224 200,224" fill="#22c55e"/>
+  <defs>
+    <clipPath id="sq"><rect width="256" height="256" rx="56" ry="56"/></clipPath>
+  </defs>
+  <rect width="256" height="256" rx="56" ry="56" fill="#0a0a0a"/>
+  <g clip-path="url(#sq)">
+    <!-- pure abstract: a single diagonal wedge crossing a dark field.
+         reads as the spine of an N, or a single agent lane. -->
+    <polygon points="56,32 110,32 224,224 200,224" fill="#22c55e"/>
+  </g>
 </svg>

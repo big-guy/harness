@@ -2,15 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Ness — logo concepts</title>
+<title>Ness — logo concepts (round 2)</title>
 <style>
-  :root {
-    color-scheme: dark;
-  }
+  :root { color-scheme: dark; }
   html, body {
     margin: 0;
     padding: 0;
-    background: #0a0a0a;
+    background: #141414;
     color: #f5f5f5;
     font-family: -apple-system, BlinkMacSystemFont, system-ui, 'SF Pro Display', 'Helvetica Neue', sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -20,195 +18,265 @@
     margin: 0 auto;
     padding: 56px 48px 96px;
   }
-  header {
-    margin-bottom: 56px;
-  }
+  header { margin-bottom: 24px; }
   h1 {
-    font-size: 32px;
+    font-size: 30px;
     font-weight: 700;
     letter-spacing: -0.5px;
     margin: 0 0 8px;
   }
   .subtitle {
     color: #a3a3a3;
-    font-size: 15px;
+    font-size: 14px;
+    line-height: 1.55;
+    max-width: 720px;
   }
   .legend {
-    margin-top: 20px;
+    margin-top: 18px;
     display: flex;
     gap: 18px;
     flex-wrap: wrap;
-    font-size: 12px;
+    font-size: 11.5px;
     color: #737373;
     font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   }
-  .swatch {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
+  .swatch { display: inline-flex; align-items: center; gap: 6px; }
   .swatch i {
-    width: 10px;
-    height: 10px;
+    width: 10px; height: 10px;
     display: inline-block;
     border-radius: 2px;
   }
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 40px 56px;
+  .section {
+    margin-top: 56px;
   }
-  @media (max-width: 880px) {
-    .grid { grid-template-columns: 1fr; }
+  .section-head {
+    border-top: 1px solid #262626;
+    padding-top: 24px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
   }
-  .concept {
+  .section-num {
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+    color: #737373;
+    letter-spacing: 1.5px;
+  }
+  .section-title {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+  .section-note {
+    color: #a3a3a3;
+    font-size: 13px;
+  }
+  .row {
     display: grid;
-    grid-template-columns: 220px 1fr;
-    gap: 24px;
-    align-items: start;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 28px;
+  }
+  @media (max-width: 980px) {
+    .row { grid-template-columns: repeat(2, 1fr); }
+  }
+  .cell {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
   }
   .mark {
-    width: 220px;
-    height: 220px;
-    background: #0a0a0a;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 100%;
+    aspect-ratio: 1 / 1;
   }
   .mark img {
     width: 100%;
     height: 100%;
     display: block;
   }
-  .body {
-    padding-top: 8px;
-  }
-  .num {
+  .cell .num {
     font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-    font-size: 11px;
+    font-size: 10.5px;
     color: #737373;
-    letter-spacing: 1.5px;
+    letter-spacing: 1.2px;
   }
-  .name {
-    font-size: 17px;
+  .cell .name {
+    font-size: 13.5px;
     font-weight: 600;
-    margin: 6px 0 10px;
-    letter-spacing: -0.2px;
+    margin: 2px 0 6px;
+    letter-spacing: -0.15px;
   }
-  .rationale {
+  .cell .rationale {
     color: #a3a3a3;
-    line-height: 1.55;
-    font-size: 14px;
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  .baseline-tag {
+    display: inline-block;
+    font-family: ui-monospace, monospace;
+    font-size: 9.5px;
+    color: #fbbf24;
+    border: 1px solid #fbbf24;
+    border-radius: 3px;
+    padding: 1px 5px;
+    margin-left: 6px;
+    vertical-align: 1px;
+    letter-spacing: 1px;
   }
 </style>
 </head>
 <body>
   <div class="page">
     <header>
-      <h1>Ness — logo exploration</h1>
-      <div class="subtitle">10 directions, all on the dark canvas. Palette held to Harness primary green + neutrals.</div>
+      <h1>Ness — round 2</h1>
+      <div class="subtitle">
+        Four surviving directions, each with three variations. All marks are now
+        framed in a squircle tile matching the original Harness icon. Yellow and
+        gray pulled in throughout to widen the palette beyond pure green.
+      </div>
       <div class="legend">
-        <span class="swatch"><i style="background:#22c55e"></i>#22c55e primary</span>
-        <span class="swatch"><i style="background:#fbbf24"></i>#fbbf24 amber accent</span>
-        <span class="swatch"><i style="background:#f5f5f5"></i>#f5f5f5 neutral</span>
-        <span class="swatch"><i style="background:#262626;border:1px solid #333"></i>#262626 grid dark</span>
-        <span class="swatch"><i style="background:#0a0a0a;border:1px solid #333"></i>#0a0a0a canvas</span>
+        <span class="swatch"><i style="background:#22c55e"></i>#22c55e green</span>
+        <span class="swatch"><i style="background:#fbbf24"></i>#fbbf24 amber</span>
+        <span class="swatch"><i style="background:#a3a3a3"></i>#a3a3a3 / #737373 grays</span>
+        <span class="swatch"><i style="background:#0a0a0a;border:1px solid #333"></i>#0a0a0a tile</span>
       </div>
     </header>
 
-    <div class="grid">
-
-      <div class="concept">
-        <div class="mark"><img src="01-wordmark-cursor.svg" alt="Wordmark with cursor"></div>
-        <div class="body">
-          <div class="num">01 — WORDMARK</div>
-          <div class="name">Lowercase wordmark with terminal cursor</div>
-          <div class="rationale">Geometric sans, set tight, with a solid green block cursor pinned to the end. Pure dev-tool identity: declares the CLI heritage with no decoration and works as plain text in a headline.</div>
+    <!-- ============================ HEADLAND ============================ -->
+    <section class="section">
+      <div class="section-head">
+        <div class="section-num">04 ETYMOLOGY</div>
+        <div class="section-title">Headland</div>
+        <div class="section-note">"Ness" = promontory. Land jutting into sea.</div>
+      </div>
+      <div class="row">
+        <div class="cell">
+          <div class="mark"><img src="04-headland.svg" alt="Headland baseline"></div>
+          <div class="num">04 <span class="baseline-tag">BASELINE</span></div>
+          <div class="name">Original with serif wordmark</div>
+          <div class="rationale">Green coastline + horizon + italic "Ness" set in Georgia. Quiet, editorial.</div>
+        </div>
+        <div class="cell">
+          <div class="mark"><img src="04a-headland-sunrise.svg" alt="Headland sunrise"></div>
+          <div class="num">04a</div>
+          <div class="name">Sunrise</div>
+          <div class="rationale">Amber sun rising behind a gray distant ridge, green headland in the foreground. Adds depth and warmth.</div>
+        </div>
+        <div class="cell">
+          <div class="mark"><img src="04b-headland-layered.svg" alt="Headland layered ridges"></div>
+          <div class="num">04b</div>
+          <div class="name">Three receding ridges</div>
+          <div class="rationale">Gray, amber, green stacked as overlapping promontories. The sweep of the original Harness icon, applied to landscape.</div>
+        </div>
+        <div class="cell">
+          <div class="mark"><img src="04c-headland-beacon.svg" alt="Headland with beacon"></div>
+          <div class="num">04c</div>
+          <div class="name">Beacon</div>
+          <div class="rationale">Green coastline below, single amber beacon above the tallest peak with a soft glow. Faint gray reflection on the water.</div>
         </div>
       </div>
+    </section>
 
-      <div class="concept">
-        <div class="mark"><img src="02-monogram-lanes.svg" alt="Monogram N as parallel lanes"></div>
-        <div class="body">
-          <div class="num">02 — MONOGRAM</div>
-          <div class="name">N as parallel lanes</div>
-          <div class="rationale">The two posts and the diagonal of the N are rendered as track-style bars with an inner stripe. Reads as the letter at a glance, as parallel agents / worktrees on inspection. Direct metaphor for the product.</div>
+    <!-- ============================ DOT GRID ============================ -->
+    <section class="section">
+      <div class="section-head">
+        <div class="section-num">05 HERITAGE</div>
+        <div class="section-title">Dot grid</div>
+        <div class="section-note">N picked out of the existing Harness icon's vocabulary.</div>
+      </div>
+      <div class="row">
+        <div class="cell">
+          <div class="mark"><img src="05-dot-grid-n.svg" alt="Dot grid baseline"></div>
+          <div class="num">05 <span class="baseline-tag">BASELINE</span></div>
+          <div class="name">All-green N</div>
+          <div class="rationale">N picked out in pure green against dim gray background. Single amber accent in the top-right corner as a wink to the original icon.</div>
+        </div>
+        <div class="cell">
+          <div class="mark"><img src="05a-dot-grid-sweep.svg" alt="Dot grid sweep"></div>
+          <div class="num">05a</div>
+          <div class="name">Diagonal status sweep</div>
+          <div class="rationale">N cells colored by diagonal distance: gray (top-left, idle) → amber → green (bottom-right, done). Mirrors the original icon's left-to-right sweep.</div>
+        </div>
+        <div class="cell">
+          <div class="mark"><img src="05b-dot-grid-structural.svg" alt="Dot grid structural"></div>
+          <div class="num">05b</div>
+          <div class="name">Posts green, diagonal amber</div>
+          <div class="rationale">Each color carries meaning: posts (green) are the stable structure, diagonal (amber) is the active motion through. Cleanest read of the three.</div>
+        </div>
+        <div class="cell">
+          <div class="mark"><img src="05c-dot-grid-progress.svg" alt="Dot grid progress"></div>
+          <div class="num">05c</div>
+          <div class="name">Rows tell the story</div>
+          <div class="rationale">Top two rows gray (queued), middle two amber (working), bottom three green (done). Stage-by-stage progression.</div>
         </div>
       </div>
+    </section>
 
-      <div class="concept">
-        <div class="mark"><img src="03-loch-humps.svg" alt="Loch Ness humps cresting the water"></div>
-        <div class="body">
-          <div class="num">03 — WINK</div>
-          <div class="name">Loch Ness humps cresting the water</div>
-          <div class="rationale">A continuous wave silhouette of four humps over a dashed waterline, with the wordmark below. Mythic, geographic, a smile — the kind of mark that earns affection rather than respect.</div>
-        </div>
+    <!-- ============================ STATUS DOTS ============================ -->
+    <section class="section">
+      <div class="section-head">
+        <div class="section-num">06 STATUS DOTS</div>
+        <div class="section-title">Status dots (no longer an N)</div>
+        <div class="section-note">Other ways to use the existing dot vocabulary. No letterform.</div>
       </div>
-
-      <div class="concept">
-        <div class="mark"><img src="04-headland.svg" alt="Headland silhouette"></div>
-        <div class="body">
-          <div class="num">04 — ETYMOLOGY</div>
-          <div class="name">Headland silhouette</div>
-          <div class="rationale">"Ness" means promontory. A jagged green coastline juts into a dark sea, paired with an italic serif wordmark. Quiet, editorial, leans into the geography without invoking the monster.</div>
+      <div class="row">
+        <div class="cell">
+          <div class="mark"><img src="06a-status-traffic-light.svg" alt="Traffic-light dots"></div>
+          <div class="num">06a</div>
+          <div class="name">Three states, one row</div>
+          <div class="rationale">Idle / working / done as three big dots. Directly translates the macOS traffic-light gesture into Harness's status vocabulary. Most concentrated read.</div>
         </div>
-      </div>
-
-      <div class="concept">
-        <div class="mark"><img src="05-dot-grid-n.svg" alt="N built from status dots"></div>
-        <div class="body">
-          <div class="num">05 — HERITAGE</div>
-          <div class="name">N built from status dots</div>
-          <div class="rationale">A 7×7 grid where the N is picked out in green and the rest are dim gray, with a single amber accent for callback. Strong visual continuity with the existing Harness icon — feels like an evolution, not a reset.</div>
+        <div class="cell">
+          <div class="mark"><img src="06b-status-cluster.svg" alt="Status cluster"></div>
+          <div class="num">06b</div>
+          <div class="name">Orchestrator + satellites</div>
+          <div class="rationale">A green central node connected by thin threads to six satellites in mixed states — gray, amber, green. Reads as agent fan-out, the literal product picture.</div>
         </div>
-      </div>
-
-      <div class="concept">
-        <div class="mark"><img src="06-prompt.svg" alt="N> terminal prompt"></div>
-        <div class="body">
-          <div class="num">06 — CLI</div>
-          <div class="name">N&gt; terminal prompt</div>
-          <div class="rationale">An uppercase N followed by a glowing green chevron, set in monospace. Reads instantly as a shell prompt; compact enough to work as a favicon. Most "this is a developer tool" of the set.</div>
+        <div class="cell">
+          <div class="mark"><img src="06c-status-3x3-sweep.svg" alt="3x3 sweep"></div>
+          <div class="num">06c</div>
+          <div class="name">3×3 zoom of the heritage icon</div>
+          <div class="rationale">Just nine dots in a clean diagonal sweep. Feels like a zoomed-in slice of the existing app icon — strong continuity, no letterform required.</div>
         </div>
+        <div class="cell"></div>
       </div>
+    </section>
 
-      <div class="concept">
-        <div class="mark"><img src="07-braided-n.svg" alt="Braided N monogram"></div>
-        <div class="body">
-          <div class="num">07 — MONOGRAM</div>
-          <div class="name">Braided N — two strands meeting</div>
-          <div class="rationale">The diagonal splits into two arcing strands that meet at the center. Carries the "harness" rope/yoke legacy quietly, plus a hint of merging branches. Posts are heavy, weave is the focal point.</div>
-        </div>
+    <!-- ============================ WEDGE ============================ -->
+    <section class="section">
+      <div class="section-head">
+        <div class="section-num">10 ABSTRACT</div>
+        <div class="section-title">Wedge</div>
+        <div class="section-note">No letterform. One or more diagonal blades.</div>
       </div>
-
-      <div class="concept">
-        <div class="mark"><img src="08-ripple-n.svg" alt="N over concentric ripples"></div>
-        <div class="body">
-          <div class="num">08 — DEPTH</div>
-          <div class="name">N with concentric ripples</div>
-          <div class="rationale">A solid green N sits on top of three concentric ellipses, like a stone landing on a lake. Loch Ness reference without the creature, plus an honest evocation of focus and depth.</div>
-        </div>
-      </div>
-
-      <div class="concept">
-        <div class="mark"><img src="09-cutout-tile.svg" alt="Negative-space N in a rounded tile"></div>
-        <div class="body">
-          <div class="num">09 — APP ICON</div>
-          <div class="name">Negative-space N in a rounded tile</div>
-          <div class="rationale">A rounded square tile with the N punched through to reveal green. Reads correctly at favicon size and on a Mac dock. Modern, abstract, makes no claims about the name's heritage.</div>
-        </div>
-      </div>
-
-      <div class="concept">
-        <div class="mark"><img src="10-wedge.svg" alt="Abstract green wedge"></div>
-        <div class="body">
-          <div class="num">10 — ABSTRACT</div>
+      <div class="row">
+        <div class="cell">
+          <div class="mark"><img src="10-wedge.svg" alt="Wedge baseline"></div>
+          <div class="num">10 <span class="baseline-tag">BASELINE</span></div>
           <div class="name">Single green wedge</div>
-          <div class="rationale">No letterform at all — just one tapered green diagonal slicing a dark field. Suggests the spine of an N or a single agent lane in isolation. Confident, quiet, defers naming to the wordmark.</div>
+          <div class="rationale">One tapered diagonal blade. Confident, quiet. Lets the wordmark do the naming.</div>
+        </div>
+        <div class="cell">
+          <div class="mark"><img src="10a-wedge-trio.svg" alt="Wedge trio"></div>
+          <div class="num">10a</div>
+          <div class="name">Trio: back to front</div>
+          <div class="rationale">Three parallel wedges in depth: gray behind, amber middle, green leading. Reads as three agent lanes layered in z-space.</div>
+        </div>
+        <div class="cell">
+          <div class="mark"><img src="10b-wedge-striped.svg" alt="Wedge striped"></div>
+          <div class="num">10b</div>
+          <div class="name">Single wedge, three stripes</div>
+          <div class="rationale">One blade split lengthwise into gray / amber / green bands. Same shape as the baseline, now carrying the status sweep inside it.</div>
+        </div>
+        <div class="cell">
+          <div class="mark"><img src="10c-wedge-crossed.svg" alt="Wedge crossed"></div>
+          <div class="num">10c</div>
+          <div class="name">Crossed</div>
+          <div class="rationale">Bold green wedge with a thin amber wedge crossing the other direction over a faint gray wedge behind. Edges of an X — more energy, less calm than the others.</div>
         </div>
       </div>
+    </section>
 
-    </div>
   </div>
 </body>
 </html>

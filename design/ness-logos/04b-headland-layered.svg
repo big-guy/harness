@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <clipPath id="sq"><rect width="256" height="256" rx="56" ry="56"/></clipPath>
+  </defs>
+  <rect width="256" height="256" rx="56" ry="56" fill="#0a0a0a"/>
+  <g clip-path="url(#sq)">
+    <!-- far ridge - gray -->
+    <path d="M -8 168 L 28 128 L 70 156 L 116 116 L 156 148 L 200 122 L 240 152 L 264 142 L 264 204 L -8 204 Z"
+          fill="#a3a3a3" opacity="0.55"/>
+    <!-- mid ridge - amber -->
+    <path d="M -8 190 L 36 156 L 88 180 L 128 142 L 176 174 L 218 154 L 264 184 L 264 224 L -8 224 Z"
+          fill="#fbbf24" opacity="0.9"/>
+    <!-- near ridge - green -->
+    <path d="M -8 216 L 30 186 L 82 212 L 128 172 L 178 206 L 218 188 L 264 214 L 264 268 L -8 268 Z"
+          fill="#22c55e"/>
+  </g>
+</svg>

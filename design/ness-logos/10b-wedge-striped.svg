@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <clipPath id="sq"><rect width="256" height="256" rx="56" ry="56"/></clipPath>
+  </defs>
+  <rect width="256" height="256" rx="56" ry="56" fill="#0a0a0a"/>
+  <g clip-path="url(#sq)">
+    <!-- one thick wedge split into 3 parallel longitudinal stripes -->
+    <!-- gray stripe -->
+    <polygon points="50,32 73,32 173,224 150,224" fill="#a3a3a3"/>
+    <!-- amber stripe -->
+    <polygon points="73,32 96,32 196,224 173,224" fill="#fbbf24"/>
+    <!-- green stripe -->
+    <polygon points="96,32 119,32 219,224 196,224" fill="#22c55e"/>
+  </g>
+</svg>

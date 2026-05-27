@@ -1,44 +1,46 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
   <rect width="256" height="256" rx="56" ry="56" fill="#0a0a0a"/>
-  <!-- 7x7 grid; N cells green, rest dark gray. cx = 20 + col*36, cy = 20 + row*36, r = 12 -->
 
-  <!-- row 0 -->
-  <circle cx="20"  cy="20"  r="12" fill="#22c55e"/>
+  <!-- N cells colored by row: top rows gray (queued), middle amber (working),
+       bottom rows green (done). Background dim. -->
+
+  <!-- row 0 - gray -->
+  <circle cx="20"  cy="20"  r="12" fill="#737373"/>
   <circle cx="56"  cy="20"  r="12" fill="#262626"/>
   <circle cx="92"  cy="20"  r="12" fill="#262626"/>
   <circle cx="128" cy="20"  r="12" fill="#262626"/>
   <circle cx="164" cy="20"  r="12" fill="#262626"/>
   <circle cx="200" cy="20"  r="12" fill="#262626"/>
-  <circle cx="236" cy="20"  r="12" fill="#fbbf24"/>
+  <circle cx="236" cy="20"  r="12" fill="#737373"/>
 
-  <!-- row 1 -->
-  <circle cx="20"  cy="56"  r="12" fill="#22c55e"/>
-  <circle cx="56"  cy="56"  r="12" fill="#22c55e"/>
+  <!-- row 1 - gray -->
+  <circle cx="20"  cy="56"  r="12" fill="#737373"/>
+  <circle cx="56"  cy="56"  r="12" fill="#737373"/>
   <circle cx="92"  cy="56"  r="12" fill="#262626"/>
   <circle cx="128" cy="56"  r="12" fill="#262626"/>
   <circle cx="164" cy="56"  r="12" fill="#262626"/>
   <circle cx="200" cy="56"  r="12" fill="#262626"/>
-  <circle cx="236" cy="56"  r="12" fill="#22c55e"/>
+  <circle cx="236" cy="56"  r="12" fill="#737373"/>
 
-  <!-- row 2 -->
-  <circle cx="20"  cy="92"  r="12" fill="#22c55e"/>
+  <!-- row 2 - amber -->
+  <circle cx="20"  cy="92"  r="12" fill="#fbbf24"/>
   <circle cx="56"  cy="92"  r="12" fill="#262626"/>
-  <circle cx="92"  cy="92"  r="12" fill="#22c55e"/>
+  <circle cx="92"  cy="92"  r="12" fill="#fbbf24"/>
   <circle cx="128" cy="92"  r="12" fill="#262626"/>
   <circle cx="164" cy="92"  r="12" fill="#262626"/>
   <circle cx="200" cy="92"  r="12" fill="#262626"/>
-  <circle cx="236" cy="92"  r="12" fill="#22c55e"/>
+  <circle cx="236" cy="92"  r="12" fill="#fbbf24"/>
 
-  <!-- row 3 -->
-  <circle cx="20"  cy="128" r="12" fill="#22c55e"/>
+  <!-- row 3 - amber -->
+  <circle cx="20"  cy="128" r="12" fill="#fbbf24"/>
   <circle cx="56"  cy="128" r="12" fill="#262626"/>
   <circle cx="92"  cy="128" r="12" fill="#262626"/>
-  <circle cx="128" cy="128" r="12" fill="#22c55e"/>
+  <circle cx="128" cy="128" r="12" fill="#fbbf24"/>
   <circle cx="164" cy="128" r="12" fill="#262626"/>
   <circle cx="200" cy="128" r="12" fill="#262626"/>
-  <circle cx="236" cy="128" r="12" fill="#22c55e"/>
+  <circle cx="236" cy="128" r="12" fill="#fbbf24"/>
 
-  <!-- row 4 -->
+  <!-- row 4 - green -->
   <circle cx="20"  cy="164" r="12" fill="#22c55e"/>
   <circle cx="56"  cy="164" r="12" fill="#262626"/>
   <circle cx="92"  cy="164" r="12" fill="#262626"/>
@@ -47,7 +49,7 @@
   <circle cx="200" cy="164" r="12" fill="#262626"/>
   <circle cx="236" cy="164" r="12" fill="#22c55e"/>
 
-  <!-- row 5 -->
+  <!-- row 5 - green -->
   <circle cx="20"  cy="200" r="12" fill="#22c55e"/>
   <circle cx="56"  cy="200" r="12" fill="#262626"/>
   <circle cx="92"  cy="200" r="12" fill="#262626"/>
@@ -56,7 +58,7 @@
   <circle cx="200" cy="200" r="12" fill="#22c55e"/>
   <circle cx="236" cy="200" r="12" fill="#22c55e"/>
 
-  <!-- row 6 -->
+  <!-- row 6 - green -->
   <circle cx="20"  cy="236" r="12" fill="#22c55e"/>
   <circle cx="56"  cy="236" r="12" fill="#262626"/>
   <circle cx="92"  cy="236" r="12" fill="#262626"/>

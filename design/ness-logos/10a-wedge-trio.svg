@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <clipPath id="sq"><rect width="256" height="256" rx="56" ry="56"/></clipPath>
+  </defs>
+  <rect width="256" height="256" rx="56" ry="56" fill="#0a0a0a"/>
+  <g clip-path="url(#sq)">
+    <!-- three parallel wedges leaning along the N-diagonal -->
+    <!-- back: gray -->
+    <polygon points="30,32 70,32 132,224 92,224"  fill="#a3a3a3" opacity="0.55"/>
+    <!-- middle: amber -->
+    <polygon points="74,32 114,32 176,224 136,224" fill="#fbbf24"/>
+    <!-- front: green -->
+    <polygon points="118,32 158,32 220,224 180,224" fill="#22c55e"/>
+  </g>
+</svg>

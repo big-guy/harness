@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <rect width="256" height="256" rx="56" ry="56" fill="#0a0a0a"/>
+
+  <!-- 3x3 grid, big dots, diagonal sweep gray -> amber -> green.
+       Reads as a zoomed-in slice of the existing dot-grid icon. -->
+
+  <!-- row 0 -->
+  <circle cx="56"  cy="56"  r="28" fill="#737373"/>
+  <circle cx="128" cy="56"  r="28" fill="#737373"/>
+  <circle cx="200" cy="56"  r="28" fill="#fbbf24"/>
+
+  <!-- row 1 -->
+  <circle cx="56"  cy="128" r="28" fill="#737373"/>
+  <circle cx="128" cy="128" r="28" fill="#fbbf24"/>
+  <circle cx="200" cy="128" r="28" fill="#22c55e"/>
+
+  <!-- row 2 -->
+  <circle cx="56"  cy="200" r="28" fill="#fbbf24"/>
+  <circle cx="128" cy="200" r="28" fill="#22c55e"/>
+  <circle cx="200" cy="200" r="28" fill="#22c55e"/>
+</svg>

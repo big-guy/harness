@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <clipPath id="sq"><rect width="256" height="256" rx="56" ry="56"/></clipPath>
+  </defs>
+  <rect width="256" height="256" rx="56" ry="56" fill="#0a0a0a"/>
+  <g clip-path="url(#sq)">
+    <!-- amber sun disc -->
+    <circle cx="170" cy="112" r="24" fill="#fbbf24"/>
+    <!-- distant gray ridge -->
+    <path d="M -8 156 L 38 134 L 92 152 L 140 126 L 192 148 L 244 132 L 264 150 L 264 184 L -8 184 Z"
+          fill="#a3a3a3" opacity="0.42"/>
+    <!-- green headland front -->
+    <path d="M -8 190 L 30 150 L 72 172 L 112 114 L 148 156 L 192 134 L 224 168 L 264 188 L 264 268 L -8 268 Z"
+          fill="#22c55e"/>
+  </g>
+</svg>

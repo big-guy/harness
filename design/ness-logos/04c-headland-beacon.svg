@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <clipPath id="sq"><rect width="256" height="256" rx="56" ry="56"/></clipPath>
+  </defs>
+  <rect width="256" height="256" rx="56" ry="56" fill="#0a0a0a"/>
+  <g clip-path="url(#sq)">
+    <!-- beacon glow -->
+    <circle cx="128" cy="74" r="22" fill="#fbbf24" opacity="0.18"/>
+    <circle cx="128" cy="74" r="14" fill="#fbbf24" opacity="0.32"/>
+    <!-- beacon dot -->
+    <circle cx="128" cy="74" r="7" fill="#fbbf24"/>
+    <!-- green coastline -->
+    <path d="M -8 168 L 28 134 L 64 158 L 96 116 L 128 94 L 160 116 L 196 154 L 232 132 L 264 168 L 264 268 L -8 268 Z"
+          fill="#22c55e"/>
+    <!-- gray waterline reflection -->
+    <path d="M -8 172 L 28 200 L 64 180 L 96 218 L 128 232 L 160 218 L 196 188 L 232 210 L 264 172 Z"
+          fill="#a3a3a3" opacity="0.16"/>
+  </g>
+</svg>
