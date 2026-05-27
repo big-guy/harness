@@ -515,15 +515,22 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
   // When the persisted uiScale changes the root font-size shifts and the
   // whole Settings page reflows — the user's scroll position no longer
   // points at the section they were reading. Re-anchor to the active
-  // section on the next frame after App.tsx's font-size effect runs.
+  // subsection (or section, if no subsection is active) on the next
+  // frame after App.tsx's font-size effect runs.
   const activeSectionRef = useRef(activeSection)
   useEffect(() => { activeSectionRef.current = activeSection }, [activeSection])
+  const activeSubSectionRef = useRef(activeSubSection)
+  useEffect(() => { activeSubSectionRef.current = activeSubSection }, [activeSubSection])
   const prevUiScaleRef = useRef(uiScale)
   useEffect(() => {
     if (uiScale === prevUiScaleRef.current) return
     prevUiScaleRef.current = uiScale
-    requestAnimationFrame(() => scrollToSection(activeSectionRef.current))
-  }, [uiScale, scrollToSection])
+    requestAnimationFrame(() => {
+      const sub = activeSubSectionRef.current
+      if (sub) scrollToSubSection(sub)
+      else scrollToSection(activeSectionRef.current)
+    })
+  }, [uiScale, scrollToSection, scrollToSubSection])
 
   const handleSelectLightTheme = useCallback((id: string) => {
     void backend.setThemeLight(id)
