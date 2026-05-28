@@ -11,8 +11,9 @@ import type { WorkspacePane, TerminalTab, PtyStatus, AgentKind } from '../types'
 import { AGENT_REGISTRY, agentDisplayName } from '../../shared/agent-registry'
 import { Tooltip } from './Tooltip'
 import { repoNameColor } from './RepoIcon'
-import { getClientId, useTerminalProgress, useTerminalSession } from '../store'
+import { getClientId, useRepoLocal, useTerminalProgress, useTerminalSession, useWorktrees } from '../store'
 import { useBackend } from '../backend'
+import { ClaudeAccountBadge } from './ClaudeAccountBadge'
 
 /** Chip shown in the tab bar when other clients are attached to the
  *  active terminal. Click-through is intentional — taking/releasing
@@ -420,6 +421,17 @@ export function TerminalPanel({
   showAppTitle = false
 }: TerminalPanelProps): JSX.Element {
   const backend = useBackend()
+  const worktrees = useWorktrees().list
+  const repoLocal = useRepoLocal()
+  // Badge only shown when the repo has a non-default Claude home set —
+  // the default ~/.claude account doesn't need a visual marker.
+  const accountBadge = (() => {
+    const wt = worktrees.find((w) => w.path === worktreePath)
+    if (!wt) return null
+    const local = repoLocal[wt.repoRoot]
+    if (!local?.claudeConfigDir) return null
+    return local.claudeAccountBadge ?? null
+  })()
   const { setNodeRef: setPaneDropRef } = useDroppable({ id: pane.id })
   const slotHostRef = useRef<HTMLDivElement | null>(null)
 
@@ -497,6 +509,9 @@ export function TerminalPanel({
             style={{ alignSelf: 'stretch', display: 'flex', alignItems: 'center' }}
           >
             <span className={`font-medium ${repoNameColor(repoLabel)}`}>{repoLabel}</span>
+            {accountBadge && (
+              <ClaudeAccountBadge badge={accountBadge} sizeClass="w-2 h-2" />
+            )}
             <span className="text-faint">/</span>
             <span className="text-fg-bright font-medium">{branch}</span>
           </div>
