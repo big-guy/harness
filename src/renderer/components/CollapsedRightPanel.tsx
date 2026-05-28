@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   PanelRightOpen,
   GitMerge,
+  GitMergeConflict,
   GitPullRequest,
-  Eye,
+  ClipboardCheck,
   Code2,
   FolderOpen,
   FolderSearch2,
@@ -137,8 +138,22 @@ export function CollapsedRightPanel({
   const commitsCount = commitsData?.length ?? 0
   const hasUnpushedCommits = !!commitsData?.some((c) => !c.pushed)
 
+  // Expand the right column AND uncollapse the named RightPanel section.
+  // RightPanel listens for the CustomEvent and self-expands. Sections that
+  // can be hidden per-repo via hiddenRightPanels (scratchpad) also need
+  // un-hiding — that's a separate config write, handled by callers as needed.
+  const expandSection = useCallback(
+    (sectionId: string) => {
+      onExpand()
+      window.dispatchEvent(
+        new CustomEvent('harness:expand-right-panel', { detail: { id: sectionId } })
+      )
+    },
+    [onExpand]
+  )
+
   const onOpenScratchpad = useCallback(() => {
-    onExpand()
+    expandSection('scratchpad')
     if (!worktree) return
     const repoRoot = worktree.repoRoot
     const currentConfig = repoConfigs[repoRoot] ?? null
@@ -147,7 +162,7 @@ export function CollapsedRightPanel({
     void backend.setRepoConfig(repoRoot, {
       hiddenRightPanels: { ...currentHidden, scratchpad: false }
     })
-  }, [onExpand, worktree, repoConfigs, backend])
+  }, [expandSection, worktree, repoConfigs, backend])
 
   const handleRefreshAll = useCallback(() => {
     refreshChangedFiles()
@@ -237,29 +252,38 @@ export function CollapsedRightPanel({
     }, 5000)
   }, [canMerge, confirming, performMerge])
 
+  // Mirror PRStatusPanel's merge-button color/state logic so the
+  // collapsed-strip button reads the same as the expanded version:
+  // conflict → danger tint, confirming → warning tint w/ border, normal →
+  // success tint. Disabled-for-other-reasons stays neutral.
+  const hasConflict = pr?.hasConflict === true
   let mergeTooltip: string
-  let mergeColor: string
   let MergeIcon = GitMerge
+  let mergeClasses: string
   if (merging) {
     mergeTooltip = `Merging via ${methodLabel}…`
-    mergeColor = 'text-dim'
     MergeIcon = Loader2
+    mergeClasses = 'bg-success/20 hover:bg-success/30 text-success'
   } else if (justMerged) {
     mergeTooltip = 'Merged ✓'
-    mergeColor = 'text-success'
     MergeIcon = Check
+    mergeClasses = 'bg-success/20 hover:bg-success/30 text-success'
   } else if (error) {
     mergeTooltip = error
-    mergeColor = 'text-danger'
+    mergeClasses = 'bg-danger/20 hover:bg-danger/20 text-danger'
+  } else if (hasConflict) {
+    mergeTooltip = 'There are merge conflicts'
+    MergeIcon = GitMergeConflict
+    mergeClasses = 'bg-danger/20 hover:bg-danger/20 text-danger'
   } else if (mergeDisabledReason) {
     mergeTooltip = mergeDisabledReason
-    mergeColor = 'text-dim'
+    mergeClasses = 'text-dim hover:text-fg hover:bg-surface'
   } else if (confirming) {
     mergeTooltip = `Click again to merge via ${methodLabel}`
-    mergeColor = 'text-warning'
+    mergeClasses = 'bg-warning/30 hover:bg-warning/40 text-warning border border-warning/50'
   } else {
     mergeTooltip = `Merge PR on GitHub (${methodLabel})`
-    mergeColor = 'text-dim'
+    mergeClasses = 'bg-success/20 hover:bg-success/30 text-success'
   }
 
   const hasPR = !!pr
@@ -301,8 +325,10 @@ export function CollapsedRightPanel({
         <Tooltip label={mergeTooltip} side="left">
           <button
             onClick={onMergeClick}
-            disabled={!canMerge}
-            className={`${mergeColor} hover:text-fg hover:bg-surface rounded p-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent`}
+            disabled={!canMerge && !hasConflict}
+            className={`${mergeClasses} rounded p-1.5 transition-colors cursor-pointer disabled:cursor-not-allowed ${
+              hasConflict ? '' : 'disabled:opacity-40'
+            }`}
             aria-label="Merge PR on GitHub"
           >
             <MergeIcon className={`icon-sm ${merging ? 'animate-spin' : ''}`} />
@@ -314,7 +340,7 @@ export function CollapsedRightPanel({
             side="left"
           >
             <button
-              onClick={onExpand}
+              onClick={() => expandSection('pull-request')}
               className="text-danger hover:bg-surface rounded px-1 py-1 transition-colors cursor-pointer flex items-center gap-0.5"
               aria-label={`${failedChecksCount} failed checks`}
             >
@@ -337,14 +363,14 @@ export function CollapsedRightPanel({
         >
           <button
             onClick={onReview}
-            className="text-dim hover:text-fg hover:bg-surface rounded px-1 py-1 transition-colors cursor-pointer flex items-center gap-0.5"
+            className="bg-accent text-app hover:bg-accent/80 rounded px-1 py-1 transition-colors cursor-pointer flex items-center gap-0.5"
             aria-label={
               reviewFilesCount > 0
                 ? `Review ${reviewFilesCount} files`
                 : 'Review changes'
             }
           >
-            <Eye className="icon-xs" />
+            <ClipboardCheck className="icon-xs" />
             {reviewFilesCount > 0 && (
               <span className="text-[10px] tabular-nums leading-none">{reviewFilesCount}</span>
             )}
@@ -356,7 +382,7 @@ export function CollapsedRightPanel({
           side="left"
         >
           <button
-            onClick={onExpand}
+            onClick={() => expandSection('changed-files')}
             className="text-dim hover:text-fg hover:bg-surface rounded px-1 py-1 transition-colors cursor-pointer flex items-center gap-0.5"
             aria-label={`${changedFilesCount} changed files`}
           >
@@ -373,7 +399,7 @@ export function CollapsedRightPanel({
           side="left"
         >
           <button
-            onClick={onExpand}
+            onClick={() => expandSection('commits')}
             className={`${hasUnpushedCommits ? 'text-warning' : 'text-dim'} hover:text-fg hover:bg-surface rounded px-1 py-1 transition-colors cursor-pointer flex items-center gap-0.5`}
             aria-label={`${commitsCount} commits`}
           >
