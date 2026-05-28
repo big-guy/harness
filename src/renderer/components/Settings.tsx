@@ -2867,12 +2867,6 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                     )}
                   </div>
 
-                  <div className="mt-6 pt-5 border-t border-border">
-                    <label className="block text-sm text-fg-bright mb-1">Right-panel visibility</label>
-                    <p className="text-xs text-dim">
-                      Toggle individual panels from the right-column toolbar in the main window.
-                    </p>
-                  </div>
                 </>
               )}
             </section>
