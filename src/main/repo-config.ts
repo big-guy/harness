@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'fs'
-import { join } from 'path'
+import { homedir } from 'os'
+import { isAbsolute, join } from 'path'
 import { log } from './debug'
 import { DEFAULT_HIDDEN_RIGHT_PANELS, type RepoConfig } from '../shared/state/repo-configs'
 
@@ -75,6 +76,27 @@ export function saveRepoConfig(repoRoot: string, next: RepoConfig): RepoConfig {
     log('repo-config', `failed to save ${path}: ${(err as Error).message}`)
     return cache.get(repoRoot) || {}
   }
+}
+
+/** Resolve a repo's `claudeConfigDir` to an absolute filesystem path,
+ *  expanding a leading `~` (the only shell syntax we support here —
+ *  values come from a Settings text input, not a shell). Returns an
+ *  empty string when the repo doesn't override the dir. */
+export function resolveClaudeConfigDir(repoRoot: string): string {
+  if (!repoRoot) return ''
+  const raw = loadRepoConfig(repoRoot).claudeConfigDir?.trim()
+  if (!raw) return ''
+  return expandHomeTilde(raw)
+}
+
+function expandHomeTilde(p: string): string {
+  if (p === '~') return homedir()
+  if (p.startsWith('~/')) return join(homedir(), p.slice(2))
+  if (isAbsolute(p)) return p
+  // Treat any other relative-ish value as relative to home so the user
+  // gets a usable absolute path (we never want to spawn Claude with
+  // CWD-relative CLAUDE_CONFIG_DIR, since the cwd is the worktree).
+  return join(homedir(), p)
 }
 
 export function invalidateRepoConfigCache(repoRoot?: string): void {

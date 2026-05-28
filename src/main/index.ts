@@ -62,7 +62,12 @@ import {
   type PersistedPaneNode,
   type QuestStep
 } from './persistence'
-import { loadRepoConfig, saveRepoConfig, type RepoConfig } from './repo-config'
+import {
+  loadRepoConfig,
+  saveRepoConfig,
+  resolveClaudeConfigDir,
+  type RepoConfig
+} from './repo-config'
 import { createNewProject, type GitignorePreset } from './repo-create'
 import { resolveRepoPath } from './repo-resolve'
 import { registerRepoRoot } from './repo-roots'
@@ -337,7 +342,7 @@ const jsonClaudeManager = new JsonClaudeManager(store, {
       .getSnapshot()
       .state.worktrees.list.find((w) => w.path === worktreePath)
     if (!wt) return ''
-    return loadRepoConfig(wt.repoRoot).claudeConfigDir?.trim() || ''
+    return resolveClaudeConfigDir(wt.repoRoot)
   },
   getControlServer: () => getControlServerInfo(),
   isHarnessMcpEnabled: () =>
@@ -528,7 +533,7 @@ transport.onRequest('claude:getAuthStatus', async (_ctx, repoRoot?: string) => {
   // in that repo will actually use.
   let configDir: string | undefined
   if (repoRoot) {
-    const dir = loadRepoConfig(repoRoot).claudeConfigDir?.trim()
+    const dir = resolveClaudeConfigDir(repoRoot)
     if (dir) configDir = dir
   }
   return getClaudeAuthStatus({ configDir })
@@ -2541,8 +2546,7 @@ function registerIpcHandlers(): void {
       let claudeHomeEnv: Record<string, string> | undefined
       if (agentKind === 'claude') {
         const scope = resolveCallerScope(id)
-        const repoCfg = scope ? loadRepoConfig(scope.repoRoot) : null
-        const dir = repoCfg?.claudeConfigDir?.trim()
+        const dir = scope ? resolveClaudeConfigDir(scope.repoRoot) : ''
         if (dir) claudeHomeEnv = { CLAUDE_CONFIG_DIR: dir }
       }
       // Both Claude and Codex agent tabs load the same bundled Harness
