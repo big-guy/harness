@@ -179,7 +179,7 @@ export function CostPanel({ worktreePath }: CostPanelProps): JSX.Element | null 
   return (
     <RightPanel
       id="cost"
-      title="Cost"
+      title="Usage"
       defaultCollapsed
       onCollapsedChange={(c) => {
         backend.setCostsInterest(!c)
