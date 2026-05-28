@@ -17,7 +17,8 @@ import {
   CircleX
 } from 'lucide-react'
 import { Tooltip } from './Tooltip'
-import { useActiveBackend, usePrs, useRepoConfigs, useSettings, useWorktrees } from '../store'
+import { useActiveBackend, usePrs, useRepoConfigs, useRepoLocal, useSettings, useWorktrees } from '../store'
+import { ClaudeAccountBadge } from './ClaudeAccountBadge'
 import { useBackend } from '../backend'
 import { useWatchedQuery } from '../hooks/useWatchedQuery'
 import { effectiveHiddenRightPanels } from '../../shared/state/repo-configs'
@@ -75,6 +76,7 @@ export function CollapsedRightPanel({
   const prs = usePrs()
   const settings = useSettings()
   const repoConfigs = useRepoConfigs()
+  const repoLocal = useRepoLocal()
 
   const worktree = worktreePath ? worktrees.find((w) => w.path === worktreePath) ?? null : null
   const pr = worktreePath ? prs.byPath[worktreePath] ?? null : null
@@ -169,7 +171,14 @@ export function CollapsedRightPanel({
     : auth
       ? 'not signed in'
       : null
-  const costTooltip = accountLabel ? `Cost · ${accountLabel}` : 'Open Cost panel'
+  const costTooltip = accountLabel ? `Usage · ${accountLabel}` : 'Open Usage panel'
+  // Badge from per-repo-local config. Only renders when the user has set
+  // a non-default claudeConfigDir — the default account doesn't need a
+  // visual marker.
+  const accountBadge =
+    worktree && repoLocal[worktree.repoRoot]?.claudeConfigDir
+      ? repoLocal[worktree.repoRoot]?.claudeAccountBadge ?? null
+      : null
 
   const handleRefreshAll = useCallback(() => {
     refreshChangedFiles()
@@ -442,10 +451,19 @@ export function CollapsedRightPanel({
           <button
             onClick={onOpenCost}
             disabled={!worktree}
-            className="text-dim hover:text-fg hover:bg-surface rounded p-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-dim"
-            aria-label="Open Cost panel"
+            className="relative text-dim hover:text-fg hover:bg-surface rounded p-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-dim"
+            aria-label="Open Usage panel"
           >
             <SquareUser className="icon-sm" />
+            {accountBadge && (
+              <span className="absolute -top-0.5 -right-0.5">
+                <ClaudeAccountBadge
+                  badge={accountBadge}
+                  sizeClass="w-2 h-2"
+                  title={accountLabel ?? undefined}
+                />
+              </span>
+            )}
           </button>
         </Tooltip>
       </div>

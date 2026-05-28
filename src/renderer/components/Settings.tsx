@@ -14,6 +14,15 @@ import { BUILT_IN_THEMES_BY_MODE, type ThemeOption } from '../themes'
 import { SEMANTIC_KEYS } from '../theme-apply'
 import type { CustomTheme, UiScale } from '../../shared/state/settings'
 import { SCALES, scaleSpec } from '../../shared/state/settings'
+import {
+  BADGE_COLORS,
+  BADGE_SHAPES,
+  DEFAULT_CLAUDE_ACCOUNT_BADGE,
+  type BadgeColor,
+  type BadgeShape,
+  type ClaudeAccountBadge as ClaudeAccountBadgeValue
+} from '../../shared/state/repo-local'
+import { ClaudeAccountBadge } from './ClaudeAccountBadge'
 import { QRCodeSVG } from 'qrcode.react'
 
 interface SettingsProps {
@@ -904,20 +913,51 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
 
   const handleSaveClaudeConfigDir = useCallback(async () => {
     if (!scopeRepoRoot) return
-    await backend.setRepoLocal(scopeRepoRoot, {
-      claudeConfigDir: claudeConfigDirDraft.trim() || null
-    })
+    const trimmed = claudeConfigDirDraft.trim()
+    const patch: Record<string, unknown> = { claudeConfigDir: trimmed || null }
+    // Auto-seed the badge on first save so the toolbar/Usage indicators
+    // have something to render. The picker can change it afterwards.
+    if (trimmed && !scopedRepoLocal?.claudeAccountBadge) {
+      patch.claudeAccountBadge = { ...DEFAULT_CLAUDE_ACCOUNT_BADGE }
+    }
+    // Clearing the dir wipes the badge too — it's only meaningful when
+    // an override is active.
+    if (!trimmed) {
+      patch.claudeAccountBadge = null
+    }
+    await backend.setRepoLocal(scopeRepoRoot, patch)
     setClaudeConfigDirSaveResult({ ok: true, message: 'Saved — applies to new Claude sessions' })
     setTimeout(() => setClaudeConfigDirSaveResult(null), 3000)
-  }, [scopeRepoRoot, claudeConfigDirDraft])
+  }, [scopeRepoRoot, claudeConfigDirDraft, scopedRepoLocal])
 
   const handleClearClaudeConfigDir = useCallback(async () => {
     if (!scopeRepoRoot) return
-    await backend.setRepoLocal(scopeRepoRoot, { claudeConfigDir: null })
+    await backend.setRepoLocal(scopeRepoRoot, { claudeConfigDir: null, claudeAccountBadge: null })
     setClaudeConfigDirDraft('')
     setClaudeConfigDirSaveResult({ ok: true, message: 'Cleared' })
     setTimeout(() => setClaudeConfigDirSaveResult(null), 2000)
   }, [scopeRepoRoot])
+
+  const scopedBadge: ClaudeAccountBadgeValue =
+    scopedRepoLocal?.claudeAccountBadge ?? DEFAULT_CLAUDE_ACCOUNT_BADGE
+  const handleSetBadgeColor = useCallback(
+    async (color: BadgeColor) => {
+      if (!scopeRepoRoot) return
+      await backend.setRepoLocal(scopeRepoRoot, {
+        claudeAccountBadge: { ...scopedBadge, color }
+      })
+    },
+    [scopeRepoRoot, scopedBadge]
+  )
+  const handleSetBadgeShape = useCallback(
+    async (shape: BadgeShape) => {
+      if (!scopeRepoRoot) return
+      await backend.setRepoLocal(scopeRepoRoot, {
+        claudeAccountBadge: { ...scopedBadge, shape }
+      })
+    },
+    [scopeRepoRoot, scopedBadge]
+  )
 
   const effectiveClaudeCommand = claudeCommandDraft.trim() || defaultClaudeCommand
   const modelPart = claudeModel && !effectiveClaudeCommand.includes('--model') ? ` --model ${claudeModel}` : ''
@@ -2775,6 +2815,56 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                         </span>
                       )}
                     </div>
+
+                    {scopedClaudeConfigDir && (
+                      <div className="mt-5">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-xs text-faint uppercase tracking-wide">Account badge</span>
+                          <ClaudeAccountBadge badge={scopedBadge} sizeClass="w-3 h-3" />
+                        </div>
+                        <p className="text-xs text-dim mb-3">
+                          Shown next to the Cost-pane shortcut in the right-column rail and
+                          in the Usage panel header, so you can tell at a glance which
+                          Claude account this worktree is using.
+                        </p>
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {BADGE_COLORS.map((color) => {
+                            const isActive = scopedBadge.color === color
+                            return (
+                              <button
+                                key={color}
+                                onClick={() => { void handleSetBadgeColor(color) }}
+                                className={`rounded p-1.5 transition-colors cursor-pointer border ${
+                                  isActive ? 'border-fg' : 'border-border hover:border-border-strong'
+                                }`}
+                                aria-label={`Badge color ${color}`}
+                                title={color}
+                              >
+                                <ClaudeAccountBadge badge={{ color, shape: scopedBadge.shape }} sizeClass="w-3 h-3" />
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {BADGE_SHAPES.map((shape) => {
+                            const isActive = scopedBadge.shape === shape
+                            return (
+                              <button
+                                key={shape}
+                                onClick={() => { void handleSetBadgeShape(shape) }}
+                                className={`rounded p-1.5 transition-colors cursor-pointer border ${
+                                  isActive ? 'border-fg' : 'border-border hover:border-border-strong'
+                                }`}
+                                aria-label={`Badge shape ${shape}`}
+                                title={shape}
+                              >
+                                <ClaudeAccountBadge badge={{ color: scopedBadge.color, shape }} sizeClass="w-3 h-3" />
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-6 pt-5 border-t border-border">

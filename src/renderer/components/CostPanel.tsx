@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { RightPanel } from './RightPanel'
-import { useCosts, usePanes, useWorktrees } from '../store'
+import { useCosts, usePanes, useRepoLocal, useWorktrees } from '../store'
 import { useBackend } from '../backend'
 import { getLeaves } from '../../shared/state/terminals'
 import {
@@ -13,6 +13,7 @@ import {
   type ModelTally
 } from '../../shared/state/costs'
 import type { ClaudeAuthInfo } from '../../shared/cost-summary'
+import { ClaudeAccountBadge } from './ClaudeAccountBadge'
 
 interface CostPanelProps {
   worktreePath: string | null
@@ -96,10 +97,15 @@ export function CostPanel({ worktreePath }: CostPanelProps): JSX.Element | null 
   const costs = useCosts()
   const panes = usePanes()
   const worktrees = useWorktrees()
+  const repoLocal = useRepoLocal()
   const repoRoot = useMemo(() => {
     if (!worktreePath) return null
     return worktrees.list.find((w) => w.path === worktreePath)?.repoRoot ?? null
   }, [worktreePath, worktrees.list])
+  const accountBadge =
+    repoRoot && repoLocal[repoRoot]?.claudeConfigDir
+      ? repoLocal[repoRoot]?.claudeAccountBadge ?? null
+      : null
   const [auth, setAuth] = useState<ClaudeAuthInfo | null>(null)
   useEffect(() => {
     let cancelled = false
@@ -181,6 +187,15 @@ export function CostPanel({ worktreePath }: CostPanelProps): JSX.Element | null 
       id="cost"
       title="Usage"
       defaultCollapsed
+      actions={
+        accountBadge ? (
+          <ClaudeAccountBadge
+            badge={accountBadge}
+            sizeClass="w-2.5 h-2.5"
+            title={auth?.loggedIn ? auth.email ?? undefined : undefined}
+          />
+        ) : undefined
+      }
       onCollapsedChange={(c) => {
         backend.setCostsInterest(!c)
       }}
