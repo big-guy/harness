@@ -3,6 +3,7 @@ import { homedir } from 'os'
 import { isAbsolute, join } from 'path'
 import { log } from './debug'
 import { DEFAULT_HIDDEN_RIGHT_PANELS, type RepoConfig } from '../shared/state/repo-configs'
+import type { RepoLocalConfig } from '../shared/state/repo-local'
 
 export type { RepoConfig }
 
@@ -41,8 +42,6 @@ export function saveRepoConfig(repoRoot: string, next: RepoConfig): RepoConfig {
   if (setup) cleaned.setupCommand = setup
   if (teardown) cleaned.teardownCommand = teardown
   if (next.mergeStrategy) cleaned.mergeStrategy = next.mergeStrategy
-  const claudeConfigDir = next.claudeConfigDir?.trim()
-  if (claudeConfigDir) cleaned.claudeConfigDir = claudeConfigDir
   // Migrate legacy hideMergePanel / hidePrPanel into hiddenRightPanels
   // on write. Only the new field is persisted going forward.
   const hidden: Record<string, boolean> = { ...(next.hiddenRightPanels || {}) }
@@ -78,13 +77,14 @@ export function saveRepoConfig(repoRoot: string, next: RepoConfig): RepoConfig {
   }
 }
 
-/** Resolve a repo's `claudeConfigDir` to an absolute filesystem path,
- *  expanding a leading `~` (the only shell syntax we support here —
- *  values come from a Settings text input, not a shell). Returns an
- *  empty string when the repo doesn't override the dir. */
-export function resolveClaudeConfigDir(repoRoot: string): string {
-  if (!repoRoot) return ''
-  const raw = loadRepoConfig(repoRoot).claudeConfigDir?.trim()
+/** Resolve a RepoLocalConfig's `claudeConfigDir` to an absolute
+ *  filesystem path, expanding a leading `~` (the only shell syntax we
+ *  support — values come from a Settings text input, not a shell).
+ *  Returns an empty string when unset. The caller passes the
+ *  RepoLocalConfig in directly so this helper doesn't reach into
+ *  global store state. */
+export function resolveClaudeConfigDir(local: RepoLocalConfig | undefined | null): string {
+  const raw = local?.claudeConfigDir?.trim()
   if (!raw) return ''
   return expandHomeTilde(raw)
 }

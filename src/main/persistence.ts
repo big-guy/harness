@@ -11,6 +11,7 @@ import {
 } from './persistence-migrations'
 import type { CostsState } from '../shared/state/costs'
 import type { SnoozeEntry } from '../shared/state/snooze'
+import type { RepoLocalConfig } from '../shared/state/repo-local'
 
 export type { PersistedPane, PersistedPaneNode, PersistedTab }
 
@@ -256,6 +257,11 @@ export interface Config {
   // Same nesting scheme as `panes` so two repos with identical worktree
   // paths stay distinct. Absent / empty entries are pruned on write.
   scratchpadNotes?: Record<string, Record<string, string>>
+  // Per-user-per-repo local config keyed by repoRoot. Lives in
+  // userData/config.json (this machine + this user only) so values
+  // never get committed across collaborators. See RepoLocalConfig for
+  // the supported fields.
+  perRepoLocal?: Record<string, RepoLocalConfig>
 }
 
 export const DEFAULT_WORKTREE_BASE: 'remote' | 'local' = 'remote'

@@ -589,6 +589,10 @@ export function useRepoConfigs() {
   return useAppState((s) => s.repoConfigs.byRepo)
 }
 
+export function useRepoLocal() {
+  return useAppState((s) => s.repoLocal.byRepo)
+}
+
 export function useCosts() {
   return useAppState((s) => s.costs)
 }

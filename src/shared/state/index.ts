@@ -96,6 +96,12 @@ import {
   type ScratchpadEvent,
   type ScratchpadState
 } from './scratchpad'
+import {
+  initialRepoLocal,
+  repoLocalReducer,
+  type RepoLocalEvent,
+  type RepoLocalState
+} from './repo-local'
 
 export type { SettingsState, SettingsEvent }
 export type { UpdaterState, UpdaterEvent, UpdaterStatus } from './updater'
@@ -169,6 +175,19 @@ export type {
   Announcement
 } from './announcements'
 export type { ScratchpadState, ScratchpadEvent } from './scratchpad'
+export type {
+  RepoLocalState,
+  RepoLocalEvent,
+  RepoLocalConfig,
+  ClaudeAccountBadge,
+  BadgeColor,
+  BadgeShape
+} from './repo-local'
+export {
+  BADGE_COLORS,
+  BADGE_SHAPES,
+  DEFAULT_CLAUDE_ACCOUNT_BADGE
+} from './repo-local'
 
 export interface AppState {
   settings: SettingsState
@@ -185,6 +204,7 @@ export interface AppState {
   snooze: SnoozeState
   announcements: AnnouncementsState
   scratchpad: ScratchpadState
+  repoLocal: RepoLocalState
 }
 
 export type StateEvent =
@@ -202,6 +222,7 @@ export type StateEvent =
   | SnoozeEvent
   | AnnouncementsEvent
   | ScratchpadEvent
+  | RepoLocalEvent
 
 export const initialState: AppState = {
   settings: initialSettings,
@@ -217,7 +238,8 @@ export const initialState: AppState = {
   jsonClaude: initialJsonClaude,
   snooze: initialSnooze,
   announcements: initialAnnouncements,
-  scratchpad: initialScratchpad
+  scratchpad: initialScratchpad,
+  repoLocal: initialRepoLocal
 }
 
 export function rootReducer(state: AppState, event: StateEvent): AppState {
@@ -290,6 +312,12 @@ export function rootReducer(state: AppState, event: StateEvent): AppState {
       scratchpad: scratchpadReducer(state.scratchpad, event as ScratchpadEvent)
     }
   }
+  if (event.type.startsWith('repoLocal/')) {
+    return {
+      ...state,
+      repoLocal: repoLocalReducer(state.repoLocal, event as RepoLocalEvent)
+    }
+  }
   return state
 }
 
@@ -334,7 +362,8 @@ export function mergeWireSnapshot(state: WireSnapshotState): AppState {
     jsonClaude: { ...initialState.jsonClaude, ...state.jsonClaude },
     snooze: { ...initialState.snooze, ...state.snooze },
     announcements: { ...initialState.announcements, ...state.announcements },
-    scratchpad: { ...initialState.scratchpad, ...state.scratchpad }
+    scratchpad: { ...initialState.scratchpad, ...state.scratchpad },
+    repoLocal: { ...initialState.repoLocal, ...state.repoLocal }
   }
 }
 

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } fr
 import { ArrowLeft, Check, X, Eye, EyeOff, Star, RefreshCw, Download, RotateCw, GitPullRequest, DownloadCloud, Keyboard, RotateCcw, Terminal as TerminalIcon, Palette, BookOpen, Code2, GitBranch, Plus, Trash2, Moon, LifeBuoy, Bug, Lightbulb, FlaskConical, Copy, CopyCheck, ExternalLink, CalendarDays, FileText, FolderOpen, Search, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react'
 import { openReportIssue } from './ReportIssueScreen'
 import { HARNESS_ISSUES_URL, HARNESS_RELEASES_URL, harnessReleaseNotesUrl } from '../../shared/constants'
-import { useSettings, useUpdater, useRepoConfigs, useHooks } from '../store'
+import { useSettings, useUpdater, useRepoConfigs, useRepoLocal, useHooks } from '../store'
 import { useBackend } from '../backend'
 import type { UpdaterStatus, MergeStrategy, RepoConfig, WorktreeDetail } from '../types'
 import { DEFAULT_HOTKEYS, ACTION_LABELS, ACTION_CATEGORIES, bindingToString, eventToBinding, formatBindingGlyphs, resolveHotkeys, type Action, type HotkeyBinding } from '../hotkeys'
@@ -418,6 +418,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
   // repo-scoped .harness.json at that repoRoot. The configs map itself
   // lives in the main-process store.
   const repoConfigs = useRepoConfigs()
+  const repoLocal = useRepoLocal()
   const repoList = useMemo(() => Object.keys(repoConfigs), [repoConfigs])
   const [scopeRepoRoot, setScopeRepoRoot] = useState<string | null>(null)
 
@@ -895,27 +896,28 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
     setTimeout(() => setPrReviewPromptSaveResult(null), 2000)
   }, [])
 
-  const scopedClaudeConfigDir = scopedRepoCfg?.claudeConfigDir ?? ''
+  const scopedRepoLocal = scopeRepoRoot ? repoLocal[scopeRepoRoot] ?? null : null
+  const scopedClaudeConfigDir = scopedRepoLocal?.claudeConfigDir ?? ''
   useEffect(() => {
     setClaudeConfigDirDraft(scopedClaudeConfigDir)
   }, [scopeRepoRoot, scopedClaudeConfigDir])
 
   const handleSaveClaudeConfigDir = useCallback(async () => {
     if (!scopeRepoRoot) return
-    await updateRepoConfig(scopeRepoRoot, {
+    await backend.setRepoLocal(scopeRepoRoot, {
       claudeConfigDir: claudeConfigDirDraft.trim() || null
     })
     setClaudeConfigDirSaveResult({ ok: true, message: 'Saved — applies to new Claude sessions' })
     setTimeout(() => setClaudeConfigDirSaveResult(null), 3000)
-  }, [scopeRepoRoot, claudeConfigDirDraft, updateRepoConfig])
+  }, [scopeRepoRoot, claudeConfigDirDraft])
 
   const handleClearClaudeConfigDir = useCallback(async () => {
     if (!scopeRepoRoot) return
-    await updateRepoConfig(scopeRepoRoot, { claudeConfigDir: null })
+    await backend.setRepoLocal(scopeRepoRoot, { claudeConfigDir: null })
     setClaudeConfigDirDraft('')
     setClaudeConfigDirSaveResult({ ok: true, message: 'Cleared' })
     setTimeout(() => setClaudeConfigDirSaveResult(null), 2000)
-  }, [scopeRepoRoot, updateRepoConfig])
+  }, [scopeRepoRoot])
 
   const effectiveClaudeCommand = claudeCommandDraft.trim() || defaultClaudeCommand
   const modelPart = claudeModel && !effectiveClaudeCommand.includes('--model') ? ` --model ${claudeModel}` : ''

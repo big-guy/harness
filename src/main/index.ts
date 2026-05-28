@@ -75,6 +75,7 @@ import type { AddRepoResult } from '../shared/repo-pick'
 import { isWorktreeMerged } from '../shared/state/prs'
 import { MAX_WAKE } from '../shared/state/snooze'
 import { hasScratchpadNote } from '../shared/state/scratchpad'
+import type { RepoLocalConfig } from '../shared/state/repo-local'
 import {
   DEFAULT_LIGHT_THEME,
   DEFAULT_DARK_THEME,
@@ -338,11 +339,10 @@ const jsonClaudeManager = new JsonClaudeManager(store, {
   getClaudeEnvVars: () =>
     store.getSnapshot().state.settings.claudeEnvVars || {},
   getClaudeConfigDir: (worktreePath: string) => {
-    const wt = store
-      .getSnapshot()
-      .state.worktrees.list.find((w) => w.path === worktreePath)
+    const snap = store.getSnapshot().state
+    const wt = snap.worktrees.list.find((w) => w.path === worktreePath)
     if (!wt) return ''
-    return resolveClaudeConfigDir(wt.repoRoot)
+    return resolveClaudeConfigDir(snap.repoLocal.byRepo[wt.repoRoot])
   },
   getControlServer: () => getControlServerInfo(),
   isHarnessMcpEnabled: () =>
@@ -533,7 +533,8 @@ transport.onRequest('claude:getAuthStatus', async (_ctx, repoRoot?: string) => {
   // in that repo will actually use.
   let configDir: string | undefined
   if (repoRoot) {
-    const dir = resolveClaudeConfigDir(repoRoot)
+    const local = store.getSnapshot().state.repoLocal.byRepo[repoRoot]
+    const dir = resolveClaudeConfigDir(local)
     if (dir) configDir = dir
   }
   return getClaudeAuthStatus({ configDir })
@@ -1228,9 +1229,16 @@ function registerIpcHandlers(): void {
     if (config.panes && config.panes[repoRoot]) {
       delete config.panes[repoRoot]
     }
+    // GC the per-user-per-repo local config too. Orphan entries are
+    // harmless but the file accretes over many add/remove cycles.
+    if (config.perRepoLocal && config.perRepoLocal[repoRoot]) {
+      delete config.perRepoLocal[repoRoot]
+      if (Object.keys(config.perRepoLocal).length === 0) delete config.perRepoLocal
+    }
     saveConfig(config)
     worktreesFSM.dispatchRepos([...config.repoRoots])
     store.dispatch({ type: 'repoConfigs/removed', payload: repoRoot })
+    store.dispatch({ type: 'repoLocal/removed', payload: repoRoot })
     void worktreesFSM.refreshList()
     return true
   })
@@ -1571,6 +1579,41 @@ function registerIpcHandlers(): void {
     saveConfig(config)
     store.dispatch({ type: 'settings/codexEnvVarsChanged', payload: config.codexEnvVars || {} })
     return true
+  })
+
+  transport.onRequest('repoLocal:set', (_ctx, repoRoot: string, patch: Record<string, unknown>) => {
+    if (!repoRoot) return null
+    const all: Record<string, RepoLocalConfig> = { ...(config.perRepoLocal ?? {}) }
+    const current: RepoLocalConfig = all[repoRoot] ?? {}
+    const next: Record<string, unknown> = { ...current }
+    for (const [k, v] of Object.entries(patch || {})) {
+      // Treat null/undefined/empty-string as "remove this key" so the
+      // Settings UI's "Clear" buttons land cleanly without sending a
+      // separate delete IPC.
+      if (v === null || v === undefined || v === '') {
+        delete next[k]
+      } else {
+        next[k] = v
+      }
+    }
+    const cleaned = next as RepoLocalConfig
+    if (Object.keys(cleaned).length === 0) {
+      delete all[repoRoot]
+    } else {
+      all[repoRoot] = cleaned
+    }
+    if (Object.keys(all).length === 0) {
+      delete config.perRepoLocal
+    } else {
+      config.perRepoLocal = all
+    }
+    saveConfig(config)
+    if (Object.keys(cleaned).length > 0) {
+      store.dispatch({ type: 'repoLocal/changed', payload: { repoRoot, config: cleaned } })
+    } else {
+      store.dispatch({ type: 'repoLocal/removed', payload: repoRoot })
+    }
+    return cleaned
   })
 
   transport.onRequest('repoConfig:set', (_ctx, repoRoot: string, next: Record<string, unknown>) => {
@@ -2546,7 +2589,8 @@ function registerIpcHandlers(): void {
       let claudeHomeEnv: Record<string, string> | undefined
       if (agentKind === 'claude') {
         const scope = resolveCallerScope(id)
-        const dir = scope ? resolveClaudeConfigDir(scope.repoRoot) : ''
+        const local = scope ? store.getSnapshot().state.repoLocal.byRepo[scope.repoRoot] : null
+        const dir = resolveClaudeConfigDir(local)
         if (dir) claudeHomeEnv = { CLAUDE_CONFIG_DIR: dir }
       }
       // Both Claude and Codex agent tabs load the same bundled Harness
