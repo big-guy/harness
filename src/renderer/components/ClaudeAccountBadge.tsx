@@ -25,11 +25,11 @@ function ShapeContent({ shape, color }: { shape: BadgeShape; color: string }): J
   switch (shape) {
     case 'square':
       return <rect x="1" y="1" width="8" height="8" fill={color} />
-    case 'pentagon':
-      // Regular pentagon, point up, centered on (5,5) with radius 4.
+    case 'hexagon':
+      // Pointy-top regular hexagon, centered on (5,5) with radius 4.
       return (
         <polygon
-          points="5,1 8.8,3.76 7.35,8.24 2.65,8.24 1.2,3.76"
+          points="5,1 8.46,3 8.46,7 5,9 1.54,7 1.54,3"
           fill={color}
         />
       )
@@ -41,15 +41,9 @@ function ShapeContent({ shape, color }: { shape: BadgeShape; color: string }): J
           fill={color}
         />
       )
-    case 'astroid':
-      // 4-cusp astroid via four quadratic Béziers with the control point
-      // pulled to the center (5,5), bowing each side inward.
-      return (
-        <path
-          d="M 9 5 Q 5 5 5 9 Q 5 5 1 5 Q 5 5 5 1 Q 5 5 9 5 Z"
-          fill={color}
-        />
-      )
+    case 'diamond':
+      // Rotated square — four cardinal points of the viewBox.
+      return <polygon points="5,1 9,5 5,9 1,5" fill={color} />
   }
 }
 

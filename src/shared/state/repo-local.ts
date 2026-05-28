@@ -12,7 +12,7 @@
 // and a remote `harness-server` are fully isolated.
 
 export type BadgeColor = 'blue' | 'green' | 'orange' | 'purple' | 'red' | 'yellow'
-export type BadgeShape = 'astroid' | 'cross' | 'pentagon' | 'square'
+export type BadgeShape = 'diamond' | 'cross' | 'hexagon' | 'square'
 
 export interface ClaudeAccountBadge {
   color: BadgeColor
@@ -27,14 +27,14 @@ export const BADGE_COLORS: BadgeColor[] = [
   'red',
   'yellow'
 ]
-export const BADGE_SHAPES: BadgeShape[] = ['astroid', 'cross', 'pentagon', 'square']
+export const BADGE_SHAPES: BadgeShape[] = ['diamond', 'cross', 'hexagon', 'square']
 
 /** Default visual when the user enables `claudeConfigDir` but hasn't
  *  picked a badge yet — Settings seeds with this so something visible
  *  always appears in the toolbar / Cost header. */
 export const DEFAULT_CLAUDE_ACCOUNT_BADGE: ClaudeAccountBadge = {
   color: 'blue',
-  shape: 'pentagon'
+  shape: 'hexagon'
 }
 
 export interface RepoLocalConfig {
