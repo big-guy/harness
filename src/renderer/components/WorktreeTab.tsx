@@ -170,9 +170,6 @@ export function WorktreeTab({ worktree, isActive, status, pendingTool, shellActi
             ) : null
           })()}
           <span className="truncate">{worktree.branch}</span>
-          {accountBadge && (
-            <ClaudeAccountBadge badge={accountBadge} sizeClass="w-2 h-2" />
-          )}
         </div>
         {showPendingTool ? (
           <div className="text-xs text-danger truncate font-mono" title={formatPendingTool(pendingTool!)}>
@@ -183,6 +180,9 @@ export function WorktreeTab({ worktree, isActive, status, pendingTool, shellActi
             {repoLabel ? (
               <span className="inline-flex items-center gap-1">
                 <span className={repoNameColor(repoLabel)}>{repoLabel}</span>
+                {accountBadge && (
+                  <ClaudeAccountBadge badge={accountBadge} sizeClass="w-2 h-2" />
+                )}
                 <span className="mx-0.5">·</span>
                 {worktree.path.split('/').pop()}
               </span>

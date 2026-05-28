@@ -12,7 +12,7 @@ import {
   Pencil,
   GitCommitHorizontal,
   NotebookPen,
-  SquareUser,
+  Calculator,
   RefreshCw,
   CircleX
 } from 'lucide-react'
@@ -445,7 +445,7 @@ export function CollapsedRightPanel({
             className="text-dim hover:text-fg hover:bg-surface rounded p-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-dim"
             aria-label="Open Usage panel"
           >
-            <SquareUser className="icon-sm" />
+            <Calculator className="icon-sm" />
           </button>
         </Tooltip>
       </div>
