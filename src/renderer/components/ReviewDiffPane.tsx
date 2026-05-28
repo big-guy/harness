@@ -5,6 +5,7 @@ import { Check } from 'lucide-react'
 import type { FileDiffSides, ChangedFile } from '../types'
 import type { ReviewComment } from './ReviewFileTree'
 import { MonacoDiffEditor } from './MonacoDiffEditor'
+import { Tooltip } from './Tooltip'
 import { useSettings } from '../store'
 import { useBackend } from '../backend'
 
@@ -376,16 +377,19 @@ export function ReviewDiffPane({
     <div className="flex flex-col h-full">
       {/* File header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-panel shrink-0">
-        <button
-          onClick={onToggleReviewed}
-          className={`shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer ${
-            reviewed
-              ? 'bg-success/20 border-success text-success'
-              : 'border-border-strong text-transparent hover:border-faint'
-          }`}
-        >
-          {reviewed && <Check strokeWidth={3} className="icon-2xs" />}
-        </button>
+        <Tooltip label={reviewed ? 'Mark as not viewed (r)' : 'Mark as viewed (r)'}>
+          <button
+            onClick={onToggleReviewed}
+            aria-label={reviewed ? 'Mark as not viewed' : 'Mark as viewed'}
+            className={`shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer ${
+              reviewed
+                ? 'bg-success/20 border-success text-success'
+                : 'border-border-strong text-transparent hover:border-faint'
+            }`}
+          >
+            {reviewed && <Check strokeWidth={3} className="icon-2xs" />}
+          </button>
+        </Tooltip>
 
         <span className="text-xs font-mono truncate flex-1">{file.path}</span>
 

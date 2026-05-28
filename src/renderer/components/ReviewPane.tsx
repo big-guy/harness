@@ -4,6 +4,7 @@ import type { ChangedFile, BranchCommit } from '../types'
 import type { ReviewComment } from './ReviewFileTree'
 import { ReviewFileTree } from './ReviewFileTree'
 import { ReviewDiffPane } from './ReviewDiffPane'
+import { ResizeHandle } from './ResizeHandle'
 import { Tooltip } from './Tooltip'
 import { useBackend } from '../backend'
 import { setReviewProgress, clearReviewProgress } from '../review-progress'
@@ -34,6 +35,7 @@ export function ReviewPane({
   const [reviewedFiles, setReviewedFiles] = useState<Set<string>>(new Set())
   const [comments, setComments] = useState<ReviewComment[]>([])
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set())
+  const [fileTreeWidth, setFileTreeWidth] = useState<number>(240)
 
   // Whole-branch when both bounds are undefined. Single commit when both
   // are set and equal. Otherwise a contiguous range.
@@ -166,6 +168,17 @@ export function ReviewPane({
     }
     return lines.join('\n')
   }, [comments])
+
+  const handleFileTreeResize = useCallback((delta: number) => {
+    setFileTreeWidth((w) => {
+      const next = w + delta
+      // Clamp: don't let the tree shrink past readability or grow past
+      // taking over the pane.
+      if (next < 160) return 160
+      if (next > 640) return 640
+      return next
+    })
+  }, [])
 
   const handleSendToAgent = useCallback(() => {
     const text = formatComments()
@@ -304,7 +317,10 @@ export function ReviewPane({
 
       <div className="flex flex-1 min-h-0">
         {/* File tree */}
-        <div className="w-60 shrink-0 border-r border-border overflow-hidden">
+        <div
+          className="shrink-0 overflow-hidden"
+          style={{ width: fileTreeWidth }}
+        >
           <ReviewFileTree
             files={files}
             selectedFile={selectedFile}
@@ -316,6 +332,8 @@ export function ReviewPane({
             onToggleDir={handleToggleDir}
           />
         </div>
+
+        <ResizeHandle onDelta={handleFileTreeResize} />
 
         {/* Diff pane */}
         <div className="flex-1 min-w-0">

@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   PanelRightOpen,
   GitMerge,
   GitPullRequest,
-  ClipboardCheck,
+  Eye,
   Code2,
   FolderOpen,
   FolderSearch2,
@@ -16,9 +16,11 @@ import {
   CircleX
 } from 'lucide-react'
 import { Tooltip } from './Tooltip'
-import { useActiveBackend, usePrs, useRepoConfigs, useSettings, useWorktrees } from '../store'
+import { useActiveBackend, usePanes, usePrs, useRepoConfigs, useSettings, useWorktrees } from '../store'
 import { useBackend } from '../backend'
 import { useWatchedQuery } from '../hooks/useWatchedQuery'
+import { useReviewProgress } from '../review-progress'
+import { getLeaves } from '../../shared/state/terminals'
 import { effectiveHiddenRightPanels } from '../../shared/state/repo-configs'
 import type {
   BranchCommit,
@@ -109,6 +111,29 @@ export function CollapsedRightPanel({
     })
   const changedFilesCount =
     (changedFilesData?.working.length ?? 0) + (changedFilesData?.branch.length ?? 0)
+
+  // Find this worktree's review tab id (at most one — enforced by
+  // PanesFSM.openReviewTab) so the badge can subtract reviewed files
+  // from the to-review count as the user works through the list.
+  const panes = usePanes()
+  const reviewTabId = useMemo(() => {
+    if (!worktreePath) return ''
+    const tree = panes[worktreePath]
+    if (!tree) return ''
+    for (const leaf of getLeaves(tree)) {
+      for (const tab of leaf.tabs) {
+        if (tab.type === 'review') return tab.id
+      }
+    }
+    return ''
+  }, [panes, worktreePath])
+  const reviewProgress = useReviewProgress(reviewTabId)
+  // When a review tab exists, its progress is authoritative — both for
+  // the total (which honors the user's commit-range pick) and for the
+  // reviewed delta. Otherwise fall back to the raw branch file count.
+  const reviewFilesCount = reviewProgress
+    ? Math.max(0, reviewProgress.total - reviewProgress.reviewed)
+    : changedFilesData?.branch.length ?? 0
   const commitsCount = commitsData?.length ?? 0
   const hasUnpushedCommits = !!commitsData?.some((c) => !c.pushed)
 
@@ -301,13 +326,28 @@ export function CollapsedRightPanel({
 
         <div className="h-px w-6 bg-border my-1" />
 
-        <Tooltip label="Review changes" action="openReview" side="left">
+        <Tooltip
+          label={
+            reviewFilesCount > 0
+              ? `Review ${reviewFilesCount} file${reviewFilesCount === 1 ? '' : 's'}`
+              : 'Review changes'
+          }
+          action="openReview"
+          side="left"
+        >
           <button
             onClick={onReview}
-            className="text-dim hover:text-fg hover:bg-surface rounded p-1.5 transition-colors cursor-pointer"
-            aria-label="Review changes"
+            className="text-dim hover:text-fg hover:bg-surface rounded px-1 py-1 transition-colors cursor-pointer flex items-center gap-0.5"
+            aria-label={
+              reviewFilesCount > 0
+                ? `Review ${reviewFilesCount} files`
+                : 'Review changes'
+            }
           >
-            <ClipboardCheck className="icon-sm" />
+            <Eye className="icon-xs" />
+            {reviewFilesCount > 0 && (
+              <span className="text-[10px] tabular-nums leading-none">{reviewFilesCount}</span>
+            )}
           </button>
         </Tooltip>
 
