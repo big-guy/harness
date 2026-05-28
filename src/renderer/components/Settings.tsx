@@ -41,6 +41,14 @@ type SubSectionId =
   | 'agent-general'
   | 'agent-claude'
   | 'agent-codex'
+  | 'worktrees-base'
+  | 'worktrees-merge-strategy'
+  | 'worktrees-scripts'
+  | 'worktrees-details'
+  | 'worktrees-snooze'
+  | 'worktrees-share'
+  | 'worktrees-claude-home'
+  | 'worktrees-pr-review'
   | 'hotkeys-navigation'
   | 'hotkeys-backends'
   | 'hotkeys-worktree-mgmt'
@@ -77,7 +85,16 @@ const SECTIONS: Section[] = [
     { id: 'agent-claude', label: 'Claude' },
     { id: 'agent-codex', label: 'Codex' }
   ]},
-  { id: 'worktrees', label: 'Worktrees', icon: GitBranch },
+  { id: 'worktrees', label: 'Worktrees', icon: GitBranch, children: [
+    { id: 'worktrees-base', label: 'Branch base' },
+    { id: 'worktrees-merge-strategy', label: 'Merge strategy' },
+    { id: 'worktrees-scripts', label: 'Setup & teardown' },
+    { id: 'worktrees-claude-home', label: 'Claude home' },
+    { id: 'worktrees-details', label: 'Sidebar detail' },
+    { id: 'worktrees-snooze', label: 'Snooze duration' },
+    { id: 'worktrees-share', label: 'Shared permissions' },
+    { id: 'worktrees-pr-review', label: 'PR review prompt' }
+  ]},
   { id: 'editor', label: 'Editor', icon: Code2 },
   { id: 'github', label: 'GitHub', icon: GitPullRequest },
   { id: 'hotkeys', label: 'Hotkeys', icon: Keyboard, children: [
@@ -159,6 +176,14 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
     'agent-general': null,
     'agent-claude': null,
     'agent-codex': null,
+    'worktrees-base': null,
+    'worktrees-merge-strategy': null,
+    'worktrees-scripts': null,
+    'worktrees-details': null,
+    'worktrees-snooze': null,
+    'worktrees-share': null,
+    'worktrees-claude-home': null,
+    'worktrees-pr-review': null,
     'hotkeys-navigation': null,
     'hotkeys-backends': null,
     'hotkeys-worktree-mgmt': null,
@@ -2382,13 +2407,14 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                   </div>
                   <p className="text-xs text-faint mt-1.5">
                     {scopeRepoRoot
-                      ? <>Editing <code className="bg-panel-raised px-1 rounded">.harness.json</code> in <span className="font-mono">{repoBasename(scopeRepoRoot)}</span>. Unset fields inherit from global. You can commit this file to share settings with teammates.</>
-                      : 'Editing global settings. Individual repos can override these values via their .harness.json file.'}
+                      ? <>Editing settings for <span className="font-mono text-fg-bright">{repoBasename(scopeRepoRoot)}</span>. Most fields land in the repo's <code className="bg-panel-raised px-1 rounded">.harness.json</code> (committable, team-shared). Claude home directory is stored per-user in your local Harness config and is never committed.</>
+                      : 'Editing global settings. Individual repos can override these values per-scope.'}
                   </p>
                 </div>
               )}
+              <div className={scopeRepoRoot ? 'border-l-2 border-accent/40 pl-4 ml-1' : ''}>
               {scopeRepoRoot === null && (
-              <div className="space-y-2">
+              <div ref={(el) => { subSectionRefs.current['worktrees-base'] = el }} id="worktrees-base" className="space-y-2">
                 {(
                   [
                     {
@@ -2431,6 +2457,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
               </div>
               )}
 
+              <div ref={(el) => { subSectionRefs.current['worktrees-merge-strategy'] = el }} id="worktrees-merge-strategy" />
               <div className="flex items-center justify-between mt-6 mb-1">
                 <h3 className="text-sm font-semibold text-fg-bright">Default merge strategy</h3>
                 {scopeRepoRoot === null && reposOverridingKey('mergeStrategy').length > 0 && (
@@ -2500,6 +2527,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                 })}
               </div>
 
+              <div ref={(el) => { subSectionRefs.current['worktrees-scripts'] = el }} id="worktrees-scripts" />
               <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Setup & teardown scripts</h3>
               <p className="text-xs text-dim mb-3">
                 Optional shell commands run via a login shell
@@ -2589,6 +2617,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
 
               {scopeRepoRoot === null && (
                 <>
+                  <div ref={(el) => { subSectionRefs.current['worktrees-details'] = el }} id="worktrees-details" />
                   <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Worktree details</h3>
                   <p className="text-xs text-dim mb-3">
                     What to show next to each worktree row in the sidebar. The
@@ -2691,6 +2720,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
 
               {scopeRepoRoot === null && (
                 <>
+                  <div ref={(el) => { subSectionRefs.current['worktrees-snooze'] = el }} id="worktrees-snooze" />
                   <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Default snooze duration</h3>
                   <p className="text-xs text-dim mb-3">
                     How many days a worktree snoozes by default. ⌥-click the
@@ -2711,6 +2741,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                     <span className="text-xs text-dim">days</span>
                   </div>
 
+                  <div ref={(el) => { subSectionRefs.current['worktrees-share'] = el }} id="worktrees-share" />
                   <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Share Claude Code permissions</h3>
                   <p className="text-xs text-dim mb-3">
                     Symlink each worktree's{' '}
@@ -2731,6 +2762,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                     </span>
                   </label>
 
+                  <div ref={(el) => { subSectionRefs.current['worktrees-pr-review'] = el }} id="worktrees-pr-review" />
                   <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">PR review prompt</h3>
                   <p className="text-xs text-dim mb-3">
                     Default kickoff prompt sent to Claude when you open a PR as a worktree (or when the MCP{' '}
@@ -2770,6 +2802,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
 
               {scopeRepoRoot !== null && (
                 <>
+                  <div ref={(el) => { subSectionRefs.current['worktrees-claude-home'] = el }} id="worktrees-claude-home" />
                   <div className="mt-6">
                     <div className="flex items-center justify-between mb-1">
                       <h3 className="text-sm font-semibold text-fg-bright">Claude home directory</h3>
@@ -2869,6 +2902,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
 
                 </>
               )}
+              </div>
             </section>
 
             {/* Editor section */}
