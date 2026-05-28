@@ -98,6 +98,19 @@ export class PanesFSM {
     return this.store.getSnapshot().state.terminals.panes[wtPath] || null
   }
 
+  /** Type of the tab at (wtPath, tabId), or null if not found. Lets the
+   *  panes:wakeTab IPC handler pick exactly one wake method instead of
+   *  fanning out to both and trusting each method's internal type guard
+   *  (which is brittle — any future unconditional side-effect added to
+   *  the wrong path silently fires on the wrong tab type). */
+  getTabType(wtPath: string, tabId: string): TerminalTab['type'] | null {
+    const tree = this.getTree(wtPath)
+    return (
+      (tree && findLeafByTabId(tree, tabId)?.tabs.find((t) => t.id === tabId)?.type) ??
+      null
+    )
+  }
+
   private getAllPanes(): Record<string, PaneNode> {
     return this.store.getSnapshot().state.terminals.panes
   }

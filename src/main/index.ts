@@ -959,12 +959,14 @@ store.subscribe((event) => {
     }
     for (const wt of list) pendingBootInit.add(wt.path)
     if (!bootTimer) {
-      bootTimer = setTimeout(() => void drainBootInit(true), BOOT_INIT_TIMEOUT_MS)
+      bootTimer = setTimeout(() => {
+        drainBootInit(true).catch((err) => log('boot', 'drainBootInit (timeout) failed', err))
+      }, BOOT_INIT_TIMEOUT_MS)
     }
     return
   }
   if (event.type === 'prs/mergedChanged' && !bootDrained) {
-    void drainBootInit(false)
+    drainBootInit(false).catch((err) => log('boot', 'drainBootInit (merged) failed', err))
   }
 })
 
@@ -2160,10 +2162,13 @@ function registerIpcHandlers(): void {
   })
   transport.onRequest('panes:wakeTab', (_ctx, wtPath: string, tabId: string) => {
     // Route by tab type. json-claude needs its subprocess spawned;
-    // shell only flips mode (XTerminal owns the PTY spawn). Both
-    // methods are no-ops for the other type, so order doesn't matter.
-    panesFSM.wakeJsonClaudeTab(wtPath, tabId)
-    panesFSM.wakeShellTab(wtPath, tabId)
+    // shell only flips mode (XTerminal owns the PTY spawn). Dispatch by
+    // type here rather than fanning out to both methods so any future
+    // unconditional side-effect added to either wake path can't silently
+    // fire on the wrong tab type.
+    const type = panesFSM.getTabType(wtPath, tabId)
+    if (type === 'json-claude') panesFSM.wakeJsonClaudeTab(wtPath, tabId)
+    else if (type === 'shell') panesFSM.wakeShellTab(wtPath, tabId)
     return true
   })
   // Renderer-driven lastActive bump. The composer fires this while the
