@@ -40,6 +40,8 @@ export function saveRepoConfig(repoRoot: string, next: RepoConfig): RepoConfig {
   if (setup) cleaned.setupCommand = setup
   if (teardown) cleaned.teardownCommand = teardown
   if (next.mergeStrategy) cleaned.mergeStrategy = next.mergeStrategy
+  const claudeConfigDir = next.claudeConfigDir?.trim()
+  if (claudeConfigDir) cleaned.claudeConfigDir = claudeConfigDir
   // Migrate legacy hideMergePanel / hidePrPanel into hiddenRightPanels
   // on write. Only the new field is persisted going forward.
   const hidden: Record<string, boolean> = { ...(next.hiddenRightPanels || {}) }

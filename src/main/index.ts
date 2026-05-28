@@ -332,6 +332,13 @@ const jsonClaudeManager = new JsonClaudeManager(store, {
   closeApprovalSession: (sessionId) => approvalBridge.stopSession(sessionId),
   getClaudeEnvVars: () =>
     store.getSnapshot().state.settings.claudeEnvVars || {},
+  getClaudeConfigDir: (worktreePath: string) => {
+    const wt = store
+      .getSnapshot()
+      .state.worktrees.list.find((w) => w.path === worktreePath)
+    if (!wt) return ''
+    return loadRepoConfig(wt.repoRoot).claudeConfigDir?.trim() || ''
+  },
   getControlServer: () => getControlServerInfo(),
   isHarnessMcpEnabled: () =>
     store.getSnapshot().state.settings.harnessMcpEnabled !== false,
@@ -2519,6 +2526,17 @@ function registerIpcHandlers(): void {
       const userEnv = agentKind === 'claude' ? config.claudeEnvVars
         : agentKind === 'codex' ? config.codexEnvVars
         : undefined
+      // Per-repo Claude home directory override. Resolved from the
+      // worktree's repo (via panes → worktree lookup) and applied to
+      // xterm Claude tabs. Both bundled and PATH claude pick up
+      // CLAUDE_CONFIG_DIR for auth/projects/plugins resolution.
+      let claudeHomeEnv: Record<string, string> | undefined
+      if (agentKind === 'claude') {
+        const scope = resolveCallerScope(id)
+        const repoCfg = scope ? loadRepoConfig(scope.repoRoot) : null
+        const dir = repoCfg?.claudeConfigDir?.trim()
+        if (dir) claudeHomeEnv = { CLAUDE_CONFIG_DIR: dir }
+      }
       // Both Claude and Codex agent tabs load the same bundled Harness
       // plugin (Claude via --plugin-dir, Codex via its plugin
       // marketplace). The plugin's .mcp.json interpolates these env
@@ -2537,8 +2555,8 @@ function registerIpcHandlers(): void {
           })
         }
       }
-      const extraEnv = userEnv || controlEnv
-        ? { ...(userEnv || {}), ...(controlEnv || {}) }
+      const extraEnv = userEnv || controlEnv || claudeHomeEnv
+        ? { ...(userEnv || {}), ...(controlEnv || {}), ...(claudeHomeEnv || {}) }
         : undefined
       const existed = ptyManager.hasTerminal(id)
       ptyManager.create(id, cwd, cmd, args, extraEnv, !isAgent, cols, rows)

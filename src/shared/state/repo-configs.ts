@@ -43,6 +43,14 @@ export interface RepoConfig {
    * DEFAULT_RIGHT_PANEL_ORDER (any key absent from the saved order is
    * appended to the end in canonical order). */
   rightPanelOrder?: RightPanelKey[]
+  /** Per-repo override for Claude's home directory. When non-empty,
+   * Harness exports CLAUDE_CONFIG_DIR=<this> on every Claude spawn for
+   * worktrees in this repo (both xterm and json-mode). Auth, projects,
+   * plugins, and history all resolve from there instead of ~/.claude.
+   * Empty / undefined = default (~/.claude). Note: this file is
+   * commit-friendly, but a path tied to one machine usually isn't —
+   * keep it gitignored if the value isn't portable across collaborators. */
+  claudeConfigDir?: string
 }
 
 /** Read an effective panel order, filling in any keys missing from the

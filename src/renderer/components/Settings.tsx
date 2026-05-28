@@ -406,6 +406,9 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
   useEffect(() => { setPrReviewPromptDraft(prReviewPrompt) }, [prReviewPrompt])
   const [prReviewPromptSaveResult, setPrReviewPromptSaveResult] = useState<{ ok: boolean; message: string } | null>(null)
 
+  const [claudeConfigDirDraft, setClaudeConfigDirDraft] = useState<string>('')
+  const [claudeConfigDirSaveResult, setClaudeConfigDirSaveResult] = useState<{ ok: boolean; message: string } | null>(null)
+
   const [defaultTerminalFontFamily, setDefaultTerminalFontFamily] = useState<string>('')
   const [availableEditors, setAvailableEditors] = useState<{ id: string; name: string }[]>([])
   const [scriptsSaveResult, setScriptsSaveResult] = useState<{ ok: boolean; message: string } | null>(null)
@@ -891,6 +894,28 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
     setPrReviewPromptSaveResult({ ok: true, message: 'Reset to default' })
     setTimeout(() => setPrReviewPromptSaveResult(null), 2000)
   }, [])
+
+  const scopedClaudeConfigDir = scopedRepoCfg?.claudeConfigDir ?? ''
+  useEffect(() => {
+    setClaudeConfigDirDraft(scopedClaudeConfigDir)
+  }, [scopeRepoRoot, scopedClaudeConfigDir])
+
+  const handleSaveClaudeConfigDir = useCallback(async () => {
+    if (!scopeRepoRoot) return
+    await updateRepoConfig(scopeRepoRoot, {
+      claudeConfigDir: claudeConfigDirDraft.trim() || null
+    })
+    setClaudeConfigDirSaveResult({ ok: true, message: 'Saved — applies to new Claude sessions' })
+    setTimeout(() => setClaudeConfigDirSaveResult(null), 3000)
+  }, [scopeRepoRoot, claudeConfigDirDraft, updateRepoConfig])
+
+  const handleClearClaudeConfigDir = useCallback(async () => {
+    if (!scopeRepoRoot) return
+    await updateRepoConfig(scopeRepoRoot, { claudeConfigDir: null })
+    setClaudeConfigDirDraft('')
+    setClaudeConfigDirSaveResult({ ok: true, message: 'Cleared' })
+    setTimeout(() => setClaudeConfigDirSaveResult(null), 2000)
+  }, [scopeRepoRoot, updateRepoConfig])
 
   const effectiveClaudeCommand = claudeCommandDraft.trim() || defaultClaudeCommand
   const modelPart = claudeModel && !effectiveClaudeCommand.includes('--model') ? ` --model ${claudeModel}` : ''
@@ -2702,12 +2727,61 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
               )}
 
               {scopeRepoRoot !== null && (
-                <div className="mt-6 pt-5 border-t border-border">
-                  <label className="block text-sm text-fg-bright mb-1">Right-panel visibility</label>
-                  <p className="text-xs text-dim">
-                    Toggle individual panels from the right-column toolbar in the main window.
-                  </p>
-                </div>
+                <>
+                  <div className="mt-6">
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="text-sm font-semibold text-fg-bright">Claude home directory</h3>
+                      {scopedClaudeConfigDir && (
+                        <button
+                          onClick={handleClearClaudeConfigDir}
+                          className="text-xs text-dim hover:text-fg underline cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-dim mb-3">
+                      Override the Claude home directory used for worktrees in this
+                      repo. Harness exports{' '}
+                      <code className="bg-panel-raised px-1 rounded text-xs">CLAUDE_CONFIG_DIR</code>{' '}
+                      on every Claude session it spawns, so auth, projects, plugins, and
+                      history all resolve from there instead of{' '}
+                      <code className="bg-panel-raised px-1 rounded text-xs">~/.claude</code>.
+                      Useful when you want this repo on a separate Claude account from your
+                      personal one. Leave blank to use the default. Applies to new Claude
+                      sessions only.
+                    </p>
+                    <input
+                      type="text"
+                      value={claudeConfigDirDraft}
+                      onChange={(e) => setClaudeConfigDirDraft(e.target.value)}
+                      placeholder="~/.claude (default)"
+                      spellCheck={false}
+                      className="w-full bg-panel border border-border-strong rounded px-3 py-2 text-sm text-fg-bright placeholder-faint outline-none focus:border-fg font-mono"
+                    />
+                    <div className="flex items-center gap-2 mt-3">
+                      <button
+                        onClick={handleSaveClaudeConfigDir}
+                        className="px-3 py-1.5 bg-surface hover:bg-surface-hover rounded text-sm text-fg-bright transition-colors cursor-pointer"
+                      >
+                        Save
+                      </button>
+                      {claudeConfigDirSaveResult && (
+                        <span className={`text-xs flex items-center gap-1.5 ${claudeConfigDirSaveResult.ok ? 'text-success' : 'text-danger'}`}>
+                          {claudeConfigDirSaveResult.ok ? <Check className="icon-xs" /> : <X className="icon-xs" />}
+                          {claudeConfigDirSaveResult.message}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-6 pt-5 border-t border-border">
+                    <label className="block text-sm text-fg-bright mb-1">Right-panel visibility</label>
+                    <p className="text-xs text-dim">
+                      Toggle individual panels from the right-column toolbar in the main window.
+                    </p>
+                  </div>
+                </>
               )}
             </section>
 
