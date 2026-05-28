@@ -41,13 +41,10 @@ type SubSectionId =
   | 'agent-general'
   | 'agent-claude'
   | 'agent-codex'
-  | 'worktrees-base'
-  | 'worktrees-merge-strategy'
-  | 'worktrees-scripts'
+  | 'worktrees-repositories'
   | 'worktrees-details'
   | 'worktrees-snooze'
   | 'worktrees-share'
-  | 'worktrees-claude-home'
   | 'worktrees-pr-review'
   | 'hotkeys-navigation'
   | 'hotkeys-backends'
@@ -86,13 +83,10 @@ const SECTIONS: Section[] = [
     { id: 'agent-codex', label: 'Codex' }
   ]},
   { id: 'worktrees', label: 'Worktrees', icon: GitBranch, children: [
-    { id: 'worktrees-base', label: 'Branch base' },
-    { id: 'worktrees-merge-strategy', label: 'Merge strategy' },
-    { id: 'worktrees-scripts', label: 'Setup & teardown' },
-    { id: 'worktrees-claude-home', label: 'Claude home' },
-    { id: 'worktrees-details', label: 'Sidebar detail' },
-    { id: 'worktrees-snooze', label: 'Snooze duration' },
-    { id: 'worktrees-share', label: 'Shared permissions' },
+    { id: 'worktrees-repositories', label: 'Repositories' },
+    { id: 'worktrees-details', label: 'Worktree detail' },
+    { id: 'worktrees-snooze', label: 'Snoozing' },
+    { id: 'worktrees-share', label: 'Permissions' },
     { id: 'worktrees-pr-review', label: 'PR review prompt' }
   ]},
   { id: 'editor', label: 'Editor', icon: Code2 },
@@ -176,13 +170,10 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
     'agent-general': null,
     'agent-claude': null,
     'agent-codex': null,
-    'worktrees-base': null,
-    'worktrees-merge-strategy': null,
-    'worktrees-scripts': null,
+    'worktrees-repositories': null,
     'worktrees-details': null,
     'worktrees-snooze': null,
     'worktrees-share': null,
-    'worktrees-claude-home': null,
     'worktrees-pr-review': null,
     'hotkeys-navigation': null,
     'hotkeys-backends': null,
@@ -2412,9 +2403,13 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                   </p>
                 </div>
               )}
-              <div className={scopeRepoRoot ? 'border-l-2 border-accent/40 pl-4 ml-1' : ''}>
+              <div
+                ref={(el) => { subSectionRefs.current['worktrees-repositories'] = el }}
+                id="worktrees-repositories"
+                className={`border-l-2 pl-4 ml-1 ${scopeRepoRoot ? 'border-accent/40' : 'border-border'}`}
+              >
               {scopeRepoRoot === null && (
-              <div ref={(el) => { subSectionRefs.current['worktrees-base'] = el }} id="worktrees-base" className="space-y-2">
+              <div className="space-y-2">
                 {(
                   [
                     {
@@ -2457,7 +2452,6 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
               </div>
               )}
 
-              <div ref={(el) => { subSectionRefs.current['worktrees-merge-strategy'] = el }} id="worktrees-merge-strategy" />
               <div className="flex items-center justify-between mt-6 mb-1">
                 <h3 className="text-sm font-semibold text-fg-bright">Default merge strategy</h3>
                 {scopeRepoRoot === null && reposOverridingKey('mergeStrategy').length > 0 && (
@@ -2527,7 +2521,6 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                 })}
               </div>
 
-              <div ref={(el) => { subSectionRefs.current['worktrees-scripts'] = el }} id="worktrees-scripts" />
               <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Setup & teardown scripts</h3>
               <p className="text-xs text-dim mb-3">
                 Optional shell commands run via a login shell
@@ -2618,7 +2611,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
               {scopeRepoRoot === null && (
                 <>
                   <div ref={(el) => { subSectionRefs.current['worktrees-details'] = el }} id="worktrees-details" />
-                  <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Worktree details</h3>
+                  <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Worktree detail</h3>
                   <p className="text-xs text-dim mb-3">
                     What to show next to each worktree row in the sidebar. The
                     detail hides on hover; row action buttons appear in its place.
@@ -2721,7 +2714,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
               {scopeRepoRoot === null && (
                 <>
                   <div ref={(el) => { subSectionRefs.current['worktrees-snooze'] = el }} id="worktrees-snooze" />
-                  <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Default snooze duration</h3>
+                  <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Snoozing</h3>
                   <p className="text-xs text-dim mb-3">
                     How many days a worktree snoozes by default. ⌥-click the
                     snooze button to pick a specific date or Never.
@@ -2742,7 +2735,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                   </div>
 
                   <div ref={(el) => { subSectionRefs.current['worktrees-share'] = el }} id="worktrees-share" />
-                  <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Share Claude Code permissions</h3>
+                  <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Permissions</h3>
                   <p className="text-xs text-dim mb-3">
                     Symlink each worktree's{' '}
                     <code className="bg-panel-raised px-1 rounded text-xs">.claude/settings.local.json</code>{' '}
@@ -2802,7 +2795,6 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
 
               {scopeRepoRoot !== null && (
                 <>
-                  <div ref={(el) => { subSectionRefs.current['worktrees-claude-home'] = el }} id="worktrees-claude-home" />
                   <div className="mt-6">
                     <div className="flex items-center justify-between mb-1">
                       <h3 className="text-sm font-semibold text-fg-bright">Claude home directory</h3>
