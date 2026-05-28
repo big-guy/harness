@@ -522,8 +522,16 @@ transport.onRequest(
   }
 )
 
-transport.onRequest('claude:getAuthStatus', async () => {
-  return getClaudeAuthStatus()
+transport.onRequest('claude:getAuthStatus', async (_ctx, repoRoot?: string) => {
+  // When the caller passes a repoRoot, honor that repo's claudeConfigDir
+  // override so the auth display reflects the account Claude sessions
+  // in that repo will actually use.
+  let configDir: string | undefined
+  if (repoRoot) {
+    const dir = loadRepoConfig(repoRoot).claudeConfigDir?.trim()
+    if (dir) configDir = dir
+  }
+  return getClaudeAuthStatus({ configDir })
 })
 
 // Auto-persist the costs slice to config.json on each change. Debounced

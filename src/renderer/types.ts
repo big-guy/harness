@@ -353,7 +353,7 @@ export interface ElectronAPI {
   openThemesFolder(): Promise<{ ok: true; path: string } | { ok: false; path: string; message: string }>
   setCostsInterest(expanded: boolean): Promise<boolean>
   getAllSessionCosts(sinceMs?: number): Promise<SessionCostSummary[]>
-  getClaudeAuthStatus(): Promise<ClaudeAuthInfo>
+  getClaudeAuthStatus(repoRoot?: string): Promise<ClaudeAuthInfo>
   getAvailableThemes(): Promise<readonly string[]>
   setTerminalFontFamily(fontFamily: string): Promise<boolean>
   getDefaultTerminalFontFamily(): Promise<string>

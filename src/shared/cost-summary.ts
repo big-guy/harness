@@ -20,4 +20,11 @@ export interface ClaudeAuthInfo {
   rateLimitTier: string | null
   tier: SubscriptionTier | null
   monthlyUsd: number | null
+  /** Human-readable org name from ~/.claude.json's oauthAccount.
+   *  Falls back to null when missing. Used as a display fallback when
+   *  the user's email isn't available. */
+  organizationName: string | null
+  /** Account UUID from ~/.claude.json's oauthAccount. Last-resort
+   *  identifier when neither email nor org name is present. */
+  accountUuid: string | null
 }

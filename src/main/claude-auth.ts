@@ -1,7 +1,15 @@
-// Reads the user's Claude Code auth state from ~/.claude.json — the
-// client-side mirror of the OAuth account info that `claude auth status`
-// surfaces. Used by the Costs tab to show subscription-aware copy
-// ("you're on Max 20x, this would have cost $X on the API").
+// Reads the user's Claude Code auth state from `<claude-config-dir>/.claude.json`
+// — the client-side mirror of the OAuth account info that
+// `claude auth status` surfaces. Used by the Costs tab to show
+// subscription-aware copy ("you're on Max 20x, this would have cost $X
+// on the API") and by the Cost pane to show the active account at the
+// top.
+//
+// By default `<claude-config-dir>` is `~/.claude`. Worktrees in a repo
+// whose `.harness.json` sets `claudeConfigDir` override this — pass the
+// repo's effective dir via `opts.configDir` to read from there. Cache
+// is keyed by resolved path so callers in different repos don't trample
+// each other.
 //
 // We deliberately avoid spawning `claude auth status` here:
 //   1. Subprocess + login-shell wrap is slow on cold start.
@@ -12,7 +20,7 @@
 
 import { readFile } from 'fs/promises'
 import { homedir } from 'os'
-import { join } from 'path'
+import { isAbsolute, join } from 'path'
 import type { ClaudeAuthInfo, SubscriptionTier } from '../shared/cost-summary'
 
 export type { ClaudeAuthInfo, SubscriptionTier }
@@ -26,17 +34,35 @@ const TIER_PRICING: Record<SubscriptionTier, number | null> = {
   unknown: null
 }
 
-let cached: ClaudeAuthInfo | null = null
+const cache = new Map<string, ClaudeAuthInfo>()
 
-export async function getClaudeAuthStatus(opts: { force?: boolean } = {}): Promise<ClaudeAuthInfo> {
-  if (cached && !opts.force) return cached
-  const fresh = await readAuthStatus()
-  cached = fresh
+export async function getClaudeAuthStatus(
+  opts: { force?: boolean; configDir?: string } = {}
+): Promise<ClaudeAuthInfo> {
+  const path = resolveAuthPath(opts.configDir)
+  if (!opts.force) {
+    const hit = cache.get(path)
+    if (hit) return hit
+  }
+  const fresh = await readAuthStatus(path)
+  cache.set(path, fresh)
   return fresh
 }
 
-async function readAuthStatus(): Promise<ClaudeAuthInfo> {
-  const path = join(homedir(), '.claude.json')
+function resolveAuthPath(configDir?: string): string {
+  if (configDir && configDir.trim()) {
+    const dir = configDir.trim()
+    const abs = isAbsolute(dir)
+      ? dir
+      : dir.startsWith('~')
+        ? join(homedir(), dir.slice(1))
+        : join(homedir(), dir)
+    return join(abs, '.claude.json')
+  }
+  return join(homedir(), '.claude.json')
+}
+
+async function readAuthStatus(path: string): Promise<ClaudeAuthInfo> {
   let raw: string
   try {
     raw = await readFile(path, 'utf-8')
@@ -57,6 +83,9 @@ async function readAuthStatus(): Promise<ClaudeAuthInfo> {
       ? oauth.organizationRateLimitTier
       : null
   const email = typeof oauth.emailAddress === 'string' ? oauth.emailAddress : null
+  const organizationName =
+    typeof oauth.organizationName === 'string' ? oauth.organizationName : null
+  const accountUuid = typeof oauth.accountUuid === 'string' ? oauth.accountUuid : null
   const tier = deriveTier(orgType, rateLimit)
   return {
     loggedIn: true,
@@ -64,7 +93,9 @@ async function readAuthStatus(): Promise<ClaudeAuthInfo> {
     organizationType: orgType,
     rateLimitTier: rateLimit,
     tier,
-    monthlyUsd: tier ? TIER_PRICING[tier] : null
+    monthlyUsd: tier ? TIER_PRICING[tier] : null,
+    organizationName,
+    accountUuid
   }
 }
 
@@ -91,6 +122,8 @@ function notLoggedIn(): ClaudeAuthInfo {
     organizationType: null,
     rateLimitTier: null,
     tier: null,
-    monthlyUsd: null
+    monthlyUsd: null,
+    organizationName: null,
+    accountUuid: null
   }
 }

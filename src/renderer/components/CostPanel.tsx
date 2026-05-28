@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { RightPanel } from './RightPanel'
-import { useCosts, usePanes } from '../store'
+import { useCosts, usePanes, useWorktrees } from '../store'
 import { useBackend } from '../backend'
 import { getLeaves } from '../../shared/state/terminals'
 import {
@@ -12,6 +12,7 @@ import {
   type ContentBreakdown,
   type ModelTally
 } from '../../shared/state/costs'
+import type { ClaudeAuthInfo } from '../../shared/cost-summary'
 
 interface CostPanelProps {
   worktreePath: string | null
@@ -85,10 +86,35 @@ function Section({
   )
 }
 
+function describeAccount(auth: ClaudeAuthInfo): string | null {
+  if (!auth.loggedIn) return null
+  return auth.email || auth.organizationName || auth.accountUuid || null
+}
+
 export function CostPanel({ worktreePath }: CostPanelProps): JSX.Element | null {
   const backend = useBackend()
   const costs = useCosts()
   const panes = usePanes()
+  const worktrees = useWorktrees()
+  const repoRoot = useMemo(() => {
+    if (!worktreePath) return null
+    return worktrees.list.find((w) => w.path === worktreePath)?.repoRoot ?? null
+  }, [worktreePath, worktrees.list])
+  const [auth, setAuth] = useState<ClaudeAuthInfo | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    void backend
+      .getClaudeAuthStatus(repoRoot ?? undefined)
+      .then((info) => {
+        if (!cancelled) setAuth(info)
+      })
+      .catch(() => {
+        if (!cancelled) setAuth(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [repoRoot])
 
   const { total, breakdown, currentModel, hasData } = useMemo(() => {
     const breakdown: ContentBreakdown = cloneBreakdown(emptyBreakdown)
@@ -160,6 +186,23 @@ export function CostPanel({ worktreePath }: CostPanelProps): JSX.Element | null 
       }}
     >
       <div className="px-3 py-2 flex flex-col gap-3">
+        {auth && (
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="text-faint shrink-0">Account</span>
+            <span
+              className="text-text truncate text-right"
+              title={
+                auth.loggedIn
+                  ? [auth.email, auth.organizationName, auth.accountUuid]
+                      .filter(Boolean)
+                      .join(' · ')
+                  : 'Not signed in to Claude'
+              }
+            >
+              {auth.loggedIn ? (describeAccount(auth) ?? 'signed in') : 'not signed in'}
+            </span>
+          </div>
+        )}
         {!hasData ? (
           <div className="text-xs text-faint italic">
             No usage yet. Tallies update after each Claude turn.
