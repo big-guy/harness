@@ -2,7 +2,8 @@ import { GitPullRequest, RotateCw, Trash2, Loader2, Moon, TriangleAlert } from '
 import type { Worktree, PtyStatus, PendingTool, PRStatus } from '../types'
 import { isPRMerged } from '../../shared/state/prs'
 import { formatWakeAt } from '../../shared/state/snooze'
-import { useAppState } from '../store'
+import { useAppState, useRepoLocal } from '../store'
+import { ClaudeAccountBadge } from './ClaudeAccountBadge'
 import { Tooltip } from './Tooltip'
 import { formatWorktreeAge } from './worktree-detail'
 import { useWorktreeDetailOverride } from '../worktree-detail-override'
@@ -90,6 +91,14 @@ export function WorktreeTab({ worktree, isActive, status, pendingTool, shellActi
   const configuredWorktreeDetail = useAppState((s) => s.settings.worktreeDetail)
   const worktreeDetailOverride = useWorktreeDetailOverride()
   const worktreeDetail = worktreeDetailOverride ?? configuredWorktreeDetail
+  const repoLocal = useRepoLocal()
+  // Badge only when the repo has set a non-default Claude home — the
+  // default ~/.claude account stays unmarked.
+  const accountBadge = (() => {
+    const local = repoLocal[worktree.repoRoot]
+    if (!local?.claudeConfigDir) return null
+    return local.claudeAccountBadge ?? null
+  })()
   const displayStatus: PtyStatus | 'merged' = isMerged ? 'merged' : status
   const showPendingTool = displayStatus === 'needs-approval' && pendingTool
   const canContinue = !!onContinue && isPRMerged(prStatus)
@@ -161,6 +170,9 @@ export function WorktreeTab({ worktree, isActive, status, pendingTool, shellActi
             ) : null
           })()}
           <span className="truncate">{worktree.branch}</span>
+          {accountBadge && (
+            <ClaudeAccountBadge badge={accountBadge} sizeClass="w-2 h-2" />
+          )}
         </div>
         {showPendingTool ? (
           <div className="text-xs text-danger truncate font-mono" title={formatPendingTool(pendingTool!)}>
