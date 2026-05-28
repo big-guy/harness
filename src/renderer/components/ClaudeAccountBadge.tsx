@@ -1,19 +1,8 @@
 import type { BadgeColor, BadgeShape, ClaudeAccountBadge as Badge } from '../../shared/state/repo-local'
 
-// Concrete tailwind classes keyed by BadgeColor. Listed verbatim so the
-// Tailwind compiler can see them — interpolation like `bg-${color}-500`
-// would get tree-shaken.
-const COLOR_BG: Record<BadgeColor, string> = {
-  blue: 'bg-blue-500',
-  green: 'bg-emerald-500',
-  orange: 'bg-orange-500',
-  purple: 'bg-purple-500',
-  red: 'bg-red-500',
-  yellow: 'bg-amber-400'
-}
-
-// SVG fill colors that match COLOR_BG. Triangle uses an SVG path so it
-// can't ride on a Tailwind bg-* class.
+// SVG fill colors per badge color. Kept as hex strings so the four
+// shapes (all rendered as SVG paths/polygons) can share one render
+// path — there's no tailwind bg-* fallback for SVG fills.
 const COLOR_FILL: Record<BadgeColor, string> = {
   blue: '#3b82f6',
   green: '#10b981',
@@ -32,36 +21,53 @@ interface ClaudeAccountBadgeProps {
   title?: string
 }
 
+function ShapeContent({ shape, color }: { shape: BadgeShape; color: string }): JSX.Element {
+  switch (shape) {
+    case 'square':
+      return <rect x="1" y="1" width="8" height="8" fill={color} />
+    case 'pentagon':
+      // Regular pentagon, point up, centered on (5,5) with radius 4.
+      return (
+        <polygon
+          points="5,1 8.8,3.76 7.35,8.24 2.65,8.24 1.2,3.76"
+          fill={color}
+        />
+      )
+    case 'cross':
+      // Plus sign, 3-unit-thick bars, 9-unit length, centered on (5,5).
+      return (
+        <path
+          d="M 3.5 0.5 H 6.5 V 3.5 H 9.5 V 6.5 H 6.5 V 9.5 H 3.5 V 6.5 H 0.5 V 3.5 H 3.5 Z"
+          fill={color}
+        />
+      )
+    case 'astroid':
+      // 4-cusp astroid via four quadratic Béziers with the control point
+      // pulled to the center (5,5), bowing each side inward.
+      return (
+        <path
+          d="M 9 5 Q 5 5 5 9 Q 5 5 1 5 Q 5 5 5 1 Q 5 5 9 5 Z"
+          fill={color}
+        />
+      )
+  }
+}
+
 export function ClaudeAccountBadge({
   badge,
   sizeClass = 'w-2.5 h-2.5',
   title
 }: ClaudeAccountBadgeProps): JSX.Element {
-  if (badge.shape === 'triangle') {
-    return (
-      <svg
-        viewBox="0 0 10 10"
-        className={`${sizeClass} shrink-0`}
-        aria-hidden="true"
-      >
-        {title && <title>{title}</title>}
-        <polygon points="5,1 9,9 1,9" fill={COLOR_FILL[badge.color]} />
-      </svg>
-    )
-  }
-  const shapeClass =
-    badge.shape === 'circle'
-      ? 'rounded-full'
-      : badge.shape === 'diamond'
-        ? 'rotate-45'
-        : 'rounded-sm'
   return (
-    <span
-      className={`${sizeClass} ${COLOR_BG[badge.color]} ${shapeClass} shrink-0 inline-block`}
-      title={title}
+    <svg
+      viewBox="0 0 10 10"
+      className={`${sizeClass} shrink-0`}
       aria-hidden={title ? undefined : true}
-    />
+    >
+      {title && <title>{title}</title>}
+      <ShapeContent shape={badge.shape} color={COLOR_FILL[badge.color]} />
+    </svg>
   )
 }
 
-export { COLOR_BG as BADGE_COLOR_BG, COLOR_FILL as BADGE_COLOR_FILL }
+export { COLOR_FILL as BADGE_COLOR_FILL }
