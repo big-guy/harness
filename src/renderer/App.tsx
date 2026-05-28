@@ -525,10 +525,12 @@ const setQuestStep = useCallback((next: QuestStep) => {
   }, [activeWorktreeId, activeTabId])
 
   // When a worktree becomes active, refresh its PR status if stale.
-  // Pane initialization runs in main via WorktreesFSM. Claude hooks
-  // load via --plugin-dir on every spawn (see src/main/claude-plugin.ts);
-  // Codex hooks are installed at user scope once when consent is
-  // accepted (see the hooks:accept IPC handler in src/main/index.ts).
+  // Pane initialization runs in main via WorktreesFSM. Both Claude and
+  // Codex now read the same bundled plugin tree: Claude via
+  // --plugin-dir on every spawn, Codex via the `codex plugin
+  // marketplace add` + `codex plugin add` registered at consent time
+  // (see src/main/codex-plugin.ts and the hooks:accept IPC handler in
+  // src/main/index.ts).
   useEffect(() => {
     if (!activeWorktreeId) return
     if (isPendingId(activeWorktreeId)) return
@@ -1052,9 +1054,9 @@ const setQuestStep = useCallback((next: QuestStep) => {
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="text-fg-bright text-sm font-medium">Install Codex status hooks</div>
+                    <div className="text-fg-bright text-sm font-medium">Install Harness status plugin for Codex</div>
                     <div className="text-xs text-dim mt-0.5">
-                      Adds a small hook at <code className="bg-app/50 px-1 rounded">~/.codex/hooks.json</code> so Harness can tell when a Codex agent is{' '}
+                      Registers Harness's bundled plugin with Codex (one entry in <code className="bg-app/50 px-1 rounded">~/.codex/config.toml</code>) so Harness can tell when a Codex agent is{' '}
                       <span className="inline-flex items-center gap-1 whitespace-nowrap">
                         <span className="w-1.5 h-1.5 rounded-full bg-success" />
                         <span className="text-fg">working</span>
@@ -1081,7 +1083,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
                           : 'bg-panel border border-border text-dim hover:text-fg hover:border-border-strong'
                     }`}
                   >
-                    Install hooks
+                    Install plugin
                   </button>
                   <button
                     onClick={handleDeclineHooks}
@@ -1270,32 +1272,10 @@ const setQuestStep = useCallback((next: QuestStep) => {
         </div>
       )}
 
-      {/* Hooks consent banner — one-time prompt for Codex status hook
-          install at ~/.codex/hooks.json. Claude rides along via a
-          bundled plugin (no consent needed). The hook command is gated
-          on $HARNESS_TERMINAL_ID so sessions spawned outside Harness
-          are unaffected. */}
-      {hooksConsent === 'pending' && (
-        <div className="bg-warning/15 border-b border-warning/30 pl-20 pr-4 py-2.5 drag-region flex items-center gap-3 shrink-0">
-          <span className="text-warning text-sm flex-1">
-            Harness can install status hooks at <code className="text-xs">~/.codex/hooks.json</code> to detect
-            Codex agent state (waiting, processing, needs approval). They only fire for Codex sessions you
-            launch inside Harness and can be removed at any time from Settings. Skip if you don't use Codex.
-          </span>
-          <button
-            onClick={handleAcceptHooks}
-            className="px-3 py-1 bg-warning/30 hover:bg-warning/40 rounded text-sm text-warning transition-colors shrink-0 cursor-pointer no-drag"
-          >
-            Enable
-          </button>
-          <button
-            onClick={handleDeclineHooks}
-            className="px-3 py-1 text-warning/80 hover:text-warning text-sm transition-colors shrink-0 cursor-pointer no-drag"
-          >
-            Skip
-          </button>
-        </div>
-      )}
+      {/* Codex plugin consent prompt now appears in-tab when the user
+          actually spawns a Codex agent (see XTerminal.tsx) rather than
+          as a top-of-app banner — most users never run Codex and the
+          banner was nagging them about a feature they don't use. */}
 
       <div className="flex flex-1 min-h-0">
         {!singleScreenMode && sidebarVisible && (
