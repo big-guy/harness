@@ -133,6 +133,9 @@ export interface DesktopShellStartDeps {
    *  feature managers (e.g. approval-bridge) that live there can clean
    *  up without desktop-shell needing to know about them. */
   onBeforeQuit?: () => void
+  /** Persist + dispatch the "Warn Before Quitting" toggle. Shared with the
+   *  Settings IPC handler so the app-menu checkbox stays in sync. */
+  setWarnBeforeQuitting: (enabled: boolean) => void
 }
 
 export interface DesktopShellStartHandle {
@@ -155,7 +158,8 @@ export function startDesktopShell(deps: DesktopShellStartDeps): DesktopShellStar
     getStopWatchingStatus,
     setStopWatchingStatus,
     onRepoAdded,
-    onBeforeQuit
+    onBeforeQuit,
+    setWarnBeforeQuitting
   } = deps
 
   registerDesktopHandlers()
@@ -337,6 +341,17 @@ export function startDesktopShell(deps: DesktopShellStartDeps): DesktopShellStar
           { role: 'hide' },
           { role: 'hideOthers' },
           { role: 'unhide' },
+          { type: 'separator' },
+          // Toggles the hold-⌘Q-to-quit gesture (see before-input-event
+          // below). `checked` reads live state; buildMenu() re-runs when
+          // the setting changes (store subscription) so the menu and the
+          // Settings toggle stay in sync.
+          {
+            label: 'Warn Before Quitting (⌘Q)',
+            type: 'checkbox',
+            checked: store.getSnapshot().state.settings.warnBeforeQuitting,
+            click: (item) => setWarnBeforeQuitting(item.checked)
+          },
           { type: 'separator' },
           // Custom Quit with NO accelerator: macOS ignores
           // registerAccelerator:false for app-menu items and binds ⌘Q
@@ -725,7 +740,11 @@ export function startDesktopShell(deps: DesktopShellStartDeps): DesktopShellStar
     contents.on('before-input-event', (_event, input) => {
       const isQ = input.key === 'q' || input.key === 'Q'
       if (input.type === 'keyDown' && input.meta && isQ) {
-        startHoldToQuit()
+        if (!store.getSnapshot().state.settings.warnBeforeQuitting) {
+          app.quit() // gesture disabled — ⌘Q quits immediately
+        } else {
+          startHoldToQuit()
+        }
       } else if (input.type === 'keyUp' && (input.key === 'Meta' || isQ)) {
         cancelHoldToQuit()
       } else if (input.type === 'keyDown' && holdQuitTimer) {
@@ -735,6 +754,18 @@ export function startDesktopShell(deps: DesktopShellStartDeps): DesktopShellStar
   })
   // Safety net: losing window focus mid-hold (e.g. ⌘-Tab) cancels too.
   app.on('browser-window-blur', () => cancelHoldToQuit())
+
+  // Keep the "Warn Before Quitting" menu checkbox in sync when the setting
+  // is toggled from Settings (or anywhere). Cheap: re-derive one boolean
+  // per store event and only rebuild the menu when it actually flips.
+  let lastWarnBeforeQuitting = store.getSnapshot().state.settings.warnBeforeQuitting
+  store.subscribe(() => {
+    const warn = store.getSnapshot().state.settings.warnBeforeQuitting
+    if (warn !== lastWarnBeforeQuitting) {
+      lastWarnBeforeQuitting = warn
+      buildMenu()
+    }
+  })
 
   app.on('before-quit', () => {
     getStopWatchingStatus()?.()
