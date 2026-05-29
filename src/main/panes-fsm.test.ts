@@ -210,3 +210,128 @@ describe('PanesFSM.restoreFromConfig', () => {
     expect(chatTab?.mode).toBe('asleep')
   })
 })
+
+describe('PanesFSM runner tabs', () => {
+  const PREFIX = 'shell-runner-wt-dev-'
+
+  it('openRunnerTab creates a shell tab with the command and prefixed id', () => {
+    const { fsm, store } = buildFSM()
+    const wtPath = '/wt/r1'
+    seedLeaf(store, wtPath, {
+      type: 'leaf',
+      id: 'pane-1',
+      tabs: [{ id: 'agent-1', type: 'agent', label: 'Claude' }],
+      activeTabId: 'agent-1'
+    })
+
+    fsm.openRunnerTab(wtPath, PREFIX, 'Dev server', 'npm run dev', 'pane-1')
+
+    const leaf = store.getSnapshot().state.terminals.panes[wtPath] as PaneLeaf
+    const tab = leaf.tabs.find((t) => t.type === 'shell')
+    expect(tab?.id.startsWith(PREFIX)).toBe(true)
+    expect(tab?.command).toBe('npm run dev')
+    expect(tab?.label).toBe('Dev server')
+    expect(leaf.activeTabId).toBe(tab?.id)
+  })
+
+  it('cardinality 1 focuses the existing tab instead of spawning a duplicate', () => {
+    const { fsm, store } = buildFSM()
+    const wtPath = '/wt/r2'
+    seedLeaf(store, wtPath, {
+      type: 'leaf',
+      id: 'pane-1',
+      tabs: [
+        { id: `${PREFIX}111`, type: 'shell', label: 'Dev server', command: 'npm run dev' },
+        { id: 'sh-2', type: 'shell', label: 'Shell' }
+      ],
+      activeTabId: 'sh-2'
+    })
+
+    fsm.openRunnerTab(wtPath, PREFIX, 'Dev server', 'npm run dev', 'pane-1', 1)
+
+    const leaf = store.getSnapshot().state.terminals.panes[wtPath] as PaneLeaf
+    expect(leaf.tabs.filter((t) => t.id.startsWith(PREFIX))).toHaveLength(1)
+    expect(leaf.activeTabId).toBe(`${PREFIX}111`)
+  })
+
+  it('unlimited cardinality (undefined) spawns a new instance each launch', () => {
+    const { fsm, store } = buildFSM()
+    const wtPath = '/wt/r2b'
+    seedLeaf(store, wtPath, {
+      type: 'leaf',
+      id: 'pane-1',
+      tabs: [{ id: `${PREFIX}111`, type: 'shell', label: 'Dev server', command: 'npm run dev' }],
+      activeTabId: `${PREFIX}111`
+    })
+
+    fsm.openRunnerTab(wtPath, PREFIX, 'Dev server', 'npm run dev', 'pane-1')
+
+    const leaf = store.getSnapshot().state.terminals.panes[wtPath] as PaneLeaf
+    expect(leaf.tabs.filter((t) => t.id.startsWith(PREFIX))).toHaveLength(2)
+  })
+
+  it('cardinality N caps concurrent instances and focuses most recent at the cap', () => {
+    const { fsm, store } = buildFSM()
+    const wtPath = '/wt/r2c'
+    seedLeaf(store, wtPath, {
+      type: 'leaf',
+      id: 'pane-1',
+      tabs: [{ id: `${PREFIX}111`, type: 'shell', label: 'Dev', command: 'x' }],
+      activeTabId: `${PREFIX}111`
+    })
+
+    // Under cap (1 < 2) → spawns a second.
+    fsm.openRunnerTab(wtPath, PREFIX, 'Dev', 'x', 'pane-1', 2)
+    let leaf = store.getSnapshot().state.terminals.panes[wtPath] as PaneLeaf
+    expect(leaf.tabs.filter((t) => t.id.startsWith(PREFIX))).toHaveLength(2)
+    const newest = leaf.tabs.filter((t) => t.id.startsWith(PREFIX)).map((t) => t.id).sort().at(-1)!
+
+    // At cap (2 >= 2) → no new tab, focus the most-recent instance.
+    fsm.openRunnerTab(wtPath, PREFIX, 'Dev', 'x', 'pane-1', 2)
+    leaf = store.getSnapshot().state.terminals.panes[wtPath] as PaneLeaf
+    expect(leaf.tabs.filter((t) => t.id.startsWith(PREFIX))).toHaveLength(2)
+    expect(leaf.activeTabId).toBe(newest)
+  })
+
+  it('restartRunnerTab kills the PTY and swaps the id (remount → respawn)', () => {
+    const store = new Store()
+    const killed: string[] = []
+    const fsm = new PanesFSM(store, {
+      persist: () => {},
+      getRepoRootForWorktree: () => undefined,
+      getLatestClaudeSessionId: async () => null,
+      killTabPty: (id) => killed.push(id)
+    })
+    const wtPath = '/wt/r3'
+    seedLeaf(store, wtPath, {
+      type: 'leaf',
+      id: 'pane-1',
+      tabs: [{ id: `${PREFIX}111`, type: 'shell', label: 'Dev server', command: 'npm run dev' }],
+      activeTabId: `${PREFIX}111`
+    })
+
+    fsm.restartRunnerTab(wtPath, PREFIX)
+
+    expect(killed).toEqual([`${PREFIX}111`])
+    const leaf = store.getSnapshot().state.terminals.panes[wtPath] as PaneLeaf
+    const tab = leaf.tabs.find((t) => t.type === 'shell')
+    expect(tab?.id.startsWith(PREFIX)).toBe(true)
+    expect(tab?.id).not.toBe(`${PREFIX}111`) // id swapped so XTerminal remounts
+    expect(tab?.command).toBe('npm run dev') // command preserved
+    expect(leaf.activeTabId).toBe(tab?.id)
+  })
+
+  it('restartRunnerTab is a no-op when the runner has no open tab', () => {
+    const { fsm, store } = buildFSM()
+    const wtPath = '/wt/r4'
+    seedLeaf(store, wtPath, {
+      type: 'leaf',
+      id: 'pane-1',
+      tabs: [{ id: 'sh-1', type: 'shell', label: 'Shell' }],
+      activeTabId: 'sh-1'
+    })
+    const before = store.getSnapshot().state.terminals.panes[wtPath]
+    fsm.restartRunnerTab(wtPath, PREFIX)
+    expect(store.getSnapshot().state.terminals.panes[wtPath]).toBe(before)
+  })
+})

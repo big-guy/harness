@@ -407,6 +407,38 @@ const TOOLS = [
       },
       required: ['shell_id']
     }
+  },
+  {
+    name: 'register_runner',
+    description:
+      'Register a named "runner" — a shell command a human manager/overseer can launch on demand from the Toolbox dropdown in the tab toolbar (each runner opens in a new shell tab). Runners are scoped to THIS worktree (the one you are running in) and persist across restarts; registering an existing name updates it. PROACTIVELY register runners a human watching over your work would find useful: starting the dev server, running the test suite or a specific failing test, tailing logs, opening a DB console, formatting/linting, a production build, a deploy preview — anything that lets a person quickly verify or operate on what you built without retyping commands. Keep names short and command-lines copy-paste-ready (they run via `zsh -ilc`).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Short, unique display name shown in the dropdown (e.g. "Dev server", "Run tests").'
+        },
+        description: {
+          type: 'string',
+          description: 'What this runner does. Shown as the dropdown item\'s tooltip, so write it for a human overseer.'
+        },
+        command: {
+          type: 'string',
+          description: 'Shell command to run, executed via `zsh -ilc <command>` in a new shell tab (e.g. "npm run dev").'
+        },
+        icon: {
+          type: 'string',
+          description: 'Optional Lucide icon name shown next to the runner in the dropdown (e.g. "Play", "FlaskConical", "Hammer", "ScrollText"). PascalCase or kebab-case both work. Browse names at https://lucide.dev/icons. Invalid names are ignored (no icon shown).'
+        },
+        cardinality: {
+          type: 'integer',
+          minimum: 1,
+          description: 'Optional max number of concurrent instances of this runner that can run in the worktree. Omit for unlimited (each launch opens a new shell tab). Use 1 for a single-instance runner (e.g. a dev server) — single-instance runners also get a stop/restart button in the dropdown.'
+        }
+      },
+      required: ['name', 'description', 'command']
+    }
   }
 ]
 
@@ -662,6 +694,28 @@ async function handleToolCall(name, args) {
     if (!args || !args.shell_id) throw new Error('shell_id is required')
     await callControl('POST', '/shells/kill', { shellId: args.shell_id })
     return 'killed ' + args.shell_id
+  }
+  if (name === 'register_runner') {
+    const runnerName = args && typeof args.name === 'string' ? args.name.trim() : ''
+    const command = args && typeof args.command === 'string' ? args.command.trim() : ''
+    const description =
+      args && typeof args.description === 'string' ? args.description.trim() : ''
+    const icon = args && typeof args.icon === 'string' ? args.icon.trim() : ''
+    const cardinality =
+      args && typeof args.cardinality === 'number' && Number.isFinite(args.cardinality)
+        ? args.cardinality
+        : undefined
+    if (!runnerName || !command) {
+      throw new Error('name and command are required')
+    }
+    const r = await callControl('POST', '/runners', {
+      name: runnerName,
+      description,
+      command,
+      icon,
+      cardinality
+    })
+    return 'Registered runner "' + r.name + '" → ' + command
   }
   throw new Error('unknown tool: ' + name)
 }

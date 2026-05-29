@@ -497,6 +497,82 @@ export class PanesFSM {
     this.opts.persist(this.buildPersistPayload())
   }
 
+  /** A runner's shell tab is identified by a stable id prefix (the renderer
+   *  derives it from worktree + runner name). All tabs that runner has
+   *  spawned share the prefix, so we can find/focus/restart "this runner's
+   *  tab" regardless of the unique suffix. */
+  private findRunnerTabId(wtPath: string, idPrefix: string): string | null {
+    const tree = this.getTree(wtPath)
+    if (!tree) return null
+    for (const leaf of getLeaves(tree)) {
+      const tab = leaf.tabs.find((t) => t.type === 'shell' && t.id.startsWith(idPrefix))
+      if (tab) return tab.id
+    }
+    return null
+  }
+
+  /** Open a runner's shell tab — a shell running `command`. `cardinality`
+   *  caps concurrent instances per worktree: undefined = unlimited (every
+   *  launch spawns a new tab); when set, once that many instances are open we
+   *  focus the most-recent one instead of spawning another (so cardinality 1
+   *  behaves as focus-or-create). `nearPaneId` targets the pane the Toolbox
+   *  was clicked in. */
+  openRunnerTab(
+    wtPath: string,
+    idPrefix: string,
+    label: string,
+    command: string,
+    nearPaneId?: string,
+    cardinality?: number
+  ): void {
+    const tree = this.getTree(wtPath)
+    const matches = tree
+      ? getLeaves(tree).flatMap((leaf) =>
+          leaf.tabs
+            .filter((t) => t.type === 'shell' && t.id.startsWith(idPrefix))
+            .map((t) => ({ paneId: leaf.id, tabId: t.id }))
+        )
+      : []
+    if (tree && cardinality != null && matches.length >= cardinality) {
+      const suffixNum = (id: string): number => Number(id.slice(idPrefix.length)) || 0
+      const mostRecent = matches.reduce((a, b) =>
+        suffixNum(b.tabId) >= suffixNum(a.tabId) ? b : a
+      )
+      const updated = mapLeaves(tree, (l) =>
+        l.id === mostRecent.paneId ? { ...l, activeTabId: mostRecent.tabId } : l
+      )
+      this.commit(wtPath, updated)
+      return
+    }
+    const tab: TerminalTab = {
+      id: `${idPrefix}${Date.now()}`,
+      type: 'shell',
+      label,
+      command
+    }
+    this.addTab(wtPath, tab, nearPaneId)
+  }
+
+  /** Stop and restart a runner's shell tab in place: kill the current PTY and
+   *  swap the tab id so the renderer remounts the XTerminal and re-runs the
+   *  command (same mechanism as restartAgentTab). No-op if the runner has no
+   *  open tab. */
+  restartRunnerTab(wtPath: string, idPrefix: string): void {
+    const oldId = this.findRunnerTabId(wtPath, idPrefix)
+    if (!oldId) return
+    const tree = this.getTree(wtPath)
+    if (!tree) return
+    const newId = `${idPrefix}${Date.now()}`
+    this.opts.killTabPty?.(oldId)
+    const updated = mapLeaves(tree, (leaf) => {
+      if (!leaf.tabs.some((t) => t.id === oldId)) return leaf
+      const tabs = leaf.tabs.map((t) => (t.id === oldId ? { ...t, id: newId } : t))
+      const activeTabId = leaf.activeTabId === oldId ? newId : leaf.activeTabId
+      return { ...leaf, tabs, activeTabId }
+    })
+    this.commit(wtPath, updated)
+  }
+
   reorderTabs(
     wtPath: string,
     paneId: string,

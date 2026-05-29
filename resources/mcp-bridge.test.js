@@ -275,6 +275,67 @@ describe('mcp-bridge create_worktree', () => {
     expect(postCall).toBeUndefined()
   })
 
+  it('register_runner forwards name/description/command to POST /runners', async () => {
+    stub = await startStub((req, body, res) => {
+      if (req.url === '/scope') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        return res.end(JSON.stringify({ scope: null, browser: { enabled: true, mode: 'full' } }))
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ name: body.name }))
+    })
+    bridge = spawnBridge(stub.port, 'tok')
+
+    bridge.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })
+    await bridge.next()
+    bridge.send({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: {
+        name: 'register_runner',
+        arguments: { name: 'Dev server', description: 'start the dev server', command: 'npm run dev', icon: 'Play', cardinality: 1 }
+      }
+    })
+    const response = await bridge.next()
+
+    expect(response.result.isError).toBeFalsy()
+    expect(response.result.content[0].text).toContain('Dev server')
+    expect(response.result.content[0].text).toContain('npm run dev')
+
+    const postCall = stub.captured.find((c) => c.method === 'POST' && c.url === '/runners')
+    expect(postCall).toBeDefined()
+    expect(postCall.auth).toBe('Bearer tok')
+    expect(postCall.body.name).toBe('Dev server')
+    expect(postCall.body.description).toBe('start the dev server')
+    expect(postCall.body.command).toBe('npm run dev')
+    expect(postCall.body.icon).toBe('Play')
+    expect(postCall.body.cardinality).toBe(1)
+  })
+
+  it('register_runner rejects missing command locally without hitting the server', async () => {
+    stub = await startStub((req, body, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ scope: null, browser: { enabled: true, mode: 'full' } }))
+    })
+    bridge = spawnBridge(stub.port, 'tok')
+
+    bridge.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })
+    await bridge.next()
+    bridge.send({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'register_runner', arguments: { name: 'Broken' } }
+    })
+    const response = await bridge.next()
+
+    expect(response.result.isError).toBe(true)
+    expect(response.result.content[0].text).toMatch(/name and command/)
+    const postCall = stub.captured.find((c) => c.method === 'POST' && c.url === '/runners')
+    expect(postCall).toBeUndefined()
+  })
+
   it('surfaces server-side PR failures back to the caller', async () => {
     stub = await startStub((req, body, res) => {
       if (req.url === '/scope') {

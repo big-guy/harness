@@ -74,6 +74,7 @@ import type {
   PaneSplit
 } from '../shared/state/terminals'
 export type { AgentKind, PtyStatus, PendingTool, SplitDirection, TerminalTab, WorkspacePane, PaneNode, PaneLeaf, PaneSplit }
+export type { RunnerItem } from '../shared/state/runners'
 
 export interface PersistedTab {
   id: string
@@ -408,6 +409,16 @@ export interface ElectronAPI {
   panesEnsureInitialized(wtPath: string): Promise<boolean>
   panesSleepTab(wtPath: string, tabId: string): Promise<boolean>
   panesWakeTab(wtPath: string, tabId: string): Promise<boolean>
+  panesOpenRunner(
+    wtPath: string,
+    idPrefix: string,
+    label: string,
+    command: string,
+    nearPaneId?: string,
+    cardinality?: number
+  ): Promise<boolean>
+  panesRestartRunner(wtPath: string, idPrefix: string): Promise<boolean>
+  removeRunner(wtPath: string, name: string): Promise<boolean>
   touchWorktreeLastActive(wtPath: string): Promise<boolean>
   getTerminalHistory(id: string): Promise<string>
   clearTerminalHistory(id: string): Promise<boolean>

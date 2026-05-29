@@ -31,7 +31,8 @@ import {
   rootReducer,
   type AppState,
   type StateEvent,
-  type WireSnapshotState
+  type WireSnapshotState,
+  type RunnerItem
 } from '../shared/state'
 import type { LocalTransportHandle, BackendConnection } from './types'
 import { WebSocketClientTransport } from '../shared/transport/transport-websocket'
@@ -573,6 +574,14 @@ export function usePanes() {
   return useAppState((s) => s.terminals.panes)
 }
 
+/** Pane tree for one worktree (or null). Per-id selector — re-renders only
+ *  when this worktree's tree changes, not on every other worktree's. */
+export function usePanesForWorktree(worktreePath: string | null) {
+  return useAppState((s) =>
+    worktreePath ? s.terminals.panes[worktreePath] ?? null : null
+  )
+}
+
 export function useLastActive() {
   return useAppState((s) => s.terminals.lastActive)
 }
@@ -591,6 +600,17 @@ export function useRepoConfigs() {
 
 export function useCosts() {
   return useAppState((s) => s.costs)
+}
+
+const EMPTY_RUNNERS: readonly RunnerItem[] = []
+
+/** Registered runners for one worktree (Toolbox dropdown), kept sorted by
+ *  name in the reducer. Per-worktree selector — returns a stable empty array
+ *  for worktrees with no runners so it doesn't churn re-renders. */
+export function useRunners(worktreePath: string | null) {
+  return useAppState((s) =>
+    worktreePath ? s.runners.byWorktree[worktreePath] ?? EMPTY_RUNNERS : EMPTY_RUNNERS
+  )
 }
 
 export function useSnooze() {

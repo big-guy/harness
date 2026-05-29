@@ -11,6 +11,7 @@ import {
 } from './persistence-migrations'
 import type { CostsState } from '../shared/state/costs'
 import type { SnoozeEntry } from '../shared/state/snooze'
+import type { RunnerItem } from '../shared/state/runners'
 
 export type { PersistedPane, PersistedPaneNode, PersistedTab }
 
@@ -256,6 +257,11 @@ export interface Config {
   // Same nesting scheme as `panes` so two repos with identical worktree
   // paths stay distinct. Absent / empty entries are pruned on write.
   scratchpadNotes?: Record<string, Record<string, string>>
+  // Runners registered via the register_runner MCP tool — named shell
+  // commands a human can launch from the Toolbox dropdown. Scoped per
+  // worktree (keyed by absolute worktree path). Persisted so they survive
+  // restart.
+  runners?: Record<string, RunnerItem[]>
 }
 
 export const DEFAULT_WORKTREE_BASE: 'remote' | 'local' = 'remote'

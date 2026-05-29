@@ -1,5 +1,5 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
-import { X, SquareTerminal, Sparkles, Loader2, Globe, Users, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react'
+import { X, SquareTerminal, Sparkles, Loader2, Globe, Users, ChevronLeft, ChevronRight, Toolbox, RotateCcw } from 'lucide-react'
 import {
   SortableContext,
   horizontalListSortingStrategy,
@@ -7,12 +7,14 @@ import {
 } from '@dnd-kit/sortable'
 import { useDroppable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import type { WorkspacePane, TerminalTab, PtyStatus, AgentKind } from '../types'
+import type { WorkspacePane, TerminalTab, PtyStatus, AgentKind, RunnerItem } from '../types'
 import { AGENT_REGISTRY, agentDisplayName } from '../../shared/agent-registry'
 import { Tooltip } from './Tooltip'
 import { repoNameColor } from './RepoIcon'
-import { getClientId, useTerminalProgress, useTerminalSession } from '../store'
+import { getClientId, useRunners, usePanesForWorktree, useTerminalProgress, useTerminalSession } from '../store'
+import { getLeaves } from '../../shared/state'
 import { useBackend } from '../backend'
+import { resolveLucideIcon } from '../lucide-icon'
 
 /** Chip shown in the tab bar when other clients are attached to the
  *  active terminal. Click-through is intentional — taking/releasing
@@ -102,6 +104,16 @@ const TAB_STATUS_DOT: Record<PtyStatus, string> = {
   processing: 'bg-success',
   waiting: 'bg-warning',
   'needs-approval': 'bg-danger'
+}
+
+/** Stable id prefix for a runner's shell tab(s). Every tab a given runner
+ *  spawns shares this prefix (the unique suffix is appended by the FSM), so
+ *  the Toolbox can find / focus / restart "this runner's tab". The trailing
+ *  dash prevents one runner's prefix from matching another whose name is a
+ *  prefix of it (e.g. "dev" vs "dev2"). */
+function runnerTabPrefix(worktreePath: string, name: string): string {
+  const slug = (s: string): string => s.replace(/[^a-zA-Z0-9]+/g, '-')
+  return `shell-runner-${slug(worktreePath)}-${slug(name)}-`
 }
 
 interface SortableTabProps {
@@ -438,6 +450,64 @@ export function TerminalPanel({
   const showSpectatorChip =
     !!activeTab && (activeTab.type === 'agent' || activeTab.type === 'shell')
 
+  // Toolbox dropdown: registered runners a human can launch into a new
+  // shell tab. The list lives in the runners slice (kept sorted by name).
+  const runners = useRunners(worktreePath)
+  const [toolboxOpen, setToolboxOpen] = useState(false)
+  const toolboxRef = useRef<HTMLDivElement | null>(null)
+  // Worktree pane tree — used to tell which runners currently have a shell
+  // tab open (so the restart button only shows when there's something to
+  // restart). Per-worktree selector keeps this from re-rendering on other
+  // worktrees' pane changes.
+  const worktreeTree = usePanesForWorktree(worktreePath)
+  const openShellTabIds = useMemo(() => {
+    if (!worktreeTree) return [] as string[]
+    return getLeaves(worktreeTree).flatMap((leaf) =>
+      leaf.tabs.filter((t) => t.type === 'shell').map((t) => t.id)
+    )
+  }, [worktreeTree])
+  const runnerHasOpenTab = useCallback(
+    (runner: RunnerItem): boolean => {
+      const prefix = runnerTabPrefix(worktreePath, runner.name)
+      return openShellTabIds.some((id) => id.startsWith(prefix))
+    },
+    [openShellTabIds, worktreePath]
+  )
+  useEffect(() => {
+    if (!toolboxOpen) return
+    const close = (e: MouseEvent): void => {
+      if (toolboxRef.current && !toolboxRef.current.contains(e.target as Node)) {
+        setToolboxOpen(false)
+      }
+    }
+    window.addEventListener('mousedown', close)
+    return () => window.removeEventListener('mousedown', close)
+  }, [toolboxOpen])
+  const launchRunner = useCallback(
+    (runner: RunnerItem) => {
+      void backend.panesOpenRunner(
+        worktreePath,
+        runnerTabPrefix(worktreePath, runner.name),
+        runner.name,
+        runner.command,
+        pane.id,
+        runner.cardinality
+      )
+      setToolboxOpen(false)
+    },
+    [backend, worktreePath, pane.id]
+  )
+  const restartRunner = useCallback(
+    (runner: RunnerItem) => {
+      void backend.panesRestartRunner(
+        worktreePath,
+        runnerTabPrefix(worktreePath, runner.name)
+      )
+      setToolboxOpen(false)
+    },
+    [backend, worktreePath]
+  )
+
   const tabScrollRef = useRef<HTMLDivElement | null>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
@@ -564,6 +634,82 @@ export function TerminalPanel({
               <Globe className="icon-xs" />
             </button>
           </Tooltip>
+          <div ref={toolboxRef} className="relative shrink-0 h-full flex items-center">
+            <Tooltip label="Toolbox — launch a registered runner">
+              <button
+                onClick={() => setToolboxOpen((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={toolboxOpen}
+                className={`no-drag shrink-0 px-2 h-full text-sm transition-colors cursor-pointer ${
+                  toolboxOpen ? 'text-fg' : 'text-faint hover:text-fg'
+                }`}
+              >
+                <Toolbox className="icon-xs" />
+              </button>
+            </Tooltip>
+            {toolboxOpen && (
+              <div
+                role="menu"
+                className="absolute left-0 top-full mt-1 z-50 bg-panel-raised border border-border-strong rounded shadow-lg text-xs py-1 min-w-[12rem] max-w-[20rem] max-h-[60vh] overflow-y-auto"
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                {runners.length === 0 ? (
+                  <div className="px-3 py-2 text-faint">
+                    No runners registered. Agents can add them with the
+                    register_runner tool.
+                  </div>
+                ) : (
+                  runners.map((runner) => {
+                    const Icon = resolveLucideIcon(runner.icon)
+                    // Restart only makes sense for single-instance runners —
+                    // with unlimited or N>1 instances there's no unambiguous
+                    // "the" tab to restart.
+                    const showRestart = runner.cardinality === 1 && runnerHasOpenTab(runner)
+                    return (
+                      <div
+                        key={runner.name}
+                        role="menuitem"
+                        className="flex items-center hover:bg-panel"
+                      >
+                        <button
+                          title={runner.description}
+                          className="flex items-center gap-2 flex-1 min-w-0 text-left px-3 py-1.5 text-fg-bright cursor-pointer"
+                          onClick={() => launchRunner(runner)}
+                        >
+                          {Icon && <Icon className="icon-sm shrink-0 text-faint" />}
+                          <span className="truncate">{runner.name}</span>
+                        </button>
+                        {showRestart && (
+                          <button
+                            title={`Restart "${runner.name}"`}
+                            aria-label={`Restart ${runner.name}`}
+                            className="shrink-0 px-2 py-1.5 text-faint hover:text-fg cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              restartRunner(runner)
+                            }}
+                          >
+                            <RotateCcw className="icon-sm" />
+                          </button>
+                        )}
+                        <button
+                          title={`Remove "${runner.name}"`}
+                          aria-label={`Remove ${runner.name}`}
+                          className="shrink-0 px-2 py-1.5 text-faint hover:text-danger cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void backend.removeRunner(worktreePath, runner.name)
+                          }}
+                        >
+                          <X className="icon-sm" />
+                        </button>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            )}
+          </div>
         </div>
         <div className="shrink-0 w-px h-4 bg-border-strong mx-1" />
         {canScrollLeft && (

@@ -314,6 +314,17 @@ export function buildBackend(
     panesEnsureInitialized: (wtPath: string) => req('panes:ensureInitialized', wtPath),
     panesSleepTab: (wtPath: string, tabId: string) => req('panes:sleepTab', wtPath, tabId),
     panesWakeTab: (wtPath: string, tabId: string) => req('panes:wakeTab', wtPath, tabId),
+    panesOpenRunner: (
+      wtPath: string,
+      idPrefix: string,
+      label: string,
+      command: string,
+      nearPaneId?: string,
+      cardinality?: number
+    ) => req('panes:openRunner', wtPath, idPrefix, label, command, nearPaneId, cardinality),
+    panesRestartRunner: (wtPath: string, idPrefix: string) =>
+      req('panes:restartRunner', wtPath, idPrefix),
+    removeRunner: (wtPath: string, name: string) => req('runners:remove', wtPath, name),
     touchWorktreeLastActive: (wtPath: string) =>
       req('terminals:touchLastActive', wtPath),
 

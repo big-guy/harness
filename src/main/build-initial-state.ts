@@ -12,6 +12,7 @@ import { initialJsonClaude } from '../shared/state/json-claude'
 import { initialSnooze } from '../shared/state/snooze'
 import { initialAnnouncements } from '../shared/state/announcements'
 import { initialScratchpad } from '../shared/state/scratchpad'
+import type { RunnerItem } from '../shared/state/runners'
 import {
   initialSettings,
   DEFAULT_LIGHT_THEME,
@@ -70,6 +71,7 @@ export function buildInitialAppState(
     snooze: config.snooze ? { byPath: { ...config.snooze } } : initialSnooze,
     announcements: initialAnnouncements,
     scratchpad: { byWorktreePath: flattenScratchpadNotes(config.scratchpadNotes) },
+    runners: { byWorktree: sanitizeRunners(config.runners) },
     settings: {
       ...initialSettings,
       themeMode:
@@ -144,4 +146,46 @@ export function buildInitialAppState(
       announcementsMuted: config.announcementsMuted === true
     }
   }
+}
+
+/** Drop malformed entries when seeding the per-worktree Runners slice from
+ *  disk. The on-disk shape is `{ [worktreePath]: RunnerItem[] }`; each runner
+ *  needs a non-empty name + command (description optional, coerced to '').
+ *  A legacy top-level array (the pre-per-worktree shape) is ignored. The
+ *  reducer re-sorts on load, so order here doesn't matter. */
+function sanitizeRunners(
+  raw: Record<string, RunnerItem[]> | undefined
+): Record<string, RunnerItem[]> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const out: Record<string, RunnerItem[]> = {}
+  for (const [worktreePath, list] of Object.entries(raw)) {
+    if (!worktreePath || !Array.isArray(list)) continue
+    const items: RunnerItem[] = []
+    const seen = new Set<string>()
+    for (const item of list) {
+      if (!item || typeof item !== 'object') continue
+      const name = typeof item.name === 'string' ? item.name.trim() : ''
+      const command = typeof item.command === 'string' ? item.command.trim() : ''
+      if (!name || !command) continue
+      const key = name.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      const icon = typeof item.icon === 'string' ? item.icon.trim() : ''
+      const cardinality =
+        typeof item.cardinality === 'number' &&
+        Number.isInteger(item.cardinality) &&
+        item.cardinality >= 1
+          ? item.cardinality
+          : undefined
+      items.push({
+        name,
+        command,
+        description: typeof item.description === 'string' ? item.description : '',
+        ...(icon ? { icon } : {}),
+        ...(cardinality != null ? { cardinality } : {})
+      })
+    }
+    if (items.length > 0) out[worktreePath] = items
+  }
+  return out
 }
