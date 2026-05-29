@@ -935,25 +935,219 @@ function toPRSummary(pr: ApiPRListItem): PRSummary {
     isFork: !!baseRepo && !!headRepo && baseRepo !== headRepo,
     updatedAt: pr.updated_at,
     url: pr.html_url,
-    draft: pr.draft
+    draft: pr.draft,
+    requestedReviewers: [],
+    reviewerStates: [],
+    labels: []
+  }
+}
+
+interface GraphQLListPR {
+  number: number
+  title: string
+  url: string
+  isDraft: boolean
+  updatedAt: string
+  baseRefName: string
+  headRefName: string
+  headRefOid: string
+  author: GraphQLActor | null
+  baseRepository: { nameWithOwner: string } | null
+  headRepository: { nameWithOwner: string } | null
+  reviewRequests: {
+    nodes: Array<{
+      requestedReviewer:
+        | { __typename: 'User'; login: string; avatarUrl: string }
+        | { __typename?: string }
+        | null
+    } | null> | null
+  } | null
+  reviews: {
+    nodes: Array<{
+      author: GraphQLActor | null
+      state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING'
+      submittedAt: string
+    } | null> | null
+  } | null
+  labels: { nodes: Array<{ name: string; color: string } | null> | null } | null
+  commits: {
+    nodes: Array<{
+      commit: {
+        statusCheckRollup: { state: 'ERROR' | 'EXPECTED' | 'FAILURE' | 'PENDING' | 'SUCCESS' } | null
+      }
+    } | null> | null
+  } | null
+}
+
+type GraphQLRollupState = 'ERROR' | 'EXPECTED' | 'FAILURE' | 'PENDING' | 'SUCCESS'
+
+function rollupToOverall(state: GraphQLRollupState): NonNullable<PRSummary['checksOverall']> {
+  switch (state) {
+    case 'SUCCESS':
+      return 'success'
+    case 'FAILURE':
+    case 'ERROR':
+      return 'failure'
+    case 'PENDING':
+    case 'EXPECTED':
+      return 'pending'
+  }
+}
+
+function buildPRSummaryFromGraphQL(pr: GraphQLListPR, upstreamFull: string): PRSummary {
+  const headFull = pr.headRepository?.nameWithOwner ?? null
+  const baseFull = pr.baseRepository?.nameWithOwner ?? upstreamFull
+  const isFork = !!headFull && !!baseFull && headFull !== baseFull
+
+  const requestedReviewers: PRSummary['requestedReviewers'] = []
+  for (const node of pr.reviewRequests?.nodes ?? []) {
+    const r = node?.requestedReviewer
+    if (r && (r as { __typename?: string }).__typename === 'User') {
+      const u = r as { login: string; avatarUrl: string }
+      requestedReviewers.push({ login: u.login, avatarUrl: u.avatarUrl })
+    }
+  }
+
+  // Dedupe to the latest non-PENDING/DISMISSED review per reviewer.
+  const latestByUser = new Map<
+    string,
+    { login: string; avatarUrl: string; state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED'; submittedAt: string }
+  >()
+  for (const r of pr.reviews?.nodes ?? []) {
+    if (!r?.author?.login) continue
+    if (r.state === 'PENDING' || r.state === 'DISMISSED') continue
+    const prev = latestByUser.get(r.author.login)
+    if (!prev || r.submittedAt > prev.submittedAt) {
+      latestByUser.set(r.author.login, {
+        login: r.author.login,
+        avatarUrl: r.author.avatarUrl ?? '',
+        state: r.state,
+        submittedAt: r.submittedAt
+      })
+    }
+  }
+  const reviewerStates = [...latestByUser.values()].map(({ login, avatarUrl, state }) => ({
+    login,
+    avatarUrl,
+    state
+  }))
+
+  const labels = (pr.labels?.nodes ?? [])
+    .filter((l): l is { name: string; color: string } => !!l)
+    .map((l) => ({ name: l.name, color: l.color }))
+
+  const rollup = pr.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state
+  const checksOverall = rollup ? rollupToOverall(rollup) : undefined
+
+  return {
+    number: pr.number,
+    title: pr.title,
+    author: pr.author?.login
+      ? { login: pr.author.login, avatarUrl: pr.author.avatarUrl ?? '' }
+      : null,
+    baseBranch: pr.baseRefName,
+    headBranch: pr.headRefName,
+    headSha: pr.headRefOid,
+    headRepoFullName: headFull,
+    isFork,
+    updatedAt: pr.updatedAt,
+    url: pr.url,
+    draft: pr.isDraft,
+    requestedReviewers,
+    reviewerStates,
+    labels,
+    checksOverall
   }
 }
 
 /** List the most recently updated open PRs for the given local repo.
  *  Returns null on auth/network failure so callers can show a graceful
- *  empty/error state. Capped at 50 to keep the modal fast. */
+ *  empty/error state. Capped at 50 to keep the modal fast.
+ *
+ *  Uses GraphQL so reviewer avatars, label colors, and checks rollup
+ *  come back in a single round trip — the REST /pulls list only
+ *  returns requested-reviewer logins (no review state) and skips
+ *  rollup entirely. */
 export async function listOpenPRs(repoRoot: string): Promise<PRSummary[] | null> {
-  const repoInfo = await getRepoInfo(repoRoot)
-  if (!repoInfo) return null
-  const { owner, repo } = repoInfo
+  const ctx = await getRepoContext(repoRoot)
+  if (!ctx) return null
+  const token = getCachedToken()
+  if (!token) return null
+  const { owner, repo } = ctx.upstream
+  const upstreamFull = `${owner}/${repo}`
+  const query = `query($owner:String!, $name:String!) {
+  repository(owner: $owner, name: $name) {
+    pullRequests(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
+      nodes {
+        number
+        title
+        url
+        isDraft
+        updatedAt
+        baseRefName
+        headRefName
+        headRefOid
+        author { login avatarUrl }
+        baseRepository { nameWithOwner }
+        headRepository { nameWithOwner }
+        reviewRequests(first: 20) {
+          nodes {
+            requestedReviewer {
+              __typename
+              ... on User { login avatarUrl }
+            }
+          }
+        }
+        reviews(last: 100) {
+          nodes {
+            author { login avatarUrl }
+            state
+            submittedAt
+          }
+        }
+        labels(first: 20) { nodes { name color } }
+        commits(last: 1) {
+          nodes {
+            commit {
+              statusCheckRollup { state }
+            }
+          }
+        }
+      }
+    }
+  }
+}`
   try {
-    const list = (await githubFetch(
-      `https://api.github.com/repos/${owner}/${repo}/pulls?state=open&per_page=50&sort=updated&direction=desc`
-    )) as ApiPRListItem[]
-    if (!Array.isArray(list)) return null
-    return list.map(toPRSummary)
+    const res = await trackedFetch('https://api.github.com/graphql', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'Harness',
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ query, variables: { owner, name: repo } })
+    })
+    if (!res.ok) {
+      throw new Error(`GitHub GraphQL ${res.status} ${res.statusText}`)
+    }
+    const json = (await res.json()) as {
+      data?: {
+        repository?: {
+          pullRequests?: { nodes?: Array<GraphQLListPR | null> | null } | null
+        } | null
+      } | null
+      errors?: Array<{ message: string }> | null
+    }
+    if (json.errors && json.errors.length > 0) {
+      log('github', `listOpenPRs GraphQL errors for ${upstreamFull}`, json.errors.map((e) => e.message).join('; '))
+    }
+    const nodes = json.data?.repository?.pullRequests?.nodes ?? []
+    return nodes
+      .filter((n): n is GraphQLListPR => !!n)
+      .map((n) => buildPRSummaryFromGraphQL(n, upstreamFull))
   } catch (err) {
-    log('github', `listOpenPRs failed for ${owner}/${repo}`, formatErr(err))
+    log('github', `listOpenPRs failed for ${upstreamFull}`, formatErr(err))
     return null
   }
 }

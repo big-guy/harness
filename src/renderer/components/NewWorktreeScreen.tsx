@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Sparkles, Loader2, X, Map, ListChecks, BookOpen, Radio, GitPullRequest, ChevronRight, ChevronDown, Check } from 'lucide-react'
+import { Sparkles, Loader2, X, Map as MapIcon, ListChecks, BookOpen, Radio, GitPullRequest, ChevronRight, ChevronDown, Check } from 'lucide-react'
 import iconUrl from '../../../resources/icon.png'
 import { sanitizeBranchInput, isValidBranchName } from '../branch-name'
 import { RepoIcon } from './RepoIcon'
@@ -69,7 +69,7 @@ function teleportFolderName(sessionId: string): string {
 
 const STARTER_PROMPTS = [
   {
-    icon: Map,
+    icon: MapIcon,
     label: 'Map the repo',
     hint: 'A one-paragraph architecture summary',
     branch: 'map-repo',
@@ -653,6 +653,7 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, d
                   error={prsError}
                   disabled={prClickPending !== null}
                   pendingNumber={prClickPending}
+                  viewerLogin={settings.viewerLogin}
                   onPick={handlePRClick}
                 />
               </>
@@ -770,10 +771,54 @@ interface PRPickerListProps {
   error: string | null
   disabled: boolean
   pendingNumber: number | null
+  viewerLogin: string | null
   onPick: (prNumber: number) => void
 }
 
-function PRPickerList({ prs, loading, error, disabled, pendingNumber, onPick }: PRPickerListProps): JSX.Element {
+const CHECKS_OVERALL_COLORS: Record<NonNullable<PRSummary['checksOverall']>, string> = {
+  success: 'bg-success',
+  failure: 'bg-danger',
+  pending: 'bg-warning',
+  none: 'bg-dim'
+}
+
+const CHECKS_OVERALL_LABELS: Record<NonNullable<PRSummary['checksOverall']>, string> = {
+  success: 'All checks passing',
+  failure: 'Some checks failing',
+  pending: 'Checks running',
+  none: 'No checks'
+}
+
+function labelTextColor(hex: string): string {
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return '#fff'
+  const r = parseInt(hex.slice(0, 2), 16)
+  const g = parseInt(hex.slice(2, 4), 16)
+  const b = parseInt(hex.slice(4, 6), 16)
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+  return lum > 140 ? '#1f2328' : '#ffffff'
+}
+
+const MAX_VISIBLE_LABELS = 4
+
+function isViewerRequested(pr: PRSummary, viewerLogin: string | null): boolean {
+  if (!viewerLogin) return false
+  if (pr.author?.login === viewerLogin) return false
+  return pr.requestedReviewers.some((r) => r.login === viewerLogin)
+}
+
+function PRPickerList({
+  prs,
+  loading,
+  error,
+  disabled,
+  pendingNumber,
+  viewerLogin,
+  onPick
+}: PRPickerListProps): JSX.Element {
+  // Persist across reopens of the same modal session but not across
+  // app restarts — useState in the modal component, not a slice.
+  const [needsMyReviewOnly, setNeedsMyReviewOnly] = useState(false)
+
   if (loading) {
     return (
       <div className="flex items-center justify-center gap-2 py-12 text-sm text-dim">
@@ -797,48 +842,188 @@ function PRPickerList({ prs, loading, error, disabled, pendingNumber, onPick }: 
       </div>
     )
   }
+
+  const needsMyReviewCount = prs.filter((p) => isViewerRequested(p, viewerLogin)).length
+  const showFilter = needsMyReviewCount > 0
+  const filteredPrs = needsMyReviewOnly
+    ? prs.filter((p) => isViewerRequested(p, viewerLogin))
+    : prs
+
   return (
-    <div className="flex flex-col gap-1.5 max-h-[420px] overflow-y-auto pr-1">
-      {prs.map((pr) => {
-        const isPending = pendingNumber === pr.number
-        return (
+    <div className="flex flex-col gap-2">
+      {showFilter && (
+        <div className="flex items-center gap-2">
           <button
-            key={pr.number}
             type="button"
-            onClick={() => onPick(pr.number)}
+            onClick={() => setNeedsMyReviewOnly((v) => !v)}
             disabled={disabled}
-            className={`text-left bg-panel/60 border border-border/60 rounded-xl p-3 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${
-              isPending ? 'border-accent bg-panel' : 'hover:border-accent hover:bg-panel'
+            className={`px-2.5 py-1 text-xs rounded-full border transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 flex items-center gap-1.5 ${
+              needsMyReviewOnly
+                ? 'bg-accent/25 border-accent text-fg-bright'
+                : 'bg-app border-border-strong text-dim hover:text-fg hover:border-accent'
             }`}
           >
-            <div className="flex items-baseline gap-2">
-              <span className="font-mono text-xs text-faint shrink-0">#{pr.number}</span>
-              <span className="text-sm text-fg-bright font-medium truncate flex-1 min-w-0">
-                {pr.title}
-              </span>
-              {isPending && <Loader2 className="icon-xs animate-spin text-accent shrink-0" />}
-            </div>
-            <div className="mt-1 text-xs text-dim flex items-center gap-1.5 flex-wrap">
-              {pr.author && <span>by {pr.author.login}</span>}
-              <span className="text-faint">·</span>
-              <span className="font-mono text-faint">
-                {pr.baseBranch} ← {pr.isFork && pr.headRepoFullName
-                  ? `${pr.headRepoFullName}:${pr.headBranch}`
-                  : pr.headBranch}
-              </span>
-              {pr.draft && (
-                <>
-                  <span className="text-faint">·</span>
-                  <span className="text-faint">draft</span>
-                </>
-              )}
-              <span className="text-faint">·</span>
-              <span>updated {relTime(pr.updatedAt)}</span>
-            </div>
+            Needs my review
+            <span
+              className={`px-1 rounded text-xs font-medium ${
+                needsMyReviewOnly ? 'bg-accent/30' : 'bg-panel/80'
+              }`}
+            >
+              {needsMyReviewCount}
+            </span>
           </button>
-        )
-      })}
+        </div>
+      )}
+      <div className="flex flex-col gap-1.5 max-h-[420px] overflow-y-auto pr-1">
+        {filteredPrs.length === 0 ? (
+          <div className="text-center py-12 text-sm text-dim">
+            No PRs need your review.
+          </div>
+        ) : (
+          filteredPrs.map((pr) => (
+            <PRPickerRow
+              key={pr.number}
+              pr={pr}
+              viewerLogin={viewerLogin}
+              isPending={pendingNumber === pr.number}
+              disabled={disabled}
+              onPick={onPick}
+            />
+          ))
+        )}
+      </div>
     </div>
+  )
+}
+
+interface PRPickerRowProps {
+  pr: PRSummary
+  viewerLogin: string | null
+  isPending: boolean
+  disabled: boolean
+  onPick: (prNumber: number) => void
+}
+
+function PRPickerRow({ pr, viewerLogin, isPending, disabled, onPick }: PRPickerRowProps): JSX.Element {
+  const viewerRequested = isViewerRequested(pr, viewerLogin)
+  const visibleLabels = pr.labels.slice(0, MAX_VISIBLE_LABELS)
+  const overflowLabels = pr.labels.length - visibleLabels.length
+
+  // Merge requested reviewers + reviewed-state reviewers into one avatar
+  // strip, deduped by login. Ring color reflects state.
+  type ReviewerCell = { login: string; avatarUrl: string; ring: string; title: string }
+  const reviewerByLogin: Map<string, ReviewerCell> = new Map()
+  for (const r of pr.requestedReviewers) {
+    reviewerByLogin.set(r.login, {
+      login: r.login,
+      avatarUrl: r.avatarUrl,
+      ring: 'ring-1 ring-faint',
+      title: `${r.login} (review requested)`
+    })
+  }
+  for (const r of pr.reviewerStates) {
+    const ring =
+      r.state === 'APPROVED'
+        ? 'ring-1 ring-success'
+        : r.state === 'CHANGES_REQUESTED'
+          ? 'ring-1 ring-warning'
+          : 'ring-1 ring-dim'
+    const label =
+      r.state === 'APPROVED'
+        ? 'approved'
+        : r.state === 'CHANGES_REQUESTED'
+          ? 'requested changes'
+          : 'commented'
+    reviewerByLogin.set(r.login, {
+      login: r.login,
+      avatarUrl: r.avatarUrl,
+      ring,
+      title: `${r.login} (${label})`
+    })
+  }
+  const reviewerAvatars = [...reviewerByLogin.values()]
+
+  return (
+    <button
+      type="button"
+      onClick={() => onPick(pr.number)}
+      disabled={disabled}
+      className={`text-left bg-panel/60 border border-border/60 rounded-xl p-3 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${
+        isPending ? 'border-accent bg-panel' : 'hover:border-accent hover:bg-panel'
+      }`}
+    >
+      <div className="flex items-baseline gap-2">
+        <span className="font-mono text-xs text-faint shrink-0">#{pr.number}</span>
+        <span className="text-sm text-fg-bright font-medium truncate flex-1 min-w-0">
+          {pr.title}
+        </span>
+        {viewerRequested && (
+          <span
+            className="shrink-0 px-1.5 py-0.5 rounded-full text-xs font-medium bg-accent/25 text-fg-bright"
+            title="You are a requested reviewer"
+          >
+            Needs your review
+          </span>
+        )}
+        {pr.checksOverall && (
+          <span
+            className={`inline-block w-2 h-2 rounded-full shrink-0 ${CHECKS_OVERALL_COLORS[pr.checksOverall]}`}
+            title={CHECKS_OVERALL_LABELS[pr.checksOverall]}
+          />
+        )}
+        {isPending && <Loader2 className="icon-xs animate-spin text-accent shrink-0" />}
+      </div>
+      <div className="mt-1 text-xs text-dim flex items-center gap-1.5 flex-wrap">
+        {pr.author && <span>by {pr.author.login}</span>}
+        <span className="text-faint">·</span>
+        <span className="font-mono text-faint">
+          {pr.baseBranch} ← {pr.isFork && pr.headRepoFullName
+            ? `${pr.headRepoFullName}:${pr.headBranch}`
+            : pr.headBranch}
+        </span>
+        {pr.draft && (
+          <>
+            <span className="text-faint">·</span>
+            <span className="text-faint">draft</span>
+          </>
+        )}
+        <span className="text-faint">·</span>
+        <span>updated {relTime(pr.updatedAt)}</span>
+        {reviewerAvatars.length > 0 && (
+          <span className="flex items-center ml-1">
+            {reviewerAvatars.map((r, i) => (
+              <img
+                key={r.login}
+                src={r.avatarUrl}
+                alt={r.login}
+                title={r.title}
+                className={`w-4 h-4 rounded-full ${r.ring} ${i > 0 ? '-ml-1' : ''}`}
+              />
+            ))}
+          </span>
+        )}
+      </div>
+      {visibleLabels.length > 0 && (
+        <div className="mt-1.5 flex items-center flex-wrap gap-1">
+          {visibleLabels.map((label) => {
+            const fg = labelTextColor(label.color)
+            return (
+              <span
+                key={label.name}
+                className="px-1.5 py-0.5 rounded-full text-xs font-medium leading-tight"
+                style={{ backgroundColor: `#${label.color}`, color: fg }}
+                title={label.name}
+              >
+                {label.name}
+              </span>
+            )
+          })}
+          {overflowLabels > 0 && (
+            <span className="text-xs text-faint">+{overflowLabels}</span>
+          )}
+        </div>
+      )}
+    </button>
   )
 }
 
