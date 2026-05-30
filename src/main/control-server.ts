@@ -27,6 +27,7 @@ export interface BrowserQueries {
   forwardTab: (tabId: string) => void
   reloadTab: (tabId: string) => void
   createTab: (worktreePath: string, url: string) => { id: string; url: string }
+  closeTab: (tabId: string) => void
   clickTab: (
     tabId: string,
     x: number,
@@ -475,6 +476,10 @@ async function handleRequest(
     }
     if (req.method === 'POST' && path === '/browser/reload') {
       deps.browser.reloadTab(tabId)
+      return sendJson(res, 200, { ok: true })
+    }
+    if (req.method === 'POST' && path === '/browser/close') {
+      deps.browser.closeTab(tabId)
       return sendJson(res, 200, { ok: true })
     }
     if (req.method === 'POST' && path === '/browser/click') {

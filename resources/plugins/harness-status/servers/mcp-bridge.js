@@ -261,6 +261,18 @@ const TOOLS = [
     }
   },
   {
+    name: 'close_browser_tab',
+    description:
+      'Close a browser tab in this worktree, removing it from the worktree. Use this to clean up tabs you opened with create_browser_tab once you are done with them. Tab id comes from list_browser_tabs.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tab_id: { type: 'string', description: 'Browser tab id from list_browser_tabs.' }
+      },
+      required: ['tab_id']
+    }
+  },
+  {
     name: 'get_tab_clickables',
     description:
       "Return a JSON snapshot of in-viewport interactive elements (buttons, links, inputs, [role=button|link|tab|menuitem|checkbox|radio|switch|option|combobox|searchbox|textbox], [tabindex], [contenteditable], [onclick]) — including elements inside open shadow roots. Each item is {role, name, cx, cy, w, h} where cx/cy is the viewport-relative center to pass to click_tab. Use this for click targeting instead of screenshot+vision when the targets are real DOM elements with sensible names. Capped at 500 items; off-viewport elements are excluded — scroll first if needed.",
@@ -453,7 +465,8 @@ const VIEW_BROWSER_TOOLS = new Set([
   'navigate_tab',
   'back_tab',
   'forward_tab',
-  'reload_tab'
+  'reload_tab',
+  'close_browser_tab'
 ])
 const FULL_CONTROL_BROWSER_TOOLS = new Set([
   'click_tab',
@@ -602,6 +615,11 @@ async function handleToolCall(name, args) {
     if (!args || !args.tab_id) throw new Error('tab_id is required')
     await callControl('POST', '/browser/reload', { tabId: args.tab_id })
     return 'reloaded ' + args.tab_id
+  }
+  if (name === 'close_browser_tab') {
+    if (!args || !args.tab_id) throw new Error('tab_id is required')
+    await callControl('POST', '/browser/close', { tabId: args.tab_id })
+    return 'closed ' + args.tab_id
   }
   if (name === 'get_tab_clickables') {
     if (!args || !args.tab_id) throw new Error('tab_id is required')

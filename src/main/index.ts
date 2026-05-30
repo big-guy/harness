@@ -3442,6 +3442,10 @@ async function runBoot(): Promise<void> {
         })
         return { id, url: finalUrl }
       },
+      closeTab: (tabId) => {
+        const wtPath = browserManager.getWorktreePath(tabId)
+        if (wtPath) panesFSM.closeTab(wtPath, tabId)
+      },
       clickTab: (tabId, x, y, options) => browserManager.clickTab(tabId, x, y, options),
       typeTab: (tabId, text, key) => browserManager.typeTab(tabId, text, key),
       scrollTab: (tabId, dx, dy) => browserManager.scrollTab(tabId, dx, dy),
