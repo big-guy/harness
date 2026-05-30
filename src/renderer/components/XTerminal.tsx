@@ -605,7 +605,7 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
     let cleanupExit: (() => void) | null = null
     let disposed = false
 
-    if (type === 'agent') {
+    if (type === 'agent' || type === 'shell') {
       cleanupExit = backend.onTerminalExit((id) => {
         if (id === terminalId && !disposed) setExited(true)
       })
@@ -1081,7 +1081,7 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
           </Tooltip>
         </div>
       )}
-      {type === 'shell' && shellCloseDelay !== undefined && onKeepOpen && !closePromptDismissed && (
+      {type === 'shell' && !exited && shellCloseDelay !== undefined && onKeepOpen && !closePromptDismissed && (
         <div className="absolute top-2 right-2 flex items-center gap-1 pointer-events-auto">
           <Tooltip label={`This tab closes ${shellCloseDelay}s after the command succeeds.`}>
             <button
