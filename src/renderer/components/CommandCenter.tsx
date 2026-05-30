@@ -294,11 +294,13 @@ export function CommandCenter({
   }
 
   return (
-    <div className="flex-1 min-w-0 flex flex-col bg-bg">
+    <div className="flex-1 min-w-0 flex flex-col bg-app">
       {/* Title bar — matches the other overlays (Activity / Settings):
-          Back + ESC chip on the left, centered title. bg-panel because the
-          CommandCenter body is bg-bg, so the bar needs the override to read
-          as a title bar like the rest. */}
+          Back + ESC chip on the left, centered title. bg-panel is a touch
+          lighter than the bg-app body, so the bar reads as a title bar like
+          the rest. (The body must be opaque — it's a full-window overlay
+          now — hence bg-app rather than the undefined-and-transparent
+          bg-bg this used before.) */}
       <div className="drag-region h-10 shrink-0 border-b border-border relative bg-panel">
         <button
           onClick={onClose}
