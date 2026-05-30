@@ -784,6 +784,32 @@ const setQuestStep = useCallback((next: QuestStep) => {
     </div>
   ) : null
 
+  // Full-window overlay (covers the sidebar + right column), matching
+  // Settings / My Week. Rendered as a top-level sibling below, not inside
+  // the main flex row, so it spans the whole window.
+  const commandCenterOverlay = showCommandCenter ? (
+    <div className="fixed inset-0 z-50 flex">
+      <CommandCenter
+        worktrees={worktrees}
+        worktreeStatuses={worktreeStatuses}
+        worktreePendingTools={worktreePendingTools}
+        prStatuses={prStatuses}
+        mergedPaths={mergedPaths}
+        lastActive={lastActive}
+        tailLines={tailLines}
+        terminalTabs={terminalTabs}
+        onClose={() => setShowCommandCenter(false)}
+        onSelect={(path) => {
+          setShowCommandCenter(false)
+          setShowNewWorktree(false)
+          setShowActivity(false)
+          setShowCleanup(false)
+          setActiveWorktreeId(path)
+        }}
+      />
+    </div>
+  ) : null
+
   const repoPickerOverlay = (
     <RemoteFilePicker
       isOpen={repoPickerOpen}
@@ -1474,26 +1500,6 @@ const setQuestStep = useCallback((next: QuestStep) => {
             />
           </div>
         )}
-        {showCommandCenter && (
-          <CommandCenter
-            worktrees={worktrees}
-            worktreeStatuses={worktreeStatuses}
-            worktreePendingTools={worktreePendingTools}
-            prStatuses={prStatuses}
-            mergedPaths={mergedPaths}
-            lastActive={lastActive}
-            tailLines={tailLines}
-            terminalTabs={terminalTabs}
-            onClose={() => setShowCommandCenter(false)}
-            onSelect={(path) => {
-              setShowCommandCenter(false)
-              setShowNewWorktree(false)
-              setShowActivity(false)
-              setShowCleanup(false)
-              setActiveWorktreeId(path)
-            }}
-          />
-        )}
         {!showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && reportIssueState === null && !activeWorktreeId && worktrees.length > 0 && (
           <div className="flex-1 flex items-center justify-center text-dim">
             Select a worktree to begin
@@ -1572,6 +1578,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
     </div>
     {settingsOverlay}
     {myWeekOverlay}
+    {commandCenterOverlay}
     {repoPickerOverlay}
     {repoAddPromptOverlay}
     {showPerfMonitor && <PerfMonitorHUD onClose={() => setShowPerfMonitor(false)} />}
