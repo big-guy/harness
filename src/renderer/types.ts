@@ -95,6 +95,10 @@ export interface LiveAgentCounts {
   /** json-claude (Chat) sessions whose subprocess is currently running. */
   chat: number
   total: number
+  /** Live process count keyed by worktree path. Worktrees with no live
+   *  agent process are absent (not zero), so `byWorktree[path] ?? 0`
+   *  distinguishes an idle agent from no agent at all. */
+  byWorktree: Record<string, number>
 }
 
 import type { UpdaterStatus } from '../shared/state/updater'

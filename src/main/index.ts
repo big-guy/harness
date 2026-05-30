@@ -2239,18 +2239,30 @@ function registerIpcHandlers(): void {
     const { state } = store.getSnapshot()
     let xterm = 0
     let chat = 0
-    for (const tree of Object.values(state.terminals.panes)) {
+    // Per-worktree live count so the Command Center cards can tell
+    // "idle agent" from "no agent process at all". Only worktrees with at
+    // least one live process get an entry; absence means N/A.
+    const byWorktree: Record<string, number> = {}
+    for (const [wtPath, tree] of Object.entries(state.terminals.panes)) {
+      let live = 0
       for (const leaf of getLeaves(tree)) {
         for (const tab of leaf.tabs) {
           if (tab.type === 'agent') {
-            if (ptyManager.hasTerminal(tab.id)) xterm++
+            if (ptyManager.hasTerminal(tab.id)) {
+              xterm++
+              live++
+            }
           } else if (tab.type === 'json-claude') {
-            if (state.jsonClaude.sessions[tab.id]?.state === 'running') chat++
+            if (state.jsonClaude.sessions[tab.id]?.state === 'running') {
+              chat++
+              live++
+            }
           }
         }
       }
+      if (live > 0) byWorktree[wtPath] = live
     }
-    return { xterm, chat, total: xterm + chat }
+    return { xterm, chat, total: xterm + chat, byWorktree }
   })
 
   transport.onRequest('activity:clear', (_ctx, worktreePath?: string) => {

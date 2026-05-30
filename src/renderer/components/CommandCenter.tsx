@@ -9,7 +9,8 @@ import type {
   PRStatus,
   TerminalTab,
   ActivityLog,
-  ActivityRecord
+  ActivityRecord,
+  LiveAgentCounts
 } from '../types'
 import { eventsToSegments, STATE_COLOR } from './Activity'
 import { groupWorktrees, type GroupKey } from '../worktree-sort'
@@ -30,14 +31,18 @@ interface CommandCenterProps {
   onSelect: (worktreePath: string) => void
 }
 
-type DisplayStatus = PtyStatus | 'merged'
+// 'na' = no live agent process backing this worktree (distinct from an
+// idle-but-running agent). Cards render it as "N/A" and suppress the
+// "no output yet" hint, since nothing could produce output.
+type DisplayStatus = PtyStatus | 'merged' | 'na'
 
 const STATUS_DOT: Record<DisplayStatus, string> = {
   idle: 'bg-faint',
   processing: 'bg-success animate-pulse',
   waiting: 'bg-warning',
   'needs-approval': 'bg-danger animate-pulse',
-  merged: 'bg-accent'
+  merged: 'bg-accent',
+  na: 'bg-faint/30'
 }
 
 const STATUS_LABEL: Record<DisplayStatus, string> = {
@@ -45,7 +50,8 @@ const STATUS_LABEL: Record<DisplayStatus, string> = {
   processing: 'Working',
   waiting: 'Waiting',
   'needs-approval': 'Needs approval',
-  merged: 'Merged'
+  merged: 'Merged',
+  na: 'N/A'
 }
 
 const STATUS_BAR_FILL: Record<DisplayStatus, string> = {
@@ -53,7 +59,8 @@ const STATUS_BAR_FILL: Record<DisplayStatus, string> = {
   processing: 'bg-success',
   waiting: 'bg-warning',
   'needs-approval': 'bg-danger',
-  merged: 'bg-accent'
+  merged: 'bg-accent',
+  na: 'bg-faint/20'
 }
 
 const STATUS_CARD_RING: Record<DisplayStatus, string> = {
@@ -61,7 +68,8 @@ const STATUS_CARD_RING: Record<DisplayStatus, string> = {
   processing: 'ring-1 ring-success/40',
   waiting: 'ring-1 ring-warning/50',
   'needs-approval': 'ring-2 ring-danger shadow-[0_0_32px_rgba(239,68,68,0.25)] animate-pulse',
-  merged: 'ring-1 ring-accent/30'
+  merged: 'ring-1 ring-accent/30',
+  na: 'ring-1 ring-border/60'
 }
 
 const SAMPLE_COUNT = 60
@@ -149,13 +157,18 @@ export function CommandCenter({
   // backend counts liveness from the source of truth — live xterm PTYs +
   // running json-claude sessions. Polled (not a slice) like the activity
   // log above, since PTY liveness isn't mirrored to the renderer as state.
-  const [liveAgents, setLiveAgents] = useState(0)
+  const [liveCounts, setLiveCounts] = useState<LiveAgentCounts>({
+    xterm: 0,
+    chat: 0,
+    total: 0,
+    byWorktree: {}
+  })
   useEffect(() => {
     let cancelled = false
     const load = async (): Promise<void> => {
       try {
         const c = await backend.getLiveAgentCounts()
-        if (!cancelled) setLiveAgents(c.total)
+        if (!cancelled) setLiveCounts(c)
       } catch {
         // ignore
       }
@@ -167,6 +180,10 @@ export function CommandCenter({
       clearInterval(t)
     }
   }, [])
+  const hasAgent = useCallback(
+    (wtPath: string): boolean => (liveCounts.byWorktree[wtPath] ?? 0) > 0,
+    [liveCounts]
+  )
 
   // Rolling 60-sample aggregate history for the top bar graph.
   const [history, setHistory] = useState<Sample[]>(() =>
@@ -298,6 +315,8 @@ export function CommandCenter({
 
   const cardDisplay = (wt: Worktree): DisplayStatus => {
     if (mergedPaths[wt.path] || isPRMerged(prStatuses[wt.path])) return 'merged'
+    // No live agent process → N/A, not a misleading "Idle".
+    if (!hasAgent(wt.path)) return 'na'
     return worktreeStatuses[wt.path] || 'idle'
   }
 
@@ -330,7 +349,7 @@ export function CommandCenter({
         <p className="text-xs text-dim shrink-0">
           {totalCards} session{totalCards === 1 ? '' : 's'}
           {' · '}
-          {liveAgents} agent{liveAgents === 1 ? '' : 's'} running
+          {liveCounts.total} agent{liveCounts.total === 1 ? '' : 's'} running
           {' · '}live view
         </p>
 
@@ -430,6 +449,7 @@ export function CommandCenter({
                       {group.worktrees.map((wt) => {
                         const display = cardDisplay(wt)
                         const pr = prStatuses[wt.path]
+                        const agentLive = hasAgent(wt.path)
                         const tail = pickTail(wt.path)
                         const record = pickRecord(wt.path)
                         return (
@@ -495,7 +515,9 @@ export function CommandCenter({
                                   color: 'var(--color-fg-bright)'
                                 }}
                               >
-                                {tail || <span className="text-faint italic">no output yet</span>}
+                                {agentLive
+                                  ? tail || <span className="text-faint italic">no output yet</span>
+                                  : <span className="text-faint italic">N/A</span>}
                               </pre>
                             </div>
 
