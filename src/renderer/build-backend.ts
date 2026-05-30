@@ -512,6 +512,7 @@ export function buildBackend(
       }),
     getActivityLog: () => req('activity:get'),
     clearActivityLog: (worktreePath?: string) => req('activity:clear', worktreePath),
+    getLiveAgentCounts: () => req('agents:liveCounts'),
 
     onTerminalExit: (callback: ExitCallback) =>
       onActiveSignal('terminal:exit', (id, exitCode) => {

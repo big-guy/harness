@@ -143,22 +143,30 @@ export function CommandCenter({
     return c
   }, [worktrees, worktreeStatuses, prStatuses, mergedPaths])
 
-  // Live agent-process count across every worktree. A "running agent
-  // process" is a tab backed by a subprocess: an xterm `agent` (PATH claude)
-  // or a `json-claude` Chat tab that isn't asleep. json-claude tabs report
-  // their mode, so a slept one (subprocess torn down) is excluded; xterm
-  // agents have no asleep state so they always count while the tab exists.
-  const agentCount = useMemo(() => {
-    let n = 0
-    for (const tabs of Object.values(terminalTabs)) {
-      for (const t of tabs) {
-        if (t.type !== 'agent' && t.type !== 'json-claude') continue
-        if ((t.mode ?? 'awake') === 'asleep') continue
-        n++
+  // Live agent-process count, polled from main. Counting tab records here
+  // would over-report: a tab outlives its process (an exited agent, a Codex
+  // tab, a Chat tab whose subprocess is gone all keep their tab). The
+  // backend counts liveness from the source of truth — live xterm PTYs +
+  // running json-claude sessions. Polled (not a slice) like the activity
+  // log above, since PTY liveness isn't mirrored to the renderer as state.
+  const [liveAgents, setLiveAgents] = useState(0)
+  useEffect(() => {
+    let cancelled = false
+    const load = async (): Promise<void> => {
+      try {
+        const c = await backend.getLiveAgentCounts()
+        if (!cancelled) setLiveAgents(c.total)
+      } catch {
+        // ignore
       }
     }
-    return n
-  }, [terminalTabs])
+    load()
+    const t = setInterval(load, 2000)
+    return () => {
+      cancelled = true
+      clearInterval(t)
+    }
+  }, [])
 
   // Rolling 60-sample aggregate history for the top bar graph.
   const [history, setHistory] = useState<Sample[]>(() =>
@@ -322,7 +330,7 @@ export function CommandCenter({
         <p className="text-xs text-dim shrink-0">
           {totalCards} session{totalCards === 1 ? '' : 's'}
           {' · '}
-          {agentCount} agent{agentCount === 1 ? '' : 's'} running
+          {liveAgents} agent{liveAgents === 1 ? '' : 's'} running
           {' · '}live view
         </p>
 

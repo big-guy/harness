@@ -2229,6 +2229,30 @@ function registerIpcHandlers(): void {
     return getActivityLog()
   })
 
+  // Accurate live agent-process count for the Command Center badge.
+  // Classify by tab type from the panes tree, but take liveness from the
+  // source of truth — a tab record outlives its process (an agent that
+  // exited, a Codex tab, a Chat tab whose subprocess is gone all keep
+  // their tab). xterm agents: a live PTY in PtyManager. Chat agents: a
+  // json-claude session whose subprocess is 'running' (vs idle/exited).
+  transport.onRequest('agents:liveCounts', (_ctx) => {
+    const { state } = store.getSnapshot()
+    let xterm = 0
+    let chat = 0
+    for (const tree of Object.values(state.terminals.panes)) {
+      for (const leaf of getLeaves(tree)) {
+        for (const tab of leaf.tabs) {
+          if (tab.type === 'agent') {
+            if (ptyManager.hasTerminal(tab.id)) xterm++
+          } else if (tab.type === 'json-claude') {
+            if (state.jsonClaude.sessions[tab.id]?.state === 'running') chat++
+          }
+        }
+      }
+    }
+    return { xterm, chat, total: xterm + chat }
+  })
+
   transport.onRequest('activity:clear', (_ctx, worktreePath?: string) => {
     if (worktreePath) clearActivityForWorktree(worktreePath)
     else clearAllActivity()

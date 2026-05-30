@@ -88,6 +88,15 @@ export interface PersistedPane {
 
 export type QuestStep = 'hidden' | 'spawn-second' | 'switch-between' | 'finale' | 'done'
 
+/** Live agent-process counts, split by backing kind. `total` is the sum. */
+export interface LiveAgentCounts {
+  /** Live xterm agent PTYs (claude + codex), counted from PtyManager. */
+  xterm: number
+  /** json-claude (Chat) sessions whose subprocess is currently running. */
+  chat: number
+  total: number
+}
+
 import type { UpdaterStatus } from '../shared/state/updater'
 export type { UpdaterStatus }
 
@@ -523,6 +532,11 @@ export interface ElectronAPI {
 
   getActivityLog(): Promise<ActivityLog>
   clearActivityLog(worktreePath?: string): Promise<boolean>
+
+  /** Live agent-process counts (xterm agent PTYs + running json-claude
+   *  sessions), counted from the source of truth in main rather than from
+   *  tab records. Polled by the Command Center badge. */
+  getLiveAgentCounts(): Promise<LiveAgentCounts>
 
   // JSON-mode Claude — approval bridge + session lifecycle.
   resolveJsonClaudeApproval(
