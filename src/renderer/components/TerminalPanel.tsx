@@ -128,6 +128,10 @@ interface SortableTabProps {
   onSleepTab?: () => void
   /** Commit a renamed label. Empty/whitespace clears the override. */
   onRename: (label: string) => void
+  /** Optional: when provided, the right-click menu shows a "Paste" item that
+   *  writes the clipboard into the tab as a bracketed paste. Passed in only
+   *  for agent (terminal) tabs. */
+  onPaste?: () => void
 }
 
 // Interactive session tabs (Claude/agent terminals, raw shells, chat) and
@@ -166,7 +170,7 @@ function TabProgressBar({ terminalId }: { terminalId: string }): JSX.Element | n
   )
 }
 
-function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect, onClose, onConvertTabType, onSleepTab, onRename }: SortableTabProps): JSX.Element {
+function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect, onClose, onConvertTabType, onSleepTab, onRename, onPaste }: SortableTabProps): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tab.id
   })
@@ -376,6 +380,18 @@ function SortableTab({ tab, isActive, status, shellActivity, showClose, onSelect
               }}
             >
               Reset Name
+            </button>
+          )}
+          {onPaste && (
+            <button
+              className="block w-full text-left px-3 py-1.5 hover:bg-panel text-fg-bright cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation()
+                setMenu(null)
+                onPaste()
+              }}
+            >
+              Paste
             </button>
           )}
           {canSleep && (
@@ -623,6 +639,26 @@ export function TerminalPanel({
                   onRename={(label) => {
                     void backend.panesRenameTab(worktreePath, tab.id, label)
                   }}
+                  onPaste={
+                    tab.type === 'agent'
+                      ? () => {
+                          onSelectTab(tab.id)
+                          // Bracketed paste: claude's prompt inserts the text
+                          // without submitting (same convention as drag-drop
+                          // and send-to-agent).
+                          void navigator.clipboard
+                            .readText()
+                            .then((text) => {
+                              if (text)
+                                backend.writeTerminal(
+                                  tab.id,
+                                  '\x1b[200~' + text + '\x1b[201~'
+                                )
+                            })
+                            .catch(() => {})
+                        }
+                      : undefined
+                  }
                 />
               )
             })}
