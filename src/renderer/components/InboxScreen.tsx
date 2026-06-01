@@ -383,15 +383,10 @@ function ItemRow({
                     : 'Start work'}
               </span>
             </button>
-            {existingWorktree && (
-              <span className="text-[11px] text-faint truncate" title={existingWorktree.path}>
-                {existingWorktree.branch}
-              </span>
-            )}
             <button
               onClick={() => void handleClose()}
               disabled={closing}
-              className={`ml-auto text-xs rounded px-2 py-1 cursor-pointer flex items-center gap-1.5 transition-colors disabled:opacity-50 ${
+              className={`text-xs rounded px-2 py-1 cursor-pointer flex items-center gap-1.5 transition-colors disabled:opacity-50 ${
                 confirmClose
                   ? 'bg-danger/20 text-danger border border-danger/50'
                   : 'text-dim hover:text-fg border border-border'
@@ -400,6 +395,11 @@ function ItemRow({
               {closing && <Loader2 size={11} className="animate-spin" />}
               {confirmClose ? 'Confirm close' : 'Close'}
             </button>
+            {existingWorktree && (
+              <span className="text-[11px] text-faint truncate" title={existingWorktree.path}>
+                {existingWorktree.branch}
+              </span>
+            )}
           </div>
           {createWorktreeError && (
             <div className="text-xs text-danger mt-1">{createWorktreeError}</div>
