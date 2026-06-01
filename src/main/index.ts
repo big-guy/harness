@@ -41,7 +41,7 @@ import { getWeeklyStats } from './weekly-stats'
 import type { TerminalTab, PaneNode, PaneLeaf } from '../shared/state/terminals'
 import { getLeaves, mapLeaves } from '../shared/state/terminals'
 import { listWorktrees, listBranches, continueWorktree, isWorktreeDirty, defaultWorktreeDir, getChangedFiles, getFileDiff, getBranchCommits, getCommitDiff, getCommitMeta, getCommitChangedFiles, getCommitFileDiffSides, getCommitRangeChangedFiles, getCommitRangeFileDiffSides, getMainWorktreeStatus, prepareMainForMerge, mergeWorktreeLocally, getBranchSha, previewMergeConflicts, getBranchDiffStats, listAllFiles, listRecentCommitShas, readWorktreeFile, readWorktreeFileBinary, writeWorktreeFile, getFileDiffSides, getCurrentBranch, symlinkClaudeSettings, type MergeStrategy } from './worktree'
-import { listOpenPRs, testToken, starRepo, unstarRepo, isRepoStarred, mergePR, approvePR, getRepoInfo, type GitHubMergeMethod, type MergePRResult } from './github'
+import { listOpenPRs, testToken, starRepo, unstarRepo, isRepoStarred, mergePR, approvePR, getRepoInfo, listIssueTemplates, createIssue, type GitHubMergeMethod, type MergePRResult } from './github'
 import { AVAILABLE_EDITORS, DEFAULT_EDITOR_ID, openInEditor } from './editor'
 import { setSecret, getSecret, hasSecret, deleteSecret } from './secrets'
 import { resolveGitHubToken, getTokenSource, invalidateTokenCache, getCachedToken } from './github-auth'
@@ -1635,6 +1635,26 @@ function registerIpcHandlers(): void {
     await inboxPoller.refreshById(queryId)
     return true
   })
+
+  transport.onRequest('inbox:listIssueTemplates', async (_ctx, owner: string, repo: string) => {
+    if (!owner || !repo) return []
+    return listIssueTemplates(owner, repo)
+  })
+
+  transport.onRequest(
+    'inbox:createIssue',
+    async (_ctx, owner: string, repo: string, fields: { title?: unknown; body?: unknown }) => {
+      if (!owner || !repo) return { ok: false as const, error: 'Repository not specified' }
+      const title = typeof fields?.title === 'string' ? fields.title : ''
+      const body = typeof fields?.body === 'string' ? fields.body : ''
+      const result = await createIssue(owner, repo, { title, body })
+      if (result.ok) {
+        // Surface the new issue in the Inbox on the next poll.
+        inboxPoller.refreshAllIfStale()
+      }
+      return result
+    }
+  )
 
   transport.onRequest(
     'inbox:createWorktree',

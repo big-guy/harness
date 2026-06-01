@@ -1649,6 +1649,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
             onClose={() => setShowInbox(false)}
             onOpenSettings={() => {
               setShowInbox(false)
+              setSettingsInitialSection('github')
               setShowSettings(true)
             }}
             onSelectWorktree={(idOrPath) => {

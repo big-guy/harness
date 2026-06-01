@@ -129,8 +129,8 @@ export type { PerfMetrics, PerfSample }
 import type { CheckStatus, PRReview, PRStatus } from '../shared/state/prs'
 export type { CheckStatus, PRReview, PRStatus }
 
-import type { PRSummary, PRMetadata } from '../shared/github-types'
-export type { PRSummary, PRMetadata }
+import type { PRSummary, PRMetadata, IssueTemplate } from '../shared/github-types'
+export type { PRSummary, PRMetadata, IssueTemplate }
 
 import type { BrowserState, BrowserTabState } from '../shared/state/browser'
 export type { BrowserState, BrowserTabState }
@@ -263,6 +263,12 @@ export interface ElectronAPI {
     | { kind: 'pending'; pendingId: string; repoRoot: string; branchName: string; initialPrompt: string }
     | { kind: 'existing'; worktreePath: string }
   >
+  listIssueTemplates(owner: string, repo: string): Promise<IssueTemplate[]>
+  createIssue(
+    owner: string,
+    repo: string,
+    fields: { title: string; body: string }
+  ): Promise<{ ok: true; htmlUrl: string; number: number } | { ok: false; error: string }>
 
   refreshAnnouncements(): Promise<boolean>
   dismissAnnouncement(id: string): Promise<boolean>

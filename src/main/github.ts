@@ -4,7 +4,7 @@ import { log, formatErr } from './debug'
 import { getCachedToken, invalidateTokenCache, resolveGitHubToken } from './github-auth'
 import { trackedFetch } from './github-recorder'
 import type { CheckStatus, PRReview, PRStatus } from '../shared/state/prs'
-import type { PRSummary, PRMetadata } from '../shared/github-types'
+import type { PRSummary, PRMetadata, IssueTemplate } from '../shared/github-types'
 
 export type { CheckStatus, PRReview, PRStatus, PRSummary, PRMetadata }
 
@@ -1486,3 +1486,97 @@ export async function getPRRef(
   }
 }
 
+
+// ---------------------------------------------------------------------------
+// Issue templates + creation — Inbox "Add item" flow.
+//
+// Templates come from the GraphQL `repository.issueTemplates` field (backed
+// by `.github/ISSUE_TEMPLATE/`); repos with none return an empty array and
+// the UI falls back to a blank issue. Creation is a plain REST POST.
+// ---------------------------------------------------------------------------
+
+export async function listIssueTemplates(owner: string, repo: string): Promise<IssueTemplate[]> {
+  const token = getCachedToken()
+  if (!token) return []
+  try {
+    const query = `query($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    issueTemplates { name title about body }
+  }
+}`
+    const res = await trackedFetch('https://api.github.com/graphql', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'Harness',
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ query, variables: { owner, name: repo } })
+    })
+    if (!res.ok) {
+      log('github', `listIssueTemplates ${owner}/${repo} → ${res.status} ${res.statusText}`)
+      return []
+    }
+    const json = (await res.json()) as {
+      data?: { repository?: { issueTemplates?: IssueTemplate[] | null } | null }
+      errors?: { message: string }[]
+    }
+    if (json.errors && json.errors.length > 0) {
+      log('github', `listIssueTemplates GraphQL errors ${owner}/${repo}`, json.errors.map((e) => e.message).join('; '))
+    }
+    const templates = json.data?.repository?.issueTemplates ?? []
+    return templates.map((t) => ({
+      name: t.name ?? '',
+      title: t.title ?? '',
+      about: t.about ?? '',
+      body: t.body ?? ''
+    }))
+  } catch (err) {
+    log('github', `listIssueTemplates failed for ${owner}/${repo}`, err instanceof Error ? err.message : err)
+    return []
+  }
+}
+
+export async function createIssue(
+  owner: string,
+  repo: string,
+  fields: { title: string; body: string }
+): Promise<{ ok: true; htmlUrl: string; number: number } | { ok: false; error: string }> {
+  const token = getCachedToken()
+  if (!token) return { ok: false, error: 'No GitHub token configured' }
+  const title = (fields.title || '').trim()
+  if (!title) return { ok: false, error: 'Title is required' }
+  try {
+    const res = await trackedFetch(`https://api.github.com/repos/${owner}/${repo}/issues`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'Harness',
+        'X-GitHub-Api-Version': '2022-11-28',
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ title, body: fields.body || '' })
+    })
+    if (res.status === 201) {
+      const data = (await res.json()) as { html_url: string; number: number }
+      return { ok: true, htmlUrl: data.html_url, number: data.number }
+    }
+    let apiMessage = ''
+    try {
+      const data = (await res.json()) as { message?: string }
+      apiMessage = data?.message || ''
+    } catch {
+      // ignore — fall through to status text
+    }
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, error: 'Unauthorized — check that your token has repo (issues) scope' }
+    }
+    if (res.status === 404) return { ok: false, error: 'Repository not found, or your token lacks access' }
+    if (res.status === 410) return { ok: false, error: 'Issues are disabled on this repository' }
+    return { ok: false, error: apiMessage || `GitHub ${res.status} ${res.statusText}` }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}

@@ -28,3 +28,13 @@ export interface PRSummary {
 }
 
 export type PRMetadata = PRSummary
+
+/** A GitHub issue template (from `.github/ISSUE_TEMPLATE/`), as surfaced by
+ *  the GraphQL `repository.issueTemplates` field. Drives the Inbox
+ *  "Add item" flow. `body` is the markdown the template prefills. */
+export interface IssueTemplate {
+  name: string
+  title: string
+  about: string
+  body: string
+}

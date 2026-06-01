@@ -12,10 +12,12 @@ import {
   AlertCircle,
   ExternalLink,
   Settings as SettingsIcon,
-  Search
+  Search,
+  Plus
 } from 'lucide-react'
 import { useInbox, useSettings, useWorktrees } from '../store'
 import { getBackend, useBackend } from '../backend'
+import { AddInboxItemModal } from './AddInboxItemModal'
 import type { InboxItem } from '../../shared/state/inbox'
 import type { Worktree } from '../types'
 
@@ -335,6 +337,21 @@ export function InboxScreen({
     [worktreesByOwnerRepo, prPrefix, issuePrefix]
   )
 
+  // Unique GitHub repositories (owner/repo) across the tracked repos, for
+  // the "Add item" flow. Deduped + sorted for a stable picker order.
+  const availableRepos = useMemo(() => {
+    const seen = new Map<string, { owner: string; repo: string }>()
+    for (const origin of Object.values(worktrees.originByRoot)) {
+      if (!origin?.owner || !origin?.repo) continue
+      const key = `${origin.owner.toLowerCase()}/${origin.repo.toLowerCase()}`
+      if (!seen.has(key)) seen.set(key, { owner: origin.owner, repo: origin.repo })
+    }
+    return [...seen.values()].sort((a, b) =>
+      `${a.owner}/${a.repo}`.localeCompare(`${b.owner}/${b.repo}`)
+    )
+  }, [worktrees.originByRoot])
+
+  const [showAddItem, setShowAddItem] = useState(false)
   const [activeQueryId, setActiveQueryId] = useState<string | null>(
     queries[0]?.id ?? null
   )
@@ -434,6 +451,25 @@ export function InboxScreen({
         </button>
         <span className="ml-3 text-xs font-semibold text-fg-bright">Inbox</span>
       </div>
+
+      {/* Add item — opens a new GitHub issue in one of the tracked repos.
+          Styled to match the sidebar's "Add worktree" affordance. */}
+      <button
+        onClick={() => setShowAddItem(true)}
+        className="group relative w-full flex items-center gap-2 px-3 py-2 text-dim hover:bg-panel-raised transition-colors cursor-pointer overflow-hidden border-b border-border shrink-0"
+      >
+        <span className="absolute left-0 top-0 bottom-0 w-0.5 brand-gradient-flow-bar opacity-0 group-hover:opacity-100 transition-opacity" />
+        <Plus className="icon-sm shrink-0 text-dim group-hover:[stroke:url(#harness-add-gradient)] transition-colors" />
+        <span className="text-sm font-medium brand-gradient-flow-text-hover">Add item</span>
+      </button>
+
+      {showAddItem && (
+        <AddInboxItemModal
+          repos={availableRepos}
+          onClose={() => setShowAddItem(false)}
+          onCreated={() => void backend.refreshInboxAllIfStale()}
+        />
+      )}
 
       {queries.length === 0 ? (
         <EmptyState onOpenSettings={onOpenSettings} />

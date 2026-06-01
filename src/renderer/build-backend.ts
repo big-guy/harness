@@ -221,6 +221,10 @@ export function buildBackend(
     createInboxWorktree: (
       ref: { kind: 'issue' | 'pr'; owner: string; repo: string; number: number; title: string }
     ) => req('inbox:createWorktree', ref),
+    listIssueTemplates: (owner: string, repo: string) =>
+      req('inbox:listIssueTemplates', owner, repo),
+    createIssue: (owner: string, repo: string, fields: { title: string; body: string }) =>
+      req('inbox:createIssue', owner, repo, fields),
 
     refreshAnnouncements: () => req('announcements:refresh'),
     dismissAnnouncement: (id: string) => req('announcements:dismiss', id),
