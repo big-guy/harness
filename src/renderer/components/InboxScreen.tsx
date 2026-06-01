@@ -541,6 +541,17 @@ export function InboxScreen({
     void backend.refreshInboxAllIfStale()
   }, [])
 
+  // Esc closes the Add-item modal if it's open, otherwise the inbox.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      if (showAddItem) setShowAddItem(false)
+      else onClose()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [showAddItem, onClose])
+
   const activeQuery = queries.find((q) => q.id === activeQueryId) || null
   const rawItems = activeQueryId ? inbox.byQueryId[activeQueryId] || [] : []
   const totalCount = activeQueryId ? inbox.totalCount[activeQueryId] ?? 0 : 0
@@ -613,6 +624,9 @@ export function InboxScreen({
           <span>Back</span>
         </button>
         <span className="ml-3 text-xs font-semibold text-fg-bright">Inbox</span>
+        <kbd className="no-drag ml-auto text-xs text-faint bg-bg px-1.5 py-0.5 rounded border border-border font-mono">
+          ESC
+        </kbd>
       </div>
 
       {/* Add item — opens a new GitHub issue in one of the tracked repos.
