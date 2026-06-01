@@ -152,7 +152,10 @@ function emitStopIfRelevant(terminalId: string, ev: HookEvent): void {
   }
 }
 
-function tailLog(terminalId: string, store: Store): void {
+// Exported for testing. Reads newly-appended NDJSON records and dispatches
+// the derived status transitions. See the first-touch comment below for the
+// boot-replay guard this function encodes.
+export function tailLog(terminalId: string, store: Store): void {
   const path = join(STATUS_DIR, `${terminalId}.ndjson`)
   let fd: number
   try {
