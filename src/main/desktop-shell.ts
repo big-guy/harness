@@ -720,7 +720,14 @@ export function startDesktopShell(deps: DesktopShellStartDeps): DesktopShellStar
   // rely on the Q keyUp. The 1s timer runs here; the renderer overlay is
   // driven by the start/cancel signals (CSS fill in styles.css matches
   // HOLD_TO_QUIT_MS).
+  //
+  // Shortcut: two quick ⌘Q taps (each keydown within DOUBLE_TAP_MS of the
+  // last) quit immediately, so power users don't have to wait out the hold.
+  // OS key-repeat (isAutoRepeat) is ignored so a single held ⌘Q can't read
+  // as a double-tap.
   const HOLD_TO_QUIT_MS = 1000
+  const DOUBLE_TAP_MS = 400
+  let lastQuitTapAt = 0
   let holdQuitTimer: NodeJS.Timeout | null = null
   const startHoldToQuit = (): void => {
     if (holdQuitTimer) return
@@ -740,11 +747,19 @@ export function startDesktopShell(deps: DesktopShellStartDeps): DesktopShellStar
     contents.on('before-input-event', (_event, input) => {
       const isQ = input.key === 'q' || input.key === 'Q'
       if (input.type === 'keyDown' && input.meta && isQ) {
+        if (input.isAutoRepeat) return // OS key-repeat while holding, not a new tap
         if (!store.getSnapshot().state.settings.warnBeforeQuitting) {
           app.quit() // gesture disabled — ⌘Q quits immediately
-        } else {
-          startHoldToQuit()
+          return
         }
+        const now = Date.now()
+        if (now - lastQuitTapAt < DOUBLE_TAP_MS) {
+          cancelHoldToQuit() // second quick tap — quit now, skip the hold
+          app.quit()
+          return
+        }
+        lastQuitTapAt = now
+        startHoldToQuit()
       } else if (input.type === 'keyUp' && (input.key === 'Meta' || isQ)) {
         cancelHoldToQuit()
       } else if (input.type === 'keyDown' && holdQuitTimer) {
