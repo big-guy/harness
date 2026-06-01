@@ -26,9 +26,9 @@ npm run dev
 
 The `--legacy-peer-deps` flag is required because of an `electron-vite@5` peer range.
 
-## Building and testing the headless server
+## Building and testing on Linux
 
-The backend also runs as a standalone `harness-server` — see the [Headless server](README.md#headless-server) section of the README for the user-facing install + connect flow. If you're changing anything the headless path touches, these two scripts let you build and exercise a real Linux server without leaving your Mac. Both need Docker running.
+A few Docker-based helpers let you build and exercise Harness on Linux without leaving your Mac — the standalone `harness-server` (see the README's [Headless server](README.md#headless-server) section for the user-facing install + connect flow) and the full desktop UI over VNC. All of them need Docker running.
 
 ### Building Linux tarballs — `pack:headless:linux`
 
@@ -45,7 +45,7 @@ On Apple Silicon the `linux/arm64` build is VM-native and quick; `linux/amd64` r
 
 To build a tarball for the platform you're already on (the `darwin-arm64` tarball on your Mac, or natively on a Linux box), skip Docker and run `npm run pack:headless` directly.
 
-### Running one in a container — `run-headless-container.sh`
+### Running the server in a container — `run-headless-container.sh`
 
 Once the matching tarball exists, this spins up an Ubuntu container, installs Node + `claude` + `codex`, installs the tarball, and prints how to start the server and connect:
 
@@ -61,6 +61,22 @@ Tear down when finished:
 ```sh
 docker rm -f harness_linux-arm64 harness_linux-amd64
 ```
+
+### Running the full UI over VNC — `run-ui-container.sh`
+
+To exercise the actual Electron desktop app on Linux (not just the headless server), this builds Harness from source in a `linux/arm64` container and runs it on a virtual display, served over VNC:
+
+```sh
+./scripts/run-ui-container.sh
+```
+
+It installs Electron's runtime libraries + Node + `claude`/`codex`, builds the app (`electron-vite build`), and launches it under Xvfb + fluxbox with `x11vnc` (the app runs as root with the sandbox disabled, the same `ELECTRON_DISABLE_SANDBOX` the `dev` script uses). Connect from the host with a VNC client:
+
+```sh
+open vnc://localhost:5901      # macOS Screen Sharing; password: harness
+```
+
+Override the repo with `HARNESS_CLONE_URL`, the host port with `HARNESS_VNC_PORT`, the password with `HARNESS_VNC_PASSWORD`, and the screen size with `HARNESS_UI_GEOMETRY`. The Electron log is at `/var/log/harness-ui.log` inside the container. Tear down with `docker rm -f harness_ui`.
 
 ## How to edit code in this codebase
 
