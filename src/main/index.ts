@@ -98,6 +98,21 @@ function toAgentKind(value: string | undefined): AgentKind {
   return value === 'codex' ? 'codex' : 'claude'
 }
 
+// Dev-restart resilience: electron-vite closes our stdout/stderr pipe on
+// stop/restart; an in-flight console write then fails with EIO/EPIPE. These
+// are benign during teardown — swallow only the pipe-write codes, rethrow
+// everything else. Covers both the sync throw (uncaughtException) and the
+// async error-event path (stream 'error').
+const isBenignPipeError = (e: unknown): boolean =>
+  !!e && typeof e === 'object' && ['EIO', 'EPIPE'].includes((e as NodeJS.ErrnoException).code ?? '')
+
+process.stdout.on('error', (e) => { if (!isBenignPipeError(e)) throw e })
+process.stderr.on('error', (e) => { if (!isBenignPipeError(e)) throw e })
+process.on('uncaughtException', (e) => {
+  if (isBenignPipeError(e)) return
+  throw e
+})
+
 // Runtime detection — Electron sets process.versions.electron, plain
 // Node leaves it undefined. The mode picks itself; there's no env-var
 // override to fight with.
