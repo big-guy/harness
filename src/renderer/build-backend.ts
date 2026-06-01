@@ -39,6 +39,7 @@ import type {
   StateEventListener
 } from '../shared/transport/transport'
 import type { ElectronAPI } from './types'
+import type { ReviewSyncInput } from '../shared/github-types'
 
 export type { ElectronOnlyHelpers }
 
@@ -222,6 +223,8 @@ export function buildBackend(
     listRepoPRs: (repoRoot: string) => req('prs:listOpen', repoRoot),
     mergePR: (worktreePath: string, method: 'merge' | 'squash' | 'rebase') =>
       req('pr:merge', worktreePath, method),
+    reviewSync: (worktreePath: string, input: ReviewSyncInput) =>
+      req('review:sync', worktreePath, input),
     approvePR: (worktreePath: string) => req('pr:approve', worktreePath),
 
     getWeeklyStats: () => req('stats:getWeekly'),

@@ -38,7 +38,8 @@ import { getWeeklyStats } from './weekly-stats'
 import type { TerminalTab, PaneNode, PaneLeaf } from '../shared/state/terminals'
 import { getLeaves, mapLeaves } from '../shared/state/terminals'
 import { listWorktrees, listBranches, continueWorktree, isWorktreeDirty, defaultWorktreeDir, getChangedFiles, getFileDiff, getBranchCommits, getCommitDiff, getCommitMeta, getCommitChangedFiles, getCommitFileDiffSides, getCommitRangeChangedFiles, getCommitRangeFileDiffSides, getMainWorktreeStatus, prepareMainForMerge, mergeWorktreeLocally, getBranchSha, previewMergeConflicts, getBranchDiffStats, listAllFiles, listRecentCommitShas, readWorktreeFile, readWorktreeFileBinary, writeWorktreeFile, getFileDiffSides, getCurrentBranch, symlinkClaudeSettings, type MergeStrategy } from './worktree'
-import { listOpenPRs, testToken, starRepo, unstarRepo, isRepoStarred, mergePR, approvePR, getRepoInfo, type GitHubMergeMethod, type MergePRResult } from './github'
+import { listOpenPRs, testToken, starRepo, unstarRepo, isRepoStarred, mergePR, approvePR, getRepoInfo, getRepoContext, syncPRReview, type GitHubMergeMethod, type MergePRResult } from './github'
+import type { ReviewSyncInput, ReviewSyncResult } from '../shared/github-types'
 import { AVAILABLE_EDITORS, DEFAULT_EDITOR_ID, openInEditor } from './editor'
 import { setSecret, getSecret, hasSecret, deleteSecret } from './secrets'
 import { resolveGitHubToken, getTokenSource, invalidateTokenCache, getCachedToken } from './github-auth'
@@ -1586,6 +1587,37 @@ function registerIpcHandlers(): void {
         void prPoller.refreshOne(worktreePath)
       }
       return result
+    }
+  )
+
+  transport.onRequest(
+    'review:sync',
+    async (_ctx, worktreePath: string, input: ReviewSyncInput): Promise<ReviewSyncResult> => {
+      const passthrough = {
+        comments: input.comments,
+        reviewedFiles: input.reviewedFiles,
+        pushed: 0,
+        failed: 0
+      }
+      const token = getCachedToken()
+      if (!token) {
+        return { ok: false, error: 'Connect a GitHub token in Settings to sync', ...passthrough }
+      }
+      // PRs (incl. fork PRs) live on the upstream repo — that's where the
+      // PR number the poller cached came from.
+      const ctx = await getRepoContext(worktreePath)
+      if (!ctx) {
+        return { ok: false, error: 'Could not resolve GitHub repo from worktree origin', ...passthrough }
+      }
+      let prNumber = store.getSnapshot().state.prs.byPath[worktreePath]?.number
+      if (typeof prNumber !== 'number') {
+        await prPoller.refreshOne(worktreePath)
+        prNumber = store.getSnapshot().state.prs.byPath[worktreePath]?.number
+      }
+      if (typeof prNumber !== 'number') {
+        return { ok: false, error: 'No pull request found for this worktree', ...passthrough }
+      }
+      return syncPRReview(token, ctx.upstream.owner, ctx.upstream.repo, prNumber, input)
     }
   )
 
