@@ -3,7 +3,9 @@ import { createRoot, type Root } from 'react-dom/client'
 import * as monaco from 'monaco-editor'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { ArrowRightFromLine, Check, MessagesSquare, WrapText } from 'lucide-react'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
+import { ArrowRightFromLine, Check, FoldVertical, MessagesSquare, UnfoldVertical, WrapText } from 'lucide-react'
 import type { FileDiffSides, ChangedFile } from '../types'
 import type { ReviewComment } from './ReviewFileTree'
 import { MonacoDiffEditor } from './MonacoDiffEditor'
@@ -56,6 +58,9 @@ const STATUS_COLOR: Record<ChangedFile['status'], string> = {
 }
 
 const COMMENT_REMARK_PLUGINS = [remarkGfm]
+// rehype-raw parses raw HTML (so GitHub-authored tags render); rehype-sanitize
+// then strips anything unsafe — comments come from arbitrary PR participants.
+const COMMENT_REHYPE_PLUGINS = [rehypeRaw, rehypeSanitize]
 
 function formatRelTime(ms: number): string {
   if (!ms || Number.isNaN(ms)) return ''
@@ -75,14 +80,16 @@ const COLLAPSED_BODY_PX = 64
 
 function InlineComment({
   comment,
-  onDelete
+  onDelete,
+  forceExpanded
 }: {
   comment: ReviewComment
   onDelete: () => void
+  forceExpanded?: boolean
 }): JSX.Element {
   const ts = comment.createdAt ? Date.parse(comment.createdAt) : comment.timestamp
   const timeStr = formatRelTime(ts)
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(forceExpanded ?? false)
   const bodyRef = useRef<HTMLDivElement>(null)
   const [collapsible, setCollapsible] = useState(false)
   useEffect(() => {
@@ -189,7 +196,9 @@ function InlineComment({
             overflow: 'hidden'
           }}
         >
-          <ReactMarkdown remarkPlugins={COMMENT_REMARK_PLUGINS}>{comment.body}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={COMMENT_REMARK_PLUGINS} rehypePlugins={COMMENT_REHYPE_PLUGINS}>
+            {comment.body}
+          </ReactMarkdown>
         </div>
         {clamped && (
           <div
@@ -363,6 +372,7 @@ export function ReviewDiffPane({
   const [sides, setSides] = useState<FileDiffSides | null>(null)
   const [loading, setLoading] = useState(false)
   const [commentLine, setCommentLine] = useState<number | null>(null)
+  const [expandAll, setExpandAll] = useState(false)
   // Bumped each time the diff editor (re)mounts so the view-zone effect
   // re-runs and re-draws comments — the editor unmounts/remounts on every
   // file switch, and a ref alone wouldn't retrigger the effect.
@@ -487,7 +497,11 @@ export function ReviewDiffPane({
         if (item.type === 'comment' && item.comment) {
           const c = item.comment
           root.render(
-            <InlineComment comment={c} onDelete={() => onDeleteComment(c.id)} />
+            <InlineComment
+              comment={c}
+              onDelete={() => onDeleteComment(c.id)}
+              forceExpanded={expandAll}
+            />
           )
         } else if (item.type === 'input') {
           root.render(
@@ -524,7 +538,7 @@ export function ReviewDiffPane({
     })
 
     viewZonesRef.current = newZones
-  }, [comments, commentLine, editorNonce, clearViewZones, onAddComment, onDeleteComment])
+  }, [comments, commentLine, editorNonce, expandAll, clearViewZones, onAddComment, onDeleteComment])
 
   // Clean up view zones on unmount
   useEffect(() => {
@@ -666,6 +680,25 @@ export function ReviewDiffPane({
             >
               <MessagesSquare className="icon-xs" />
               {comments.length}
+            </button>
+          </Tooltip>
+        )}
+
+        {comments.length > 0 && (
+          <Tooltip label={expandAll ? 'Collapse all comments' : 'Expand all comments'}>
+            <button
+              onClick={() => setExpandAll((v) => !v)}
+              aria-pressed={expandAll}
+              aria-label={expandAll ? 'Collapse all comments' : 'Expand all comments'}
+              className={`shrink-0 flex items-center px-2 py-1 rounded border border-border transition-colors cursor-pointer ${
+                expandAll ? 'text-accent' : 'text-faint hover:text-fg'
+              }`}
+            >
+              {expandAll ? (
+                <FoldVertical className="icon-xs" />
+              ) : (
+                <UnfoldVertical className="icon-xs" />
+              )}
             </button>
           </Tooltip>
         )}

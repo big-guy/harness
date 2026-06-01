@@ -5,6 +5,8 @@ import type { PRReview } from '../../shared/state/prs'
 import type { ReviewComment } from './ReviewFileTree'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
 import { ReviewFileTree } from './ReviewFileTree'
 import { ReviewDiffPane } from './ReviewDiffPane'
 import { ModeButton } from './DiffView'
@@ -718,6 +720,7 @@ function shortOf(commits: BranchCommit[], hash?: string): string {
 }
 
 const REVIEW_MD_PLUGINS = [remarkGfm]
+const REVIEW_REHYPE_PLUGINS = [rehypeRaw, rehypeSanitize]
 
 const REVIEW_STATE_META: Record<string, { ring: string; label: string }> = {
   APPROVED: { ring: 'ring-success', label: 'approved' },
@@ -800,7 +803,9 @@ function ReviewerStatus({ reviews }: { reviews: PRReview[] }): JSX.Element | nul
           <div className="px-3 py-2 max-h-48 overflow-y-auto">
             {openReview.body.trim() ? (
               <div className="markdown text-xs text-dim">
-                <ReactMarkdown remarkPlugins={REVIEW_MD_PLUGINS}>{openReview.body}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={REVIEW_MD_PLUGINS} rehypePlugins={REVIEW_REHYPE_PLUGINS}>
+                  {openReview.body}
+                </ReactMarkdown>
               </div>
             ) : (
               <span className="text-xs text-faint">(no top-level comment)</span>
