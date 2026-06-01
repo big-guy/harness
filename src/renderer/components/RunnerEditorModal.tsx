@@ -7,9 +7,7 @@ import type { RunnerItem } from '../types'
 interface RunnerEditorModalProps {
   isOpen: boolean
   onClose: () => void
-  /** Repo whose .harness.json the user runners are persisted to. Empty when
-   *  the worktree isn't resolvable — the modal then renders a hint instead of
-   *  a form, since there's nowhere to save. */
+  /** Repo whose .harness.json the user runners are persisted to. */
   repoRoot: string
   /** Current user runners for the repo (from .harness.json). */
   runners: readonly RunnerItem[]
@@ -142,154 +140,147 @@ export function RunnerEditorModal({
           </button>
         </div>
 
-        {!repoRoot ? (
-          <div className="px-5 py-6 text-xs text-dim">
-            This worktree isn’t associated with a known repo, so there’s nowhere
-            to save runners.
-          </div>
-        ) : (
-          <div className="px-5 py-4 space-y-4 overflow-y-auto">
-            <p className="text-xs text-dim leading-relaxed">
-              Runners you define here are saved to this repo’s{' '}
-              <code className="bg-app/40 px-1 rounded text-xs">.harness.json</code>{' '}
-              and appear in the Toolbox dropdown of every worktree.
-            </p>
+        <div className="px-5 py-4 space-y-4 overflow-y-auto">
+          <p className="text-xs text-dim leading-relaxed">
+            Runners you define here are saved to this repo’s{' '}
+            <code className="bg-app/40 px-1 rounded text-xs">.harness.json</code>{' '}
+            and appear in the Toolbox dropdown of every worktree.
+          </p>
 
-            {runners.length > 0 && (
-              <div className="space-y-1">
-                {runners.map((runner) => {
-                  const Icon = resolveLucideIcon(runner.icon)
-                  const isEditing =
-                    editingName != null &&
-                    editingName.toLowerCase() === runner.name.toLowerCase()
-                  return (
-                    <div
-                      key={runner.name}
-                      className={`flex items-center gap-2 rounded px-2 py-1.5 ${
-                        isEditing ? 'bg-accent/10' : 'bg-app/40'
-                      }`}
-                    >
-                      {Icon && <Icon className="icon-sm shrink-0 text-faint" />}
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs text-fg-bright truncate">{runner.name}</div>
-                        <div className="text-xs text-faint font-mono truncate">
-                          {runner.command}
-                        </div>
+          {runners.length > 0 && (
+            <div className="space-y-1">
+              {runners.map((runner) => {
+                const Icon = resolveLucideIcon(runner.icon)
+                const isEditing =
+                  editingName != null &&
+                  editingName.toLowerCase() === runner.name.toLowerCase()
+                return (
+                  <div
+                    key={runner.name}
+                    className={`flex items-center gap-2 rounded px-2 py-1.5 ${
+                      isEditing ? 'bg-accent/10' : 'bg-app/40'
+                    }`}
+                  >
+                    {Icon && <Icon className="icon-sm shrink-0 text-faint" />}
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs text-fg-bright truncate">{runner.name}</div>
+                      <div className="text-xs text-faint font-mono truncate">
+                        {runner.command}
                       </div>
-                      <button
-                        onClick={() => handleEdit(runner)}
-                        title={`Edit "${runner.name}"`}
-                        aria-label={`Edit ${runner.name}`}
-                        className="shrink-0 p-1 text-faint hover:text-fg cursor-pointer"
-                      >
-                        <Pencil className="icon-sm" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(runner.name)}
-                        title={`Delete "${runner.name}"`}
-                        aria-label={`Delete ${runner.name}`}
-                        className="shrink-0 p-1 text-faint hover:text-danger cursor-pointer"
-                      >
-                        <Trash2 className="icon-sm" />
-                      </button>
                     </div>
-                  )
-                })}
-              </div>
-            )}
-
-            <div className="border-t border-border pt-4 space-y-3">
-              <div className="text-xs font-medium text-dim uppercase tracking-wider">
-                {editingName ? `Edit "${editingName}"` : 'Add a runner'}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs text-dim">Name</label>
-                  <input
-                    value={draft.name}
-                    onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-                    placeholder="Dev server"
-                    autoFocus
-                    className="w-full bg-app/40 border border-border rounded px-2.5 py-1.5 text-xs text-fg-bright placeholder:text-faint focus:outline-none focus:border-accent"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs text-dim">
-                    Icon <span className="text-faint">(Lucide name, optional)</span>
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      value={draft.icon}
-                      onChange={(e) => setDraft((d) => ({ ...d, icon: e.target.value }))}
-                      placeholder="Play"
-                      className="w-full bg-app/40 border border-border rounded px-2.5 py-1.5 text-xs text-fg-bright placeholder:text-faint focus:outline-none focus:border-accent"
-                    />
-                    {DraftIcon && <DraftIcon className="icon-sm shrink-0 text-faint" />}
+                    <button
+                      onClick={() => handleEdit(runner)}
+                      title={`Edit "${runner.name}"`}
+                      aria-label={`Edit ${runner.name}`}
+                      className="shrink-0 p-1 text-faint hover:text-fg cursor-pointer"
+                    >
+                      <Pencil className="icon-sm" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(runner.name)}
+                      title={`Delete "${runner.name}"`}
+                      aria-label={`Delete ${runner.name}`}
+                      className="shrink-0 p-1 text-faint hover:text-danger cursor-pointer"
+                    >
+                      <Trash2 className="icon-sm" />
+                    </button>
                   </div>
-                </div>
-              </div>
+                )
+              })}
+            </div>
+          )}
 
+          <div className="border-t border-border pt-4 space-y-3">
+            <div className="text-xs font-medium text-dim uppercase tracking-wider">
+              {editingName ? `Edit "${editingName}"` : 'Add a runner'}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs text-dim">Command</label>
+                <label className="text-xs text-dim">Name</label>
                 <input
-                  value={draft.command}
-                  onChange={(e) => setDraft((d) => ({ ...d, command: e.target.value }))}
-                  placeholder="npm run dev"
-                  spellCheck={false}
-                  className="w-full bg-app/40 border border-border rounded px-2.5 py-1.5 text-xs font-mono text-fg-bright placeholder:text-faint focus:outline-none focus:border-accent"
+                  value={draft.name}
+                  onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                  placeholder="Dev server"
+                  autoFocus
+                  className="w-full bg-app/40 border border-border rounded px-2.5 py-1.5 text-xs text-fg-bright placeholder:text-faint focus:outline-none focus:border-accent"
                 />
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs text-dim">
-                    Description <span className="text-faint">(optional)</span>
-                  </label>
+              <div className="space-y-1.5">
+                <label className="text-xs text-dim">
+                  Icon <span className="text-faint">(Lucide name, optional)</span>
+                </label>
+                <div className="flex items-center gap-2">
                   <input
-                    value={draft.description}
-                    onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
-                    placeholder="Shown as the tooltip"
+                    value={draft.icon}
+                    onChange={(e) => setDraft((d) => ({ ...d, icon: e.target.value }))}
+                    placeholder="Play"
                     className="w-full bg-app/40 border border-border rounded px-2.5 py-1.5 text-xs text-fg-bright placeholder:text-faint focus:outline-none focus:border-accent"
                   />
+                  {DraftIcon && <DraftIcon className="icon-sm shrink-0 text-faint" />}
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs text-dim">
-                    Max instances <span className="text-faint">(optional)</span>
-                  </label>
-                  <input
-                    value={draft.cardinality}
-                    onChange={(e) => setDraft((d) => ({ ...d, cardinality: e.target.value }))}
-                    placeholder="unlimited"
-                    inputMode="numeric"
-                    className="w-full bg-app/40 border border-border rounded px-2.5 py-1.5 text-xs text-fg-bright placeholder:text-faint focus:outline-none focus:border-accent"
-                  />
-                </div>
-              </div>
-
-              {error && <div className="text-xs text-danger">{error}</div>}
-
-              <div className="flex items-center justify-end gap-2">
-                {editingName && (
-                  <button
-                    onClick={resetForm}
-                    className="px-3 py-1.5 text-xs text-dim hover:text-fg cursor-pointer transition-colors"
-                  >
-                    Cancel edit
-                  </button>
-                )}
-                <button
-                  onClick={handleSubmit}
-                  disabled={!draft.name.trim() || !draft.command.trim()}
-                  className="px-4 py-1.5 text-xs font-medium rounded bg-accent/20 hover:bg-accent/30 text-fg-bright border border-accent/40 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors flex items-center gap-1.5"
-                >
-                  <Plus className="icon-xs" />
-                  {editingName ? 'Save changes' : 'Add runner'}
-                </button>
               </div>
             </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs text-dim">Command</label>
+              <input
+                value={draft.command}
+                onChange={(e) => setDraft((d) => ({ ...d, command: e.target.value }))}
+                placeholder="npm run dev"
+                spellCheck={false}
+                className="w-full bg-app/40 border border-border rounded px-2.5 py-1.5 text-xs font-mono text-fg-bright placeholder:text-faint focus:outline-none focus:border-accent"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs text-dim">
+                  Description <span className="text-faint">(optional)</span>
+                </label>
+                <input
+                  value={draft.description}
+                  onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+                  placeholder="Shown as the tooltip"
+                  className="w-full bg-app/40 border border-border rounded px-2.5 py-1.5 text-xs text-fg-bright placeholder:text-faint focus:outline-none focus:border-accent"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-dim">
+                  Max instances <span className="text-faint">(optional)</span>
+                </label>
+                <input
+                  value={draft.cardinality}
+                  onChange={(e) => setDraft((d) => ({ ...d, cardinality: e.target.value }))}
+                  placeholder="unlimited"
+                  inputMode="numeric"
+                  className="w-full bg-app/40 border border-border rounded px-2.5 py-1.5 text-xs text-fg-bright placeholder:text-faint focus:outline-none focus:border-accent"
+                />
+              </div>
+            </div>
+
+            {error && <div className="text-xs text-danger">{error}</div>}
+
+            <div className="flex items-center justify-end gap-2">
+              {editingName && (
+                <button
+                  onClick={resetForm}
+                  className="px-3 py-1.5 text-xs text-dim hover:text-fg cursor-pointer transition-colors"
+                >
+                  Cancel edit
+                </button>
+              )}
+              <button
+                onClick={handleSubmit}
+                disabled={!draft.name.trim() || !draft.command.trim()}
+                className="px-4 py-1.5 text-xs font-medium rounded bg-accent/20 hover:bg-accent/30 text-fg-bright border border-accent/40 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors flex items-center gap-1.5"
+              >
+                <Plus className="icon-xs" />
+                {editingName ? 'Save changes' : 'Add runner'}
+              </button>
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )

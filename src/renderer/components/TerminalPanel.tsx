@@ -519,7 +519,6 @@ export function TerminalPanel({
   // updated runner replaces the old entry instead of duplicating it.
   const saveRunnerToUser = useCallback(
     (runner: RunnerItem) => {
-      if (!repoRoot) return
       const kept = userRunners.filter(
         (r) => r.name.toLowerCase() !== runner.name.toLowerCase()
       )
@@ -529,7 +528,6 @@ export function TerminalPanel({
   )
   const removeUserRunner = useCallback(
     (name: string) => {
-      if (!repoRoot) return
       const next = userRunners.filter(
         (r) => r.name.toLowerCase() !== name.toLowerCase()
       )
@@ -576,7 +574,7 @@ export function TerminalPanel({
             <RotateCcw className="icon-sm" />
           </button>
         )}
-        {source === 'agent' && repoRoot && (
+        {source === 'agent' && (
           <button
             title={`Save "${runner.name}" to your runners`}
             aria-label={`Save ${runner.name} to your runners`}
