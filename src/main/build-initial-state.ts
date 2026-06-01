@@ -12,6 +12,7 @@ import { initialJsonClaude } from '../shared/state/json-claude'
 import { initialSnooze } from '../shared/state/snooze'
 import { initialAnnouncements } from '../shared/state/announcements'
 import { initialScratchpad } from '../shared/state/scratchpad'
+import { initialInbox } from '../shared/state/inbox'
 import { initialSshBootstrap } from '../shared/state/ssh-bootstrap'
 import {
   initialSettings,
@@ -72,6 +73,7 @@ export function buildInitialAppState(
     announcements: initialAnnouncements,
     scratchpad: { byWorktreePath: flattenScratchpadNotes(config.scratchpadNotes) },
     sshBootstrap: initialSshBootstrap,
+    inbox: initialInbox,
     settings: {
       ...initialSettings,
       themeMode:
@@ -144,7 +146,14 @@ export function buildInitialAppState(
       dismissedAnnouncementIds: Array.isArray(config.dismissedAnnouncementIds)
         ? config.dismissedAnnouncementIds.filter((x): x is string => typeof x === 'string')
         : [],
-      announcementsMuted: config.announcementsMuted === true
+      announcementsMuted: config.announcementsMuted === true,
+      inboxQueries: Array.isArray(config.inboxQueries) ? config.inboxQueries : [],
+      inboxPRBranchPrefix:
+        typeof config.inboxPRBranchPrefix === 'string' ? config.inboxPRBranchPrefix : 'pr/',
+      inboxIssueBranchPrefix:
+        typeof config.inboxIssueBranchPrefix === 'string'
+          ? config.inboxIssueBranchPrefix
+          : 'issue-'
     }
   }
 }

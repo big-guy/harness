@@ -262,6 +262,11 @@ export interface Config {
   // Same nesting scheme as `panes` so two repos with identical worktree
   // paths stay distinct. Absent / empty entries are pruned on write.
   scratchpadNotes?: Record<string, Record<string, string>>
+  // Named GitHub search-issues queries that drive the Inbox view.
+  inboxQueries?: { id: string; name: string; query: string }[]
+  // Branch-name prefixes used when the Inbox creates a worktree.
+  inboxPRBranchPrefix?: string
+  inboxIssueBranchPrefix?: string
 }
 
 export const DEFAULT_WORKTREE_BASE: 'remote' | 'local' = 'remote'

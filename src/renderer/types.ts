@@ -254,6 +254,15 @@ export interface ElectronAPI {
   refreshPRsAllIfStale(): Promise<boolean>
   refreshPRsOne(worktreePath: string): Promise<boolean>
   refreshPRsOneIfStale(worktreePath: string): Promise<boolean>
+  refreshInboxAll(): Promise<boolean>
+  refreshInboxAllIfStale(): Promise<boolean>
+  refreshInboxOne(queryId: string): Promise<boolean>
+  createInboxWorktree(
+    ref: { kind: 'issue' | 'pr'; owner: string; repo: string; number: number; title: string }
+  ): Promise<
+    | { kind: 'pending'; pendingId: string; repoRoot: string; branchName: string; initialPrompt: string }
+    | { kind: 'existing'; worktreePath: string }
+  >
 
   refreshAnnouncements(): Promise<boolean>
   dismissAnnouncement(id: string): Promise<boolean>
@@ -318,6 +327,11 @@ export interface ElectronAPI {
   setHarnessMcpEnabled(enabled: boolean): Promise<boolean>
   setAutoApprovePermissions(enabled: boolean): Promise<boolean>
   setAutoApproveSteerInstructions(text: string): Promise<boolean>
+  setInboxQueries(queries: { id: string; name: string; query: string }[]): Promise<boolean>
+  setInboxBranchPrefixes(payload: {
+    prBranchPrefix: string
+    issueBranchPrefix: string
+  }): Promise<boolean>
   setClaudeTuiFullscreen(enabled: boolean): Promise<boolean>
   setWsTransportEnabled(enabled: boolean): Promise<boolean>
   setWsTransportPort(port: number): Promise<number>

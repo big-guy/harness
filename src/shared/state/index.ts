@@ -102,6 +102,12 @@ import {
   type SshBootstrapEvent,
   type SshBootstrapState
 } from './ssh-bootstrap'
+import {
+  initialInbox,
+  inboxReducer,
+  type InboxEvent,
+  type InboxState
+} from './inbox'
 
 export type { SettingsState, SettingsEvent }
 export type { UpdaterState, UpdaterEvent, UpdaterStatus } from './updater'
@@ -182,6 +188,16 @@ export type {
   BootstrapProgress,
   BootstrapError
 } from './ssh-bootstrap'
+export type {
+  InboxState,
+  InboxEvent,
+  InboxItem,
+  InboxItemRef,
+  InboxKind,
+  InboxLabel,
+  InboxUser,
+  InboxMilestone
+} from './inbox'
 
 export interface AppState {
   settings: SettingsState
@@ -199,6 +215,7 @@ export interface AppState {
   announcements: AnnouncementsState
   scratchpad: ScratchpadState
   sshBootstrap: SshBootstrapState
+  inbox: InboxState
 }
 
 export type StateEvent =
@@ -217,6 +234,7 @@ export type StateEvent =
   | AnnouncementsEvent
   | ScratchpadEvent
   | SshBootstrapEvent
+  | InboxEvent
 
 export const initialState: AppState = {
   settings: initialSettings,
@@ -233,7 +251,8 @@ export const initialState: AppState = {
   snooze: initialSnooze,
   announcements: initialAnnouncements,
   scratchpad: initialScratchpad,
-  sshBootstrap: initialSshBootstrap
+  sshBootstrap: initialSshBootstrap,
+  inbox: initialInbox
 }
 
 export function rootReducer(state: AppState, event: StateEvent): AppState {
@@ -312,6 +331,9 @@ export function rootReducer(state: AppState, event: StateEvent): AppState {
       sshBootstrap: sshBootstrapReducer(state.sshBootstrap, event as SshBootstrapEvent)
     }
   }
+  if (event.type.startsWith('inbox/')) {
+    return { ...state, inbox: inboxReducer(state.inbox, event as InboxEvent) }
+  }
   return state
 }
 
@@ -357,7 +379,8 @@ export function mergeWireSnapshot(state: WireSnapshotState): AppState {
     snooze: { ...initialState.snooze, ...state.snooze },
     announcements: { ...initialState.announcements, ...state.announcements },
     scratchpad: { ...initialState.scratchpad, ...state.scratchpad },
-    sshBootstrap: { ...initialState.sshBootstrap, ...state.sshBootstrap }
+    sshBootstrap: { ...initialState.sshBootstrap, ...state.sshBootstrap },
+    inbox: { ...initialState.inbox, ...state.inbox }
   }
 }
 

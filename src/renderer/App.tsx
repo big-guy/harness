@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useSettings, usePrs, useOnboarding, useHooks, useWorktrees, useTerminals, usePanes, useLastActive, useUpdater, useRepoConfigs, useSnooze, useAnnouncements } from './store'
+import { useSettings, usePrs, useInbox, useOnboarding, useHooks, useWorktrees, useTerminals, usePanes, useLastActive, useUpdater, useRepoConfigs, useSnooze, useAnnouncements, useActiveBackend } from './store'
 import { useBackend } from './backend'
 import { useTailLineBuffer } from './hooks/useTailLineBuffer'
 import { useTabHandlers } from './hooks/useTabHandlers'
@@ -36,6 +36,7 @@ import { InterfaceToggle } from './components/InterfaceToggle'
 import { Activity } from './components/Activity'
 import { Cleanup } from './components/Cleanup'
 import { CommandCenter } from './components/CommandCenter'
+import { InboxScreen } from './components/InboxScreen'
 import { CommandPalette } from './components/CommandPalette'
 import { HotkeyCheatsheet } from './components/HotkeyCheatsheet'
 import { NewProjectScreen } from './components/NewProjectScreen'
@@ -147,6 +148,12 @@ function DesktopApp(): JSX.Element {
   const prStatuses = prs.byPath
   const mergedPaths = prs.mergedByPath
   const prLoading = prs.loading
+  const inbox = useInbox()
+  const inboxUnreadCount = useMemo(() => {
+    let total = 0
+    for (const items of Object.values(inbox.byQueryId)) total += items.length
+    return total
+  }, [inbox.byQueryId])
   const snoozeState = useSnooze()
   const snoozedPaths = useMemo(() => {
     const m: Record<string, true> = {}
@@ -255,6 +262,7 @@ function DesktopApp(): JSX.Element {
   const [showActivity, setShowActivity] = useState(false)
   const [showCleanup, setShowCleanup] = useState(false)
   const [showCommandCenter, setShowCommandCenter] = useState(false)
+  const [showInbox, setShowInbox] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [commandPaletteMode, setCommandPaletteMode] = useState<'root' | 'files'>('root')
   const [showPerfMonitor, setShowPerfMonitor] = useState(false)
@@ -697,7 +705,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
     !showNewWorktree &&
     !showActivity &&
     !showCleanup &&
-    !showCommandCenter &&
+    !showCommandCenter && !showInbox &&
     reportIssueState === null &&
     !!activeWorktreeId &&
     !isPendingId(activeWorktreeId) &&
@@ -784,6 +792,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
     setSingleScreenMode,
     setShowNewWorktree,
     setShowCommandCenter,
+    setShowInbox,
     setShowCommandPalette,
     setCommandPaletteMode,
     setShowPerfMonitor,
@@ -1489,8 +1498,12 @@ const setQuestStep = useCallback((next: QuestStep) => {
               setShowNewWorktree(false)
               setShowActivity(false)
               setShowCleanup(false)
+              setShowInbox(false)
               setShowCommandCenter(true)
             }}
+            onOpenInbox={() => setShowInbox(true)}
+            inboxActive={showInbox}
+            inboxUnreadCount={inboxUnreadCount}
             onOpenNewProject={() => setShowNewProject(true)}
             onOpenMyWeek={() => setShowMyWeek(true)}
             width={effectiveSidebarWidth}
@@ -1535,7 +1548,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
           if (!paneTree) return null
           const leaves = getLeaves(paneTree)
           if (leaves.length === 0 || !leaves.some((l) => l.tabs.length > 0)) return null
-          const isVisible = !showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && reportIssueState === null && wt.path === activeWorktreeId && !pendingDeletionByPath[wt.path]
+          const isVisible = !showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && !showInbox && reportIssueState === null && wt.path === activeWorktreeId && !pendingDeletionByPath[wt.path]
           return (
             <div
               key={wt.path}
@@ -1576,7 +1589,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
                     singleScreenMode ? 0 : sidebarVisible ? effectiveSidebarWidth + 1 : 48
                   }
                   topBarTrailingExtendPx={
-                    !singleScreenMode && !showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && reportIssueState === null
+                    !singleScreenMode && !showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && !showInbox && reportIssueState === null
                       ? rightColumnHidden
                         ? 48
                         : rightPanelWidth + 1
@@ -1631,6 +1644,19 @@ const setQuestStep = useCallback((next: QuestStep) => {
             />
           </div>
         )}
+        {showInbox && (
+          <InboxScreen
+            onClose={() => setShowInbox(false)}
+            onOpenSettings={() => {
+              setShowInbox(false)
+              setShowSettings(true)
+            }}
+            onSelectWorktree={(idOrPath) => {
+              setShowInbox(false)
+              setActiveWorktreeId(idOrPath)
+            }}
+          />
+        )}
         {showCommandCenter && (
           <CommandCenter
             worktrees={worktrees}
@@ -1668,7 +1694,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
             </div>
           </div>
         )}
-        {!showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && reportIssueState === null && isPendingId(activeWorktreeId) && (() => {
+        {!showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && !showInbox && reportIssueState === null && isPendingId(activeWorktreeId) && (() => {
           const pending = pendingWorktrees.find((p) => p.id === activeWorktreeId)
           if (!pending) return null
           return (
@@ -1680,7 +1706,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
             />
           )
         })()}
-        {!showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && reportIssueState === null && activeWorktreeId && pendingDeletionByPath[activeWorktreeId] && (
+        {!showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && !showInbox && reportIssueState === null && activeWorktreeId && pendingDeletionByPath[activeWorktreeId] && (
           <DeletingWorktreeScreen
             deletion={pendingDeletionByPath[activeWorktreeId]}
             onDismiss={handleDismissPendingDeletion}
@@ -1698,10 +1724,10 @@ const setQuestStep = useCallback((next: QuestStep) => {
             out. macOS app-region rects are union/diff'd in DOM order (last wins per pixel), so a
             `drag-region` here — rendered after the tab bar — would re-mark the tab pixels as
             draggable and swallow clicks on tabs that overflow above the right column. */}
-        {!singleScreenMode && !showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && reportIssueState === null && !rightColumnHidden && (
+        {!singleScreenMode && !showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && !showInbox && reportIssueState === null && !rightColumnHidden && (
           <div className="shrink-0 flex flex-col"><div className="h-10 shrink-0" /><div className="flex-1 min-h-0 flex"><ResizeHandle onDelta={handleRightPanelResize} /></div></div>
         )}
-        {!singleScreenMode && !showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && reportIssueState === null && !rightColumnHidden && (
+        {!singleScreenMode && !showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && !showInbox && reportIssueState === null && !rightColumnHidden && (
           <div className="shrink-0 flex flex-col"><div className="h-10 shrink-0" /><div className="flex-1 min-h-0 flex"><RightColumn
             width={rightPanelWidth}
             activeWorktreeId={activeWorktreeId}
@@ -1728,7 +1754,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
             onCollapse={() => setRightColumnHidden(true)}
           /></div></div>
         )}
-        {!singleScreenMode && !showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && reportIssueState === null && rightColumnHidden && (
+        {!singleScreenMode && !showNewWorktree && !showActivity && !showCleanup && !showCommandCenter && !showInbox && reportIssueState === null && rightColumnHidden && (
           <div className="shrink-0 flex flex-col"><div className="h-10 shrink-0" /><div className="flex-1 min-h-0 flex"><CollapsedRightPanel
             worktreePath={activeWorktreeId}
             onExpand={() => setRightColumnHidden(false)}

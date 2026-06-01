@@ -27,6 +27,9 @@ import type { BrowserManagerLike } from './browser-manager-types'
 import { PerfMonitor } from './perf-monitor'
 import { setGitHubApiRecorder, setGitHubApiLoggingEnabled } from './github-recorder'
 import { PRPoller } from './pr-poller'
+import { InboxPoller } from './inbox-poller'
+import { prepareInboxWorktree, type InboxCreateOutcome } from './inbox-create-worktree'
+import { getRepoOriginInfo } from './git-remote-info'
 import { WorktreesFSM } from './worktrees-fsm'
 import { WorktreeDeletionFSM } from './worktree-deletion-fsm'
 import { PanesFSM, stripTransientTabFields } from './panes-fsm'
@@ -612,6 +615,37 @@ const prPoller = new PRPoller(store, {
 })
 
 const announcementsPoller = new AnnouncementsPoller(store)
+
+const inboxPoller = new InboxPoller(store, {
+  getQueries: () => store.getSnapshot().state.settings.inboxQueries,
+  getRepoRoots: () => config.repoRoots || []
+})
+
+/** Resolve every tracked repoRoot's origin owner/repo and dispatch to the
+ *  store. Cheap (one `git config` per repo), so we re-run it from scratch
+ *  on any repo-list change rather than diffing. */
+async function refreshOriginByRoot(): Promise<void> {
+  const roots = config.repoRoots || []
+  const entries: [string, { owner: string; repo: string }][] = []
+  await Promise.all(
+    roots.map(async (root) => {
+      const info = await getRepoOriginInfo(root)
+      if (info) entries.push([root, info])
+    })
+  )
+  store.dispatch({
+    type: 'worktrees/originByRootChanged',
+    payload: Object.fromEntries(entries)
+  })
+}
+
+// Re-resolve owner/repo for every tracked repo whenever the repo list
+// changes. Inbox uses this to detect which items already have a worktree.
+store.subscribe((event) => {
+  if (event.type === 'worktrees/reposChanged') {
+    void refreshOriginByRoot()
+  }
+})
 
 ptyManager.setStore(store)
 ptyManager.setSendSignal((channel, ...args) => transport.sendSignal(channel, ...args))
@@ -1589,6 +1623,52 @@ function registerIpcHandlers(): void {
     }
   )
 
+  transport.onRequest('inbox:refreshAll', async (_ctx) => {
+    await inboxPoller.refreshAll()
+    return true
+  })
+  transport.onRequest('inbox:refreshAllIfStale', (_ctx) => {
+    inboxPoller.refreshAllIfStale()
+    return true
+  })
+  transport.onRequest('inbox:refreshOne', async (_ctx, queryId: string) => {
+    await inboxPoller.refreshById(queryId)
+    return true
+  })
+
+  transport.onRequest(
+    'inbox:createWorktree',
+    async (
+      _ctx,
+      ref: { kind: 'issue' | 'pr'; owner: string; repo: string; number: number; title: string }
+    ): Promise<InboxCreateOutcome> => {
+      if (!ref || typeof ref !== 'object') {
+        throw new Error('Invalid inbox item reference')
+      }
+      const outcome = await prepareInboxWorktree(ref, {
+        getRepoRoots: () => config.repoRoots || [],
+        getOriginInfo: getRepoOriginInfo,
+        getWorktreeList: () => store.getSnapshot().state.worktrees.list,
+        generatePendingId: () => `pending-inbox-${ref.kind}-${ref.number}-${Date.now()}`,
+        getPRBranchPrefix: () =>
+          store.getSnapshot().state.settings.inboxPRBranchPrefix || 'pr/',
+        getIssueBranchPrefix: () =>
+          store.getSnapshot().state.settings.inboxIssueBranchPrefix || 'issue-'
+      })
+      if (outcome.kind === 'pending') {
+        // Fire-and-forget; the renderer focuses pendingId and watches
+        // the pending state transitions via the usual store events.
+        void worktreesFSM.runPending({
+          id: outcome.pendingId,
+          repoRoot: outcome.repoRoot,
+          branchName: outcome.branchName,
+          initialPrompt: outcome.initialPrompt
+        })
+      }
+      return outcome
+    }
+  )
+
   transport.onRequest('stats:getWeekly', async (_ctx) => {
     const snap = store.getSnapshot().state
     return getWeeklyStats(snap.prs, snap.worktrees)
@@ -1948,6 +2028,67 @@ function registerIpcHandlers(): void {
     if (config.harnessMcpEnabled === false) return null
     if (!terminalId) return null
     return writeMcpConfigForTerminal(terminalId, resolveCallerScope(terminalId))
+  })
+
+  transport.onRequest(
+    'config:setInboxBranchPrefixes',
+    (_ctx, payload: { prBranchPrefix?: unknown; issueBranchPrefix?: unknown }) => {
+      const prRaw = typeof payload?.prBranchPrefix === 'string' ? payload.prBranchPrefix : ''
+      const issueRaw =
+        typeof payload?.issueBranchPrefix === 'string' ? payload.issueBranchPrefix : ''
+      const prPrefix = prRaw.trimStart()
+      const issuePrefix = issueRaw.trimStart()
+      if (!/^[A-Za-z0-9_./-]*$/.test(prPrefix)) {
+        throw new Error('PR branch prefix may only contain A-Z, a-z, 0-9, _, ., -, /')
+      }
+      if (!/^[A-Za-z0-9_./-]*$/.test(issuePrefix)) {
+        throw new Error('Issue branch prefix may only contain A-Z, a-z, 0-9, _, ., -, /')
+      }
+      config.inboxPRBranchPrefix = prPrefix
+      config.inboxIssueBranchPrefix = issuePrefix
+      saveConfig(config)
+      store.dispatch({
+        type: 'settings/inboxBranchPrefixesChanged',
+        payload: { prBranchPrefix: prPrefix, issueBranchPrefix: issuePrefix }
+      })
+      return true
+    }
+  )
+
+  transport.onRequest('config:setInboxQueries', (_ctx, queries: unknown) => {
+    const cleaned: { id: string; name: string; query: string }[] = []
+    if (Array.isArray(queries)) {
+      for (const raw of queries) {
+        if (!raw || typeof raw !== 'object') continue
+        const r = raw as Record<string, unknown>
+        const id = typeof r.id === 'string' ? r.id.trim() : ''
+        const name = typeof r.name === 'string' ? r.name.trim() : ''
+        const query = typeof r.query === 'string' ? r.query.trim() : ''
+        if (!id || !name || !query) continue
+        cleaned.push({ id, name, query })
+      }
+    }
+    const prev = store.getSnapshot().state.settings.inboxQueries
+    if (cleaned.length === 0) {
+      delete config.inboxQueries
+    } else {
+      config.inboxQueries = cleaned
+    }
+    saveConfig(config)
+    store.dispatch({ type: 'settings/inboxQueriesChanged', payload: cleaned })
+
+    // Drop stale per-query state for ids that were removed, then refresh
+    // queries that are newly added or whose query string changed.
+    const keepIds = cleaned.map((q) => q.id)
+    store.dispatch({ type: 'inbox/queriesPruned', payload: { keepIds } })
+    inboxPoller.pruneTo(keepIds)
+    const prevById = new Map(prev.map((q) => [q.id, q.query]))
+    for (const q of cleaned) {
+      if (prevById.get(q.id) !== q.query) {
+        void inboxPoller.refreshById(q.id)
+      }
+    }
+    return true
   })
 
   transport.onRequest('config:setWsTransportEnabled', (_ctx, enabled: boolean) => {
@@ -3550,6 +3691,9 @@ async function runBoot(): Promise<void> {
     void refreshViewerLogin()
     prPoller.start()
     void prPoller.refreshAll()
+    inboxPoller.start()
+    void inboxPoller.refreshAll()
+    void refreshOriginByRoot()
 
     await refreshHarnessStarState()
   })()

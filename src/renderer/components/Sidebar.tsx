@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
-import { ChevronDown, ChevronRight, Plus, FolderOpen, Loader2, Settings as SettingsIcon, Sparkles, BarChart3, Trash2, LayoutGrid, X, Layers, Rows3, AlertCircle, Keyboard, MessageSquareHeart, PanelLeftClose, FilePlus, CalendarDays, RefreshCw } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, FolderOpen, Loader2, Settings as SettingsIcon, Sparkles, BarChart3, Trash2, LayoutGrid, X, Layers, Rows3, AlertCircle, Keyboard, MessageSquareHeart, PanelLeftClose, FilePlus, CalendarDays, RefreshCw, Inbox } from 'lucide-react'
 import { openReportIssue } from './ReportIssueScreen'
 import { Tooltip } from './Tooltip'
 import { HotkeyBadge } from './HotkeyBadge'
@@ -47,6 +47,9 @@ interface SidebarProps {
   onOpenActivity: () => void
   onOpenCleanup: () => void
   onOpenCommandCenter: () => void
+  onOpenInbox: () => void
+  inboxActive: boolean
+  inboxUnreadCount: number
   onOpenNewProject: () => void
   onOpenMyWeek: () => void
   width: number
@@ -91,6 +94,9 @@ export function Sidebar({
   onOpenActivity,
   onOpenCleanup,
   onOpenCommandCenter,
+  onOpenInbox,
+  inboxActive,
+  inboxUnreadCount,
   onOpenNewProject,
   onOpenMyWeek,
   width,
@@ -517,7 +523,22 @@ export function Sidebar({
             <LayoutGrid className="icon-sm" />
           </button>
         </Tooltip>
-        <Tooltip label="New project" side="top">
+        <Tooltip label="Inbox" action="toggleInbox" side="top">
+          <button
+            onClick={onOpenInbox}
+            className={`relative rounded p-1.5 transition-colors cursor-pointer ${
+              inboxActive ? 'text-accent bg-surface' : 'text-dim hover:text-fg hover:bg-surface'
+            }`}
+          >
+            <Inbox className="icon-sm" />
+            {inboxUnreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-1 rounded-full bg-accent text-app text-[9px] font-semibold flex items-center justify-center">
+                {inboxUnreadCount > 99 ? '99+' : inboxUnreadCount}
+              </span>
+            )}
+          </button>
+        </Tooltip>
+        <Tooltip label="New project" hotkey="Ctrl+N" side="top">
           <button
             onClick={onOpenNewProject}
             className="text-dim hover:text-fg hover:bg-surface rounded p-1.5 transition-colors cursor-pointer"

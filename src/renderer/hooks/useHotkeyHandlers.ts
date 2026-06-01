@@ -33,6 +33,7 @@ interface UseHotkeyHandlersArgs {
   setSingleScreenMode: React.Dispatch<React.SetStateAction<boolean>>
   setShowNewWorktree: React.Dispatch<React.SetStateAction<boolean>>
   setShowCommandCenter: React.Dispatch<React.SetStateAction<boolean>>
+  setShowInbox: React.Dispatch<React.SetStateAction<boolean>>
   setShowCommandPalette: React.Dispatch<React.SetStateAction<boolean>>
   setCommandPaletteMode: React.Dispatch<React.SetStateAction<'root' | 'files'>>
   setShowPerfMonitor: React.Dispatch<React.SetStateAction<boolean>>
@@ -81,6 +82,7 @@ export function useHotkeyHandlers(args: UseHotkeyHandlersArgs): {
     setSingleScreenMode,
     setShowNewWorktree,
     setShowCommandCenter,
+    setShowInbox,
     setShowCommandPalette,
     setCommandPaletteMode,
     setShowPerfMonitor,
@@ -290,6 +292,7 @@ export function useHotkeyHandlers(args: UseHotkeyHandlersArgs): {
         backend.openInEditor(activeWorktreeId)
       },
       toggleCommandCenter: () => setShowCommandCenter((v) => !v),
+      toggleInbox: () => setShowInbox((v) => !v),
       commandPalette: () => {
         setShowHotkeyCheatsheet(false)
         setCommandPaletteMode('root')
@@ -368,6 +371,7 @@ export function useHotkeyHandlers(args: UseHotkeyHandlersArgs): {
       setSingleScreenMode,
       setShowNewWorktree,
       setShowCommandCenter,
+      setShowInbox,
       setShowCommandPalette,
       setCommandPaletteMode,
       setShowPerfMonitor,

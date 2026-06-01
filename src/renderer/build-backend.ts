@@ -215,6 +215,12 @@ export function buildBackend(
     refreshPRsAllIfStale: () => req('prs:refreshAllIfStale'),
     refreshPRsOne: (worktreePath: string) => req('prs:refreshOne', worktreePath),
     refreshPRsOneIfStale: (worktreePath: string) => req('prs:refreshOneIfStale', worktreePath),
+    refreshInboxAll: () => req('inbox:refreshAll'),
+    refreshInboxAllIfStale: () => req('inbox:refreshAllIfStale'),
+    refreshInboxOne: (queryId: string) => req('inbox:refreshOne', queryId),
+    createInboxWorktree: (
+      ref: { kind: 'issue' | 'pr'; owner: string; repo: string; number: number; title: string }
+    ) => req('inbox:createWorktree', ref),
 
     refreshAnnouncements: () => req('announcements:refresh'),
     dismissAnnouncement: (id: string) => req('announcements:dismiss', id),
@@ -245,6 +251,10 @@ export function buildBackend(
       req('config:setAutoApprovePermissions', enabled),
     setAutoApproveSteerInstructions: (text: string) =>
       req('config:setAutoApproveSteerInstructions', text),
+    setInboxQueries: (queries: { id: string; name: string; query: string }[]) =>
+      req('config:setInboxQueries', queries),
+    setInboxBranchPrefixes: (payload: { prBranchPrefix: string; issueBranchPrefix: string }) =>
+      req('config:setInboxBranchPrefixes', payload),
     setClaudeTuiFullscreen: (enabled: boolean) => req('config:setClaudeTuiFullscreen', enabled),
     setWsTransportEnabled: (enabled: boolean) => req('config:setWsTransportEnabled', enabled),
     setWsTransportPort: (port: number) => req('config:setWsTransportPort', port),

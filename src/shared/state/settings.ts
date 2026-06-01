@@ -94,6 +94,20 @@ export const DEFAULT_DARK_THEME = 'dark'
 export const DEFAULT_PR_REVIEW_PROMPT =
   "Review this PR. Read the diff, then check for correctness issues, design problems, security concerns, and missing edge cases. Cite file paths and line numbers for anything you flag. Skip restating what the PR does — focus on what could go wrong or be improved."
 
+export interface InboxQuery {
+  /** Stable id used as a React key and as the key in `inbox.byQueryId`. */
+  id: string
+  /** Display name shown as the tab label in the Inbox view. */
+  name: string
+  /** GitHub search-issues query string. Passed mostly verbatim to the API,
+   *  except that `milestone:"<regex>"` clauses containing regex metacharacters
+   *  are intercepted: the poller enumerates the candidate repos' milestones,
+   *  regex-matches their titles, and issues one scoped search per match.
+   *  `milestone:"plain-name"` (no metacharacters) is left alone and treated
+   *  as GitHub's native exact-match. */
+  query: string
+}
+
 export interface SettingsState {
   /** Whether the active theme is the light theme, the dark theme, or follows
    *  the OS appearance. Default 'system'. */
@@ -216,6 +230,15 @@ export interface SettingsState {
    *  the feed contents. Set by the "Hide all announcements" action and
    *  cleared only by the user. */
   announcementsMuted: boolean
+  /** Named GitHub search-issues queries that drive the Inbox view. Empty
+   *  array means the Inbox shows an empty/setup state. */
+  inboxQueries: InboxQuery[]
+  /** Prefix prepended to auto-generated branch names when the user clicks
+   *  "Check out for review" on a PR in the Inbox. */
+  inboxPRBranchPrefix: string
+  /** Prefix prepended to auto-generated branch names when the user clicks
+   *  "Start working on this" on an issue in the Inbox. */
+  inboxIssueBranchPrefix: string
 }
 
 export type SettingsEvent =
@@ -274,6 +297,11 @@ export type SettingsEvent =
   | { type: 'settings/prReviewPromptChanged'; payload: string }
   | { type: 'settings/announcementDismissed'; payload: string }
   | { type: 'settings/announcementsMutedChanged'; payload: boolean }
+  | { type: 'settings/inboxQueriesChanged'; payload: InboxQuery[] }
+  | {
+      type: 'settings/inboxBranchPrefixesChanged'
+      payload: { prBranchPrefix: string; issueBranchPrefix: string }
+    }
 
 // Client-side placeholder. Real values are seeded in the main-process Store
 // constructor from the on-disk config and secrets.
@@ -329,7 +357,10 @@ export const initialSettings: SettingsState = {
   expandedDiagnosticLoggingEnabled: false,
   prReviewPrompt: DEFAULT_PR_REVIEW_PROMPT,
   dismissedAnnouncementIds: [],
-  announcementsMuted: false
+  announcementsMuted: false,
+  inboxQueries: [],
+  inboxPRBranchPrefix: 'pr/',
+  inboxIssueBranchPrefix: 'issue-'
 }
 
 export function settingsReducer(state: SettingsState, event: SettingsEvent): SettingsState {
@@ -443,6 +474,14 @@ export function settingsReducer(state: SettingsState, event: SettingsEvent): Set
     }
     case 'settings/announcementsMutedChanged':
       return { ...state, announcementsMuted: event.payload }
+    case 'settings/inboxQueriesChanged':
+      return { ...state, inboxQueries: event.payload }
+    case 'settings/inboxBranchPrefixesChanged':
+      return {
+        ...state,
+        inboxPRBranchPrefix: event.payload.prBranchPrefix,
+        inboxIssueBranchPrefix: event.payload.issueBranchPrefix
+      }
     default: {
       const _exhaustive: never = event
       void _exhaustive

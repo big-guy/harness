@@ -1192,3 +1192,297 @@ export async function testToken(token: string): Promise<{ ok: boolean; username?
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
 }
+
+// ---------------------------------------------------------------------------
+// Search API — used by the Inbox view.
+//
+// Search has its own rate limit (30 req/min authenticated) and a hard 1000
+// result cap regardless of pagination. We always sort by updated desc so the
+// first page is the most recently active items — what you actually want in
+// an inbox. If `total_count > per_page` the UI surfaces a truncation banner.
+// ---------------------------------------------------------------------------
+
+interface ApiSearchUser {
+  login: string
+  avatar_url: string
+}
+
+interface ApiSearchLabel {
+  name: string
+  color: string
+}
+
+interface ApiSearchMilestone {
+  title: string
+  state: 'open' | 'closed'
+  number: number
+}
+
+interface ApiSearchItem {
+  number: number
+  title: string
+  html_url: string
+  state: 'open' | 'closed'
+  user: ApiSearchUser | null
+  labels: ApiSearchLabel[]
+  assignees: ApiSearchUser[] | null
+  created_at: string
+  updated_at: string
+  comments: number
+  body: string | null
+  milestone: ApiSearchMilestone | null
+  /** Present iff this item is a pull request rather than an issue. */
+  pull_request?: { url: string }
+  /** The repo URL — used to derive owner/repo. Format:
+   *  `https://api.github.com/repos/{owner}/{repo}`. */
+  repository_url: string
+}
+
+interface ApiSearchResult {
+  total_count: number
+  incomplete_results: boolean
+  items: ApiSearchItem[]
+}
+
+export interface SearchIssuesItem {
+  kind: 'issue' | 'pr'
+  owner: string
+  repo: string
+  number: number
+  title: string
+  url: string
+  state: 'open' | 'closed'
+  author: { login: string; avatarUrl: string } | null
+  labels: { name: string; color: string }[]
+  assignees: { login: string; avatarUrl: string }[]
+  createdAt: string
+  updatedAt: string
+  commentCount: number
+  bodyPreview: string | null
+  milestone: { title: string; state: 'open' | 'closed'; number: number } | null
+}
+
+function parseRepoUrl(repositoryUrl: string): { owner: string; repo: string } | null {
+  // Format: https://api.github.com/repos/{owner}/{repo}
+  const m = repositoryUrl.match(/\/repos\/([^/]+)\/([^/]+?)\/?$/)
+  if (!m) return null
+  return { owner: m[1], repo: m[2] }
+}
+
+/** Pull out `repo:owner/name` clauses from a search query string. Returns
+ *  the de-duplicated list of parsed owner/repo pairs. Bad/non-conforming
+ *  values are silently dropped. */
+export function parseRepoClauses(query: string): { owner: string; repo: string }[] {
+  const re = /\brepo:([^\s]+)/g
+  const seen = new Set<string>()
+  const out: { owner: string; repo: string }[] = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(query)) !== null) {
+    const parts = m[1].split('/')
+    if (parts.length !== 2) continue
+    const [owner, repo] = parts
+    if (!owner || !repo) continue
+    const key = `${owner}/${repo}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ owner, repo })
+  }
+  return out
+}
+
+/** Strip any `milestone:"..."` / `milestone:foo` clause from a query so the
+ *  caller can re-attach an exact milestone clause without ANDing two. */
+export function stripMilestoneClauses(query: string): string {
+  return query
+    .replace(/\bmilestone:("[^"]*"|'[^']*'|\S+)/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+/** Run a GitHub issues/PR search. Returns up to 100 most-recently-updated
+ *  items plus the total_count GitHub reported (for truncation UI). */
+export async function searchIssues(
+  query: string
+): Promise<{ items: SearchIssuesItem[]; totalCount: number } | null> {
+  const token = getCachedToken()
+  if (!token) return null
+
+  const url =
+    'https://api.github.com/search/issues' +
+    `?q=${encodeURIComponent(query)}` +
+    '&sort=updated&order=desc&per_page=100'
+  try {
+    const res = (await githubFetch(url)) as ApiSearchResult
+    const items: SearchIssuesItem[] = []
+    for (const it of res.items || []) {
+      const parsed = parseRepoUrl(it.repository_url)
+      if (!parsed) continue
+      const kind: 'issue' | 'pr' = it.pull_request ? 'pr' : 'issue'
+      items.push({
+        kind,
+        owner: parsed.owner,
+        repo: parsed.repo,
+        number: it.number,
+        title: it.title,
+        url: it.html_url,
+        state: it.state,
+        author: it.user
+          ? { login: it.user.login, avatarUrl: it.user.avatar_url }
+          : null,
+        labels: (it.labels || []).map((l) => ({ name: l.name, color: l.color })),
+        assignees: (it.assignees || []).map((u) => ({
+          login: u.login,
+          avatarUrl: u.avatar_url
+        })),
+        createdAt: it.created_at,
+        updatedAt: it.updated_at,
+        commentCount: it.comments,
+        bodyPreview: it.body || null,
+        milestone: it.milestone
+          ? {
+              title: it.milestone.title,
+              state: it.milestone.state,
+              number: it.milestone.number
+            }
+          : null
+      })
+    }
+    return { items, totalCount: res.total_count }
+  } catch (err) {
+    log('github', 'searchIssues failed', err instanceof Error ? err.message : err)
+    throw err
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Milestones — used to resolve the InboxQuery.milestoneRegex regex into the
+// set of exact milestone names to scope per-call to the search API.
+// ---------------------------------------------------------------------------
+
+interface ApiMilestone {
+  title: string
+  state: 'open' | 'closed'
+  number: number
+}
+
+export interface MilestoneInfo {
+  title: string
+  state: 'open' | 'closed'
+  number: number
+}
+
+/** List milestones for a repo. Paginated up to a generous cap; most repos
+ *  have a handful, the unbounded ones are usually closed-milestone history
+ *  the user wouldn't reasonably regex-match anyway. */
+export async function listMilestones(
+  owner: string,
+  repo: string
+): Promise<MilestoneInfo[]> {
+  const token = getCachedToken()
+  if (!token) return []
+  const out: MilestoneInfo[] = []
+  let page = 1
+  const maxPages = 5
+  while (page <= maxPages) {
+    const url = `https://api.github.com/repos/${owner}/${repo}/milestones?state=all&per_page=100&page=${page}`
+    let res: ApiMilestone[]
+    try {
+      res = (await githubFetch(url)) as ApiMilestone[]
+    } catch (err) {
+      log('github', `listMilestones failed for ${owner}/${repo}`, err instanceof Error ? err.message : err)
+      throw err
+    }
+    if (!Array.isArray(res) || res.length === 0) break
+    for (const m of res) {
+      out.push({ title: m.title, state: m.state, number: m.number })
+    }
+    if (res.length < 100) break
+    page += 1
+  }
+  return out
+}
+
+// ---------------------------------------------------------------------------
+// PR ref lookup — used by the Inbox view's "Create worktree from PR" action.
+// Returns just enough information to fetch the right branch and worktree on
+// it, without pulling the full PR detail.
+// ---------------------------------------------------------------------------
+
+interface ApiPRRepoRef {
+  ref: string
+  repo: { full_name: string; clone_url: string; ssh_url: string } | null
+}
+
+interface ApiPRForRef {
+  number: number
+  state: 'open' | 'closed'
+  draft: boolean
+  merged_at: string | null
+  head: ApiPRRepoRef
+  base: ApiPRRepoRef
+}
+
+export interface PRRef {
+  number: number
+  headRef: string
+  headRepoFullName: string
+  /** Clone URL for the head repo. Same as the base repo for non-fork PRs. */
+  headCloneUrl: string
+  baseRef: string
+  baseRepoFullName: string
+  isFork: boolean
+}
+
+interface ApiPRAutoMerge {
+  auto_merge: { merge_method?: string } | null
+}
+
+/** Lightweight per-PR fetch used to decorate Inbox rows. Returns true when
+ *  the PR has auto-merge enabled (which on repos with the GitHub merge
+ *  queue corresponds to "queued"). Null = no token or fetch error. */
+export async function getPRAutoMerge(
+  owner: string,
+  repo: string,
+  number: number
+): Promise<boolean | null> {
+  const token = getCachedToken()
+  if (!token) return null
+  try {
+    const pr = (await githubFetch(
+      `https://api.github.com/repos/${owner}/${repo}/pulls/${number}`
+    )) as ApiPRAutoMerge
+    return pr.auto_merge !== null
+  } catch (err) {
+    log('github', `getPRAutoMerge failed for ${owner}/${repo}#${number}`, err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
+export async function getPRRef(
+  owner: string,
+  repo: string,
+  number: number
+): Promise<PRRef | null> {
+  const token = getCachedToken()
+  if (!token) return null
+  try {
+    const pr = (await githubFetch(
+      `https://api.github.com/repos/${owner}/${repo}/pulls/${number}`
+    )) as ApiPRForRef
+    const headFullName = pr.head.repo?.full_name ?? `${owner}/${repo}`
+    const baseFullName = pr.base.repo?.full_name ?? `${owner}/${repo}`
+    return {
+      number: pr.number,
+      headRef: pr.head.ref,
+      headRepoFullName: headFullName,
+      headCloneUrl: pr.head.repo?.clone_url ?? `https://github.com/${headFullName}.git`,
+      baseRef: pr.base.ref,
+      baseRepoFullName: baseFullName,
+      isFork: headFullName !== baseFullName
+    }
+  } catch (err) {
+    log('github', `getPRRef failed for ${owner}/${repo}#${number}`, err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
