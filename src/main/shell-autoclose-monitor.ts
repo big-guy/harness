@@ -73,10 +73,8 @@ export class ShellAutoCloseMonitor {
     const panes = this.store.getSnapshot().state.terminals.panes
     for (const [wtPath, tree] of Object.entries(panes)) {
       const leaf = findLeafByTabId(tree, id)
-      if (!leaf) continue
-      const tab = leaf.tabs.find((t) => t.id === id)
-      if (!tab) continue
-      return { wtPath, tab, activeTabId: leaf.activeTabId }
+      const tab = leaf?.tabs.find((t) => t.id === id)
+      if (leaf && tab) return { wtPath, tab, activeTabId: leaf.activeTabId }
     }
     return null
   }

@@ -494,12 +494,11 @@ export class PanesFSM {
       // `background` flag so its title stops rendering italic.
       const i = leaf.tabs.findIndex((t) => t.id === tabId)
       if (i !== -1 && leaf.tabs[i].background) {
-        const { background: _bg, ...rest } = leaf.tabs[i]
-        void _bg
+        const promoted: TerminalTab = { ...leaf.tabs[i], background: undefined }
         return {
           ...leaf,
           activeTabId: tabId,
-          tabs: [...leaf.tabs.slice(0, i), rest as TerminalTab, ...leaf.tabs.slice(i + 1)]
+          tabs: [...leaf.tabs.slice(0, i), promoted, ...leaf.tabs.slice(i + 1)]
         }
       }
       return { ...leaf, activeTabId: tabId }
