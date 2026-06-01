@@ -879,7 +879,14 @@ export function ReviewDiffPane({
     <div className="flex flex-col h-full">
       {/* File header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-panel shrink-0">
-        <span className="text-xs font-mono truncate flex-1">{file.path}</span>
+        <Tooltip label={<span className="font-mono">{file.path}</span>} side="top">
+          <span
+            className="text-xs font-mono truncate flex-1 min-w-0"
+            style={{ direction: 'rtl', textAlign: 'left' }}
+          >
+            <bdi>{file.path}</bdi>
+          </span>
+        </Tooltip>
 
         <span className={`text-xs ${STATUS_COLOR[file.status]}`}>
           {STATUS_LABEL[file.status]}
