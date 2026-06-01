@@ -173,6 +173,7 @@ function ItemRow({
   const [commentError, setCommentError] = useState<string | null>(null)
   const [confirmClose, setConfirmClose] = useState(false)
   const [closing, setClosing] = useState(false)
+  const [closed, setClosed] = useState(false)
   const [closeError, setCloseError] = useState<string | null>(null)
 
   const dragBase = {
@@ -209,6 +210,7 @@ function ItemRow({
     const r = await backend.closeInboxItem(item.owner, item.repo, item.number, item.kind)
     setClosing(false)
     if (r.ok) {
+      setClosed(true)
       onAfterClose()
     } else {
       setConfirmClose(false)
@@ -383,18 +385,24 @@ function ItemRow({
                     : 'Start work'}
               </span>
             </button>
-            <button
-              onClick={() => void handleClose()}
-              disabled={closing}
-              className={`text-xs rounded px-2 py-1 cursor-pointer flex items-center gap-1.5 transition-colors disabled:opacity-50 ${
-                confirmClose
-                  ? 'bg-danger/20 text-danger border border-danger/50'
-                  : 'text-dim hover:text-fg border border-border'
-              }`}
-            >
-              {closing && <Loader2 size={11} className="animate-spin" />}
-              {confirmClose ? 'Confirm close' : 'Close'}
-            </button>
+            {closed ? (
+              <span className="text-xs text-success flex items-center gap-1">
+                <Check size={11} /> Closed
+              </span>
+            ) : (
+              <button
+                onClick={() => void handleClose()}
+                disabled={closing}
+                className={`text-xs rounded px-2 py-1 cursor-pointer flex items-center gap-1.5 transition-colors disabled:opacity-50 ${
+                  confirmClose
+                    ? 'bg-danger/20 text-danger border border-danger/50'
+                    : 'text-dim hover:text-fg border border-border'
+                }`}
+              >
+                {closing && <Loader2 size={11} className="animate-spin" />}
+                {confirmClose ? 'Confirm close' : 'Close'}
+              </button>
+            )}
             {existingWorktree && (
               <span className="text-[11px] text-faint truncate" title={existingWorktree.path}>
                 {existingWorktree.branch}
