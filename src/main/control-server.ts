@@ -114,6 +114,20 @@ export interface ControlServerDeps {
   getBrowserPerms: () => BrowserPerms
   browser: BrowserQueries
   shell: ShellQueries
+  inbox: InboxQueries
+}
+
+export interface InboxQueries {
+  /** Open a new GitHub issue (the same call the Add-item modal makes) and
+   * kick an inbox refresh so it surfaces on the next poll. */
+  createIssue: (
+    owner: string,
+    repo: string,
+    fields: { title: string; body: string }
+  ) => Promise<{ ok: true; htmlUrl: string; number: number } | { ok: false; error: string }>
+  /** Resolve a repo root's GitHub origin, used to default owner/repo from the
+   * caller's worktree when the tool omits them. */
+  getOriginInfo: (repoRoot: string) => Promise<{ owner: string; repo: string } | null>
 }
 
 const FULL_CONTROL_BROWSER_PATHS = new Set([
@@ -192,6 +206,43 @@ async function handleRequest(
   // helps agents understand the overall harness state.
   if (req.method === 'GET' && path === '/repos') {
     return sendJson(res, 200, { repoRoots: deps.getRepoRoots() })
+  }
+
+  // add_inbox_item — open a new GitHub issue (the same action the Add-item
+  // modal performs). Workspace-wide like create_worktree: owner/repo default
+  // to the caller's worktree origin (or the single tracked repo) when omitted,
+  // but an explicit owner/repo for any token-accessible repo is honored.
+  if (req.method === 'POST' && path === '/inbox/items') {
+    const body = await readJson(req)
+    const title = typeof body.title === 'string' ? body.title.trim() : ''
+    if (!title) {
+      return sendJson(res, 400, { error: 'title is required' })
+    }
+    const issueBody = typeof body.body === 'string' ? body.body : ''
+    let owner = typeof body.owner === 'string' ? body.owner.trim() : ''
+    let repo = typeof body.repo === 'string' ? body.repo.trim() : ''
+    if (!owner || !repo) {
+      let repoRoot: string | undefined
+      const { scope } = resolveScope(req, deps)
+      if (scope) {
+        repoRoot = scope.repoRoot
+      } else {
+        const roots = deps.getRepoRoots()
+        if (roots.length === 1) repoRoot = roots[0]
+      }
+      const origin = repoRoot ? await deps.inbox.getOriginInfo(repoRoot) : null
+      if (!origin) {
+        return sendJson(res, 400, {
+          error:
+            'owner and repo are required when the caller is not in a worktree with a GitHub origin',
+          repoRoots: deps.getRepoRoots()
+        })
+      }
+      owner = owner || origin.owner
+      repo = repo || origin.repo
+    }
+    const result = await deps.inbox.createIssue(owner, repo, { title, body: issueBody })
+    return sendJson(res, 200, result.ok ? { ...result, owner, repo } : result)
   }
 
   // Worktree management tools are workspace-wide for every caller — a

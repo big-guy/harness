@@ -304,3 +304,101 @@ describe('mcp-bridge create_worktree', () => {
     expect(response.result.content[0].text).toMatch(/99999/)
   })
 })
+
+describe('mcp-bridge add_inbox_item', () => {
+  let stub
+  let bridge
+
+  afterEach(async () => {
+    if (bridge) await bridge.kill()
+    if (stub) await stub.close()
+  })
+
+  it('forwards title/body/owner/repo to POST /inbox/items and reports the new issue', async () => {
+    stub = await startStub((req, body, res) => {
+      if (req.url === '/scope') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        return res.end(JSON.stringify({ scope: null, browser: { enabled: true, mode: 'full' } }))
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({ ok: true, number: 7, htmlUrl: 'https://github.com/o/r/issues/7', owner: 'o', repo: 'r' })
+      )
+    })
+    bridge = spawnBridge(stub.port, 'tok')
+
+    bridge.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })
+    await bridge.next()
+    bridge.send({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: {
+        name: 'add_inbox_item',
+        arguments: { title: 'Fix login', body: 'steps', owner: 'o', repo: 'r' }
+      }
+    })
+    const response = await bridge.next()
+
+    expect(response.result.isError).toBeFalsy()
+    const text = response.result.content[0].text
+    expect(text).toContain('o/r#7')
+    expect(text).toContain('https://github.com/o/r/issues/7')
+
+    const postCall = stub.captured.find((c) => c.method === 'POST' && c.url === '/inbox/items')
+    expect(postCall).toBeDefined()
+    expect(postCall.auth).toBe('Bearer tok')
+    expect(postCall.body.title).toBe('Fix login')
+    expect(postCall.body.body).toBe('steps')
+    expect(postCall.body.owner).toBe('o')
+    expect(postCall.body.repo).toBe('r')
+  })
+
+  it('rejects missing title locally without hitting the server', async () => {
+    stub = await startStub((req, body, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ scope: null, browser: { enabled: true, mode: 'full' } }))
+    })
+    bridge = spawnBridge(stub.port, 'tok')
+
+    bridge.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })
+    await bridge.next()
+    bridge.send({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'add_inbox_item', arguments: { body: 'no title' } }
+    })
+    const response = await bridge.next()
+
+    expect(response.result.isError).toBe(true)
+    expect(response.result.content[0].text).toMatch(/title is required/)
+    const postCall = stub.captured.find((c) => c.method === 'POST' && c.url === '/inbox/items')
+    expect(postCall).toBeUndefined()
+  })
+
+  it('surfaces a server-side {ok:false} failure as a clean error', async () => {
+    stub = await startStub((req, body, res) => {
+      if (req.url === '/scope') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        return res.end(JSON.stringify({ scope: null, browser: { enabled: true, mode: 'full' } }))
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: 'No GitHub token configured' }))
+    })
+    bridge = spawnBridge(stub.port, 'tok')
+
+    bridge.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })
+    await bridge.next()
+    bridge.send({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'add_inbox_item', arguments: { title: 'x' } }
+    })
+    const response = await bridge.next()
+
+    expect(response.result.isError).toBe(true)
+    expect(response.result.content[0].text).toMatch(/No GitHub token configured/)
+  })
+})

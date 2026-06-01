@@ -407,6 +407,35 @@ const TOOLS = [
       },
       required: ['shell_id']
     }
+  },
+  {
+    name: 'add_inbox_item',
+    description:
+      "Add a new item to Harness's Inbox by opening a GitHub issue — the same action as the Inbox's \"Add item\" button. Requires a title; body is optional Markdown. owner/repo default to the calling worktree's GitHub origin (or the single open repo) when omitted, but you can target any repo your token can access by passing owner+repo explicitly. The issue appears in the Inbox on the next poll if it matches one of the configured inbox queries (e.g. assigned to you / a watched label).",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: {
+          type: 'string',
+          description: 'Issue title (required).'
+        },
+        body: {
+          type: 'string',
+          description: 'Issue description in Markdown. Optional.'
+        },
+        owner: {
+          type: 'string',
+          description:
+            "GitHub owner (org or user). Optional — defaults to the calling worktree's origin, or the single open repo."
+        },
+        repo: {
+          type: 'string',
+          description:
+            "GitHub repository name. Optional — defaults to the calling worktree's origin, or the single open repo."
+        }
+      },
+      required: ['title']
+    }
   }
 ]
 
@@ -662,6 +691,18 @@ async function handleToolCall(name, args) {
     if (!args || !args.shell_id) throw new Error('shell_id is required')
     await callControl('POST', '/shells/kill', { shellId: args.shell_id })
     return 'killed ' + args.shell_id
+  }
+  if (name === 'add_inbox_item') {
+    const title = args && typeof args.title === 'string' ? args.title.trim() : ''
+    if (!title) throw new Error('title is required')
+    const r = await callControl('POST', '/inbox/items', {
+      title,
+      body: args && typeof args.body === 'string' ? args.body : '',
+      owner: args && typeof args.owner === 'string' ? args.owner : '',
+      repo: args && typeof args.repo === 'string' ? args.repo : ''
+    })
+    if (!r || r.ok === false) throw new Error((r && r.error) || 'failed to create issue')
+    return 'Added inbox item ' + r.owner + '/' + r.repo + '#' + r.number + ' → ' + r.htmlUrl
   }
   throw new Error('unknown tool: ' + name)
 }

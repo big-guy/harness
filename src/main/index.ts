@@ -4037,6 +4037,16 @@ async function runBoot(): Promise<void> {
         }
       }
     },
+    inbox: {
+      createIssue: async (owner, repo, fields) => {
+        const result = await createIssue(owner, repo, fields)
+        // Surface the new issue in the Inbox on the next poll (same as the
+        // inbox:createIssue IPC handler the Add-item modal uses).
+        if (result.ok) inboxPoller.refreshAllIfStale()
+        return result
+      },
+      getOriginInfo: (repoRoot) => getRepoOriginInfo(repoRoot)
+    },
     runWorktreeSetup: (ctx) => worktreesFSM.runWorktreeSetup(ctx),
     runPendingPRWorktree: async (params) => {
       // The FSM already handles ensureInitialized (with the prompt) + PR poller
