@@ -399,6 +399,9 @@ export function buildBackend(
 
     snooze: (path: string, wakeAt: number) => req('snooze:snooze', path, wakeAt),
     unsnooze: (path: string) => req('snooze:unsnooze', path),
+    snoozeInboxItem: (key: string, wakeAt: number, updatedAt: string) =>
+      req('inboxSnooze:snooze', key, wakeAt, updatedAt),
+    unsnoozeInboxItem: (key: string) => req('inboxSnooze:unsnooze', key),
     setSnoozeDefaultDays: (days: number) => req('config:setSnoozeDefaultDays', days),
 
     setScratchpadText: (worktreePath: string, text: string) =>

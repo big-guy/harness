@@ -422,6 +422,8 @@ export interface ElectronAPI {
   getAvailableEditors(): Promise<{ id: string; name: string }[]>
   snooze(path: string, wakeAt: number): Promise<boolean>
   unsnooze(path: string): Promise<boolean>
+  snoozeInboxItem(key: string, wakeAt: number, updatedAt: string): Promise<boolean>
+  unsnoozeInboxItem(key: string): Promise<boolean>
   setSnoozeDefaultDays(days: number): Promise<boolean>
   setScratchpadText(worktreePath: string, text: string): Promise<boolean>
   openInEditor(worktreePath: string, filePath?: string): Promise<{ ok: true } | { ok: false; error: string }>

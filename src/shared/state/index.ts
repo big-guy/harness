@@ -108,6 +108,12 @@ import {
   type InboxEvent,
   type InboxState
 } from './inbox'
+import {
+  initialInboxSnooze,
+  inboxSnoozeReducer,
+  type InboxSnoozeEvent,
+  type InboxSnoozeState
+} from './inbox-snooze'
 
 export type { SettingsState, SettingsEvent }
 export type { UpdaterState, UpdaterEvent, UpdaterStatus } from './updater'
@@ -198,6 +204,8 @@ export type {
   InboxUser,
   InboxMilestone
 } from './inbox'
+export type { InboxSnoozeState, InboxSnoozeEvent, InboxSnoozeEntry } from './inbox-snooze'
+export { inboxSnoozeKey } from './inbox-snooze'
 
 export interface AppState {
   settings: SettingsState
@@ -216,6 +224,7 @@ export interface AppState {
   scratchpad: ScratchpadState
   sshBootstrap: SshBootstrapState
   inbox: InboxState
+  inboxSnooze: InboxSnoozeState
 }
 
 export type StateEvent =
@@ -235,6 +244,7 @@ export type StateEvent =
   | ScratchpadEvent
   | SshBootstrapEvent
   | InboxEvent
+  | InboxSnoozeEvent
 
 export const initialState: AppState = {
   settings: initialSettings,
@@ -252,7 +262,8 @@ export const initialState: AppState = {
   announcements: initialAnnouncements,
   scratchpad: initialScratchpad,
   sshBootstrap: initialSshBootstrap,
-  inbox: initialInbox
+  inbox: initialInbox,
+  inboxSnooze: initialInboxSnooze
 }
 
 export function rootReducer(state: AppState, event: StateEvent): AppState {
@@ -334,6 +345,9 @@ export function rootReducer(state: AppState, event: StateEvent): AppState {
   if (event.type.startsWith('inbox/')) {
     return { ...state, inbox: inboxReducer(state.inbox, event as InboxEvent) }
   }
+  if (event.type.startsWith('inboxSnooze/')) {
+    return { ...state, inboxSnooze: inboxSnoozeReducer(state.inboxSnooze, event as InboxSnoozeEvent) }
+  }
   return state
 }
 
@@ -380,7 +394,8 @@ export function mergeWireSnapshot(state: WireSnapshotState): AppState {
     announcements: { ...initialState.announcements, ...state.announcements },
     scratchpad: { ...initialState.scratchpad, ...state.scratchpad },
     sshBootstrap: { ...initialState.sshBootstrap, ...state.sshBootstrap },
-    inbox: { ...initialState.inbox, ...state.inbox }
+    inbox: { ...initialState.inbox, ...state.inbox },
+    inboxSnooze: { ...initialState.inboxSnooze, ...state.inboxSnooze }
   }
 }
 

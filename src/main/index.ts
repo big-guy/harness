@@ -37,6 +37,7 @@ import { ActivityDeriver } from './activity-deriver'
 import { AutoSleepMonitor } from './auto-sleep-monitor'
 import { WorktreeWatcher } from './worktree-watcher'
 import { SnoozeTimer } from './snooze-timer'
+import { InboxSnoozeTimer } from './inbox-snooze-timer'
 import { getWeeklyStats } from './weekly-stats'
 import type { TerminalTab, PaneNode, PaneLeaf } from '../shared/state/terminals'
 import { getLeaves, mapLeaves } from '../shared/state/terminals'
@@ -72,6 +73,7 @@ import { registerRepoRoot } from './repo-roots'
 import type { AddRepoResult } from '../shared/repo-pick'
 import { isWorktreeMerged } from '../shared/state/prs'
 import { MAX_WAKE } from '../shared/state/snooze'
+import { inboxSnoozeKey } from '../shared/state/inbox-snooze'
 import { hasScratchpadNote } from '../shared/state/scratchpad'
 import {
   DEFAULT_LIGHT_THEME,
@@ -542,6 +544,39 @@ store.subscribe((event) => {
       config.snooze = byPath
     }
     saveConfig(config)
+  }
+})
+
+// Persist inbox-item snooze entries the same way.
+store.subscribe((event) => {
+  if (event.type.startsWith('inboxSnooze/')) {
+    const byKey = store.getSnapshot().state.inboxSnooze.byKey
+    if (Object.keys(byKey).length === 0) {
+      delete config.inboxSnooze
+    } else {
+      config.inboxSnooze = byKey
+    }
+    saveConfig(config)
+  }
+})
+
+// Wake snoozed inbox items that changed on GitHub. After each poll writes a
+// query's results, compare every snoozed item's stored `updatedAt` to the
+// fresh one; a difference (new comment, label, edit, state) clears the snooze
+// so the item returns to Active. (The timer covers the wakeAt case.)
+store.subscribe((event) => {
+  if (event.type !== 'inbox/queryResultChanged') return
+  const snap = store.getSnapshot().state
+  const byKey = snap.inboxSnooze.byKey
+  if (Object.keys(byKey).length === 0) return
+  const queryId = (event.payload as { queryId: string }).queryId
+  const items = snap.inbox.byQueryId[queryId] || []
+  for (const item of items) {
+    const key = inboxSnoozeKey(item)
+    const entry = byKey[key]
+    if (entry && item.updatedAt !== entry.updatedAt) {
+      store.dispatch({ type: 'inboxSnooze/clear', payload: key })
+    }
   }
 })
 
@@ -1075,6 +1110,8 @@ store.subscribe((event) => {
 
 const snoozeTimer = new SnoozeTimer(store)
 snoozeTimer.start()
+const inboxSnoozeTimer = new InboxSnoozeTimer(store)
+inboxSnoozeTimer.start()
 
 // Toggle "Warn Before Quitting". Shared by the Settings IPC handler and the
 // app-menu checkbox (wired into the desktop shell), so both stay in sync.
@@ -3633,6 +3670,33 @@ function registerIpcHandlers(): void {
   transport.onRequest('snooze:unsnooze', (_ctx, path: string) => {
     if (typeof path !== 'string' || !path) return false
     store.dispatch({ type: 'snooze/clear', payload: path })
+    return true
+  })
+
+  transport.onRequest(
+    'inboxSnooze:snooze',
+    (_ctx, key: string, wakeAt: number, updatedAt: string) => {
+      if (typeof key !== 'string' || !key) return false
+      const wake = Number(wakeAt)
+      if (!Number.isFinite(wake)) return false
+      const now = Date.now()
+      if (wake !== MAX_WAKE && wake < now + 86400000 - 60000) return false
+      store.dispatch({
+        type: 'inboxSnooze/set',
+        payload: {
+          key,
+          snoozedAt: now,
+          wakeAt: wake,
+          updatedAt: typeof updatedAt === 'string' ? updatedAt : ''
+        }
+      })
+      return true
+    }
+  )
+
+  transport.onRequest('inboxSnooze:unsnooze', (_ctx, key: string) => {
+    if (typeof key !== 'string' || !key) return false
+    store.dispatch({ type: 'inboxSnooze/clear', payload: key })
     return true
   })
 

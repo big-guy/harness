@@ -123,12 +123,12 @@ export function AddInboxItemModal({ repos, onClose, onCreated }: AddInboxItemMod
               aria-label="Back"
               className="text-dim hover:text-fg cursor-pointer"
             >
-              <ArrowLeft size={14} />
+              <ArrowLeft className="icon-sm" />
             </button>
           )}
           <span className="text-sm font-semibold text-fg-bright flex-1 truncate">{headerLabel}</span>
           <button onClick={onClose} aria-label="Close" className="text-dim hover:text-fg cursor-pointer">
-            <X size={16} />
+            <X className="icon-base" />
           </button>
         </div>
 
@@ -146,7 +146,7 @@ export function AddInboxItemModal({ repos, onClose, onCreated }: AddInboxItemMod
                   onClick={() => selectRepo(r)}
                   className="flex items-center gap-2 w-full text-left px-3 py-2 rounded border border-border bg-panel-raised hover:border-border-strong hover:bg-surface text-sm text-fg-bright cursor-pointer transition-colors"
                 >
-                  <GitBranch size={14} className="text-faint shrink-0" />
+                  <GitBranch className="icon-sm text-faint shrink-0" />
                   <span className="font-mono truncate">
                     {r.owner}/{r.repo}
                   </span>
@@ -159,7 +159,7 @@ export function AddInboxItemModal({ repos, onClose, onCreated }: AddInboxItemMod
             <div className="flex flex-col gap-1.5">
               {loadingTemplates ? (
                 <div className="flex items-center justify-center gap-2 py-8 text-xs text-faint">
-                  <Loader2 size={14} className="animate-spin" />
+                  <Loader2 className="icon-sm animate-spin" />
                   Loading issue templates…
                 </div>
               ) : (
@@ -170,9 +170,9 @@ export function AddInboxItemModal({ repos, onClose, onCreated }: AddInboxItemMod
                     className="flex items-start gap-2 w-full text-left px-3 py-2 rounded border border-border bg-panel-raised hover:border-border-strong hover:bg-surface cursor-pointer transition-colors"
                   >
                     {i === 0 ? (
-                      <FilePlus2 size={14} className="text-faint shrink-0 mt-0.5" />
+                      <FilePlus2 className="icon-sm text-faint shrink-0 mt-0.5" />
                     ) : (
-                      <FileText size={14} className="text-accent shrink-0 mt-0.5" />
+                      <FileText className="icon-sm text-accent shrink-0 mt-0.5" />
                     )}
                     <span className="min-w-0">
                       <span className="block text-sm text-fg-bright truncate">{t.name || 'Untitled template'}</span>
@@ -187,7 +187,7 @@ export function AddInboxItemModal({ repos, onClose, onCreated }: AddInboxItemMod
           {step === 'form' && (
             <div className="flex flex-col gap-3">
               <label className="block">
-                <span className="text-[11px] text-dim">Title</span>
+                <span className="text-xs text-dim">Title</span>
                 <input
                   type="text"
                   value={title}
@@ -198,7 +198,7 @@ export function AddInboxItemModal({ repos, onClose, onCreated }: AddInboxItemMod
                 />
               </label>
               <label className="block">
-                <span className="text-[11px] text-dim">Description</span>
+                <span className="text-xs text-dim">Description</span>
                 <textarea
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
@@ -225,7 +225,7 @@ export function AddInboxItemModal({ repos, onClose, onCreated }: AddInboxItemMod
               disabled={!title.trim() || submitting}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold bg-accent text-app disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
-              {submitting && <Loader2 size={11} className="animate-spin" />}
+              {submitting && <Loader2 className="icon-xs animate-spin" />}
               Create issue
             </button>
           </div>

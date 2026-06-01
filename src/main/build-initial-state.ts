@@ -13,6 +13,7 @@ import { initialSnooze } from '../shared/state/snooze'
 import { initialAnnouncements } from '../shared/state/announcements'
 import { initialScratchpad } from '../shared/state/scratchpad'
 import { initialInbox } from '../shared/state/inbox'
+import { initialInboxSnooze } from '../shared/state/inbox-snooze'
 import { initialSshBootstrap } from '../shared/state/ssh-bootstrap'
 import {
   initialSettings,
@@ -74,6 +75,9 @@ export function buildInitialAppState(
     scratchpad: { byWorktreePath: flattenScratchpadNotes(config.scratchpadNotes) },
     sshBootstrap: initialSshBootstrap,
     inbox: initialInbox,
+    inboxSnooze: config.inboxSnooze
+      ? { byKey: { ...config.inboxSnooze } }
+      : initialInboxSnooze,
     settings: {
       ...initialSettings,
       themeMode:

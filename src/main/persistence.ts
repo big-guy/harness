@@ -11,6 +11,7 @@ import {
 } from './persistence-migrations'
 import type { CostsState } from '../shared/state/costs'
 import type { SnoozeEntry } from '../shared/state/snooze'
+import type { InboxSnoozeEntry } from '../shared/state/inbox-snooze'
 
 export type { PersistedPane, PersistedPaneNode, PersistedTab }
 
@@ -248,6 +249,9 @@ export interface Config {
   snooze?: Record<string, SnoozeEntry>
   // Default duration (days) for plain-click snooze. Min 1, default 7.
   snoozeDefaultDays?: number
+  // Snoozed inbox items keyed by `<kind>:<owner>/<repo>#<number>`. Wakes
+  // when wakeAt is reached or the item changes (updatedAt advances).
+  inboxSnooze?: Record<string, InboxSnoozeEntry>
   // When true, high-volume diagnostic log categories (currently
   // [github-api] per-call lines) are written to debug.log. Default off.
   expandedDiagnosticLoggingEnabled?: boolean

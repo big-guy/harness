@@ -17,11 +17,16 @@ import {
   Wrench,
   HardHat,
   ClipboardCheck,
-  Check
+  Check,
+  Clock,
+  BellRing
 } from 'lucide-react'
-import { useInbox, useSettings, useWorktrees } from '../store'
+import { useInbox, useInboxSnooze, useSettings, useWorktrees } from '../store'
 import { getBackend, useBackend } from '../backend'
+import { inboxSnoozeKey } from '../../shared/state/inbox-snooze'
+import { formatWakeAt } from '../../shared/state/snooze'
 import { AddInboxItemModal } from './AddInboxItemModal'
+import { SnoozeCalendar } from './SnoozeCalendar'
 import { setInboxDragData } from '../inbox-drag'
 import type { InboxItem } from '../../shared/state/inbox'
 import type { Worktree } from '../types'
@@ -92,12 +97,12 @@ function StateIcon({
   inMergeQueue: boolean
 }): JSX.Element {
   if (item.kind === 'pr') {
-    return <GitPullRequest size={14} className={stateColor(item, inMergeQueue)} />
+    return <GitPullRequest className={`icon-sm ${stateColor(item, inMergeQueue)}`} />
   }
   if (item.state === 'closed') {
-    return <CircleX size={14} className={stateColor(item, inMergeQueue)} />
+    return <CircleX className={`icon-sm ${stateColor(item, inMergeQueue)}`} />
   }
-  return <CircleDot size={14} className={stateColor(item, inMergeQueue)} />
+  return <CircleDot className={`icon-sm ${stateColor(item, inMergeQueue)}`} />
 }
 
 /** Extract referenced issue/PR numbers from the body. Matches `#NNN` and
@@ -148,6 +153,15 @@ interface ItemRowProps {
   inMergeQueue: boolean
   /** Called after the item is closed on GitHub so the list can refresh. */
   onAfterClose: () => void
+  /** Whether this item is currently snoozed (renders greyed + collapsed
+   *  with a Wake control instead of Snooze). */
+  snoozed: boolean
+  /** Wake time for a snoozed item (ms), or null. */
+  wakeAt: number | null
+  /** Snooze the item — plain click uses the default duration; ⌥-click opens
+   *  the date picker (the parent reads `e.altKey`). */
+  onSnooze: (e: React.MouseEvent) => void
+  onWake: () => void
 }
 
 const lookAtPrompt = (url: string): string => `Look at this ${url}`
@@ -164,7 +178,11 @@ function ItemRow({
   createWorktreeError,
   existingWorktree,
   inMergeQueue,
-  onAfterClose
+  onAfterClose,
+  snoozed,
+  wakeAt,
+  onSnooze,
+  onWake
 }: ItemRowProps): JSX.Element {
   const backend = useBackend()
   const [comment, setComment] = useState('')
@@ -223,46 +241,58 @@ function ItemRow({
       <div className="flex items-stretch">
         {/* Per-intent drag handles, stacked at the left. Each carries its own
             prompt: dropping onto a worktree inserts it; dropping onto "Add
-            worktree" seeds a new worktree with it. */}
-        <div className="flex flex-col items-center justify-center gap-1.5 pl-2 pr-1 shrink-0 text-faint">
-          <button
-            draggable
-            onClick={(e) => e.stopPropagation()}
-            onDragStart={(e) =>
-              setInboxDragData(e, {
-                ...dragBase,
-                prompt: fixPrompt(item.url),
-                worktreePrompt: fixPrompt(item.url)
-              })
-            }
-            title="Fix this — drag onto a worktree (or “Add worktree”): prepare a reproducer and propose a fix"
-            className="hover:text-fg cursor-grab active:cursor-grabbing"
-          >
-            <Wrench size={12} />
-          </button>
-          <button
-            draggable
-            onClick={(e) => e.stopPropagation()}
-            onDragStart={(e) =>
-              setInboxDragData(e, {
-                ...dragBase,
-                prompt: investigatePrompt(item.url),
-                worktreePrompt: investigatePrompt(item.url)
-              })
-            }
-            title="Investigate this — drag onto a worktree (or “Add worktree”): investigate this issue and propose a response"
-            className="hover:text-fg cursor-grab active:cursor-grabbing"
-          >
-            <Search size={12} />
-          </button>
-        </div>
+            worktree" seeds a new worktree with it. Hidden while snoozed. */}
+        {!snoozed && (
+          <div className="flex flex-col items-center justify-center gap-1.5 pl-2 pr-1 shrink-0 text-faint">
+            <button
+              draggable
+              onClick={(e) => e.stopPropagation()}
+              onDragStart={(e) =>
+                setInboxDragData(e, {
+                  ...dragBase,
+                  prompt: fixPrompt(item.url),
+                  worktreePrompt: fixPrompt(item.url)
+                })
+              }
+              title="Fix this — drag onto a worktree (or “Add worktree”): prepare a reproducer and propose a fix"
+              className="hover:text-fg cursor-grab active:cursor-grabbing"
+            >
+              <Wrench className="icon-xs" />
+            </button>
+            <button
+              draggable
+              onClick={(e) => e.stopPropagation()}
+              onDragStart={(e) =>
+                setInboxDragData(e, {
+                  ...dragBase,
+                  prompt: investigatePrompt(item.url),
+                  worktreePrompt: investigatePrompt(item.url)
+                })
+              }
+              title="Investigate this — drag onto a worktree (or “Add worktree”): investigate this issue and propose a response"
+              className="hover:text-fg cursor-grab active:cursor-grabbing"
+            >
+              <Search className="icon-xs" />
+            </button>
+          </div>
+        )}
 
         <button
-          draggable
-          onDragStart={(e) => setInboxDragData(e, { ...dragBase, prompt: lookAtPrompt(item.url) })}
-          onClick={onToggle}
-          title="Drag onto a worktree to reference it, or onto “Add worktree” to start one"
-          className="min-w-0 flex-1 text-left px-3 py-2 flex items-start gap-2 hover:bg-panel-raised/40 transition-colors cursor-pointer"
+          draggable={!snoozed}
+          onDragStart={(e) =>
+            !snoozed && setInboxDragData(e, { ...dragBase, prompt: lookAtPrompt(item.url) })
+          }
+          onClick={snoozed ? undefined : onToggle}
+          title={
+            snoozed
+              ? 'Snoozed — wake it to act on it'
+              : 'Drag onto a worktree to reference it, or onto “Add worktree” to start one'
+          }
+          className={`min-w-0 flex-1 text-left px-3 py-2 flex items-start gap-2 transition-colors ${
+            snoozed
+              ? 'opacity-40 cursor-default'
+              : 'hover:bg-panel-raised/40 cursor-pointer'
+          }`}
         >
           <span className="mt-0.5">
             <StateIcon item={item} inMergeQueue={inMergeQueue} />
@@ -274,22 +304,22 @@ function ItemRow({
               </span>
               <span className="text-sm text-fg-bright truncate">{item.title}</span>
             </div>
-            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-dim">
+            <div className="flex items-center gap-2 mt-0.5 text-xs text-dim">
               {item.author && <UserBadge user={item.author} />}
               <span>updated {formatRelative(item.updatedAt)} ago</span>
               {item.commentCount > 0 && <span>· {item.commentCount} comments</span>}
               {item.milestone && (
-                <span className="rounded-sm bg-surface text-fg px-1 text-[10px]">
+                <span className="rounded-sm bg-surface text-fg px-1 text-xs">
                   {item.milestone.title}
                 </span>
               )}
               {existingWorktree && (
-                <span className="rounded-sm bg-accent/15 text-accent px-1 text-[10px]">
+                <span className="rounded-sm bg-accent/15 text-accent px-1 text-xs">
                   in worktree
                 </span>
               )}
               {inMergeQueue && (
-                <span className="rounded-sm bg-purple-400/15 text-purple-400 px-1 text-[10px]">
+                <span className="rounded-sm bg-purple-400/15 text-purple-400 px-1 text-xs">
                   queued
                 </span>
               )}
@@ -298,7 +328,7 @@ function ItemRow({
                   {item.labels.slice(0, 4).map((l) => (
                     <span
                       key={l.name}
-                      className="rounded-sm px-1 text-[10px]"
+                      className="rounded-sm px-1 text-xs"
                       style={{
                         backgroundColor: `#${l.color}33`,
                         color: `#${l.color}`
@@ -319,11 +349,34 @@ function ItemRow({
             onClick={(e) => e.stopPropagation()}
             className="text-faint hover:text-fg shrink-0"
           >
-            <ExternalLink size={12} />
+            <ExternalLink className="icon-xs" />
           </a>
         </button>
+
+        {/* Snooze (active) / Wake (snoozed) control — full opacity even when
+            the row is greyed, so a snoozed item can always be woken. */}
+        <div className="flex items-center pr-2 shrink-0">
+          {snoozed ? (
+            <button
+              onClick={onWake}
+              title={`Snoozed${wakeAt != null ? ` · wakes ${formatWakeAt(wakeAt)}` : ''} — click to wake`}
+              className="flex items-center gap-1 text-faint hover:text-fg cursor-pointer"
+            >
+              <BellRing className="icon-xs" />
+              {wakeAt != null && <span className="text-xs">{formatWakeAt(wakeAt)}</span>}
+            </button>
+          ) : (
+            <button
+              onClick={onSnooze}
+              title="Snooze · ⌥-click to pick a date"
+              className="text-faint hover:text-fg cursor-pointer"
+            >
+              <Clock className="icon-xs" />
+            </button>
+          )}
+        </div>
       </div>
-      {expanded && (
+      {expanded && !snoozed && (
         <div className="px-3 pb-3 pt-1 border-t border-border bg-panel-raised/30">
           {item.kind === 'pr' && (() => {
             const refs = extractIssueRefs(item.bodyPreview, item.number)
@@ -339,7 +392,7 @@ function ItemRow({
                         `https://github.com/${item.owner}/${item.repo}/issues/${n}`
                       )
                     }
-                    className="rounded-sm bg-surface hover:bg-surface-hover text-fg px-1 text-[10px] cursor-pointer"
+                    className="rounded-sm bg-surface hover:bg-surface-hover text-fg px-1 text-xs cursor-pointer"
                   >
                     #{n}
                   </button>
@@ -371,11 +424,11 @@ function ItemRow({
               className="text-xs bg-accent text-app rounded px-2 py-1 font-semibold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
             >
               {createWorktreePending ? (
-                <Loader2 size={11} className="animate-spin" />
+                <Loader2 className="icon-xs animate-spin" />
               ) : existingWorktree ? null : item.kind === 'pr' ? (
-                <ClipboardCheck size={11} />
+                <ClipboardCheck className="icon-xs" />
               ) : (
-                <HardHat size={11} />
+                <HardHat className="icon-xs" />
               )}
               <span>
                 {existingWorktree
@@ -387,7 +440,7 @@ function ItemRow({
             </button>
             {closed ? (
               <span className="text-xs text-success flex items-center gap-1">
-                <Check size={11} /> Closed
+                <Check className="icon-xs" /> Closed
               </span>
             ) : (
               <button
@@ -399,12 +452,12 @@ function ItemRow({
                     : 'text-dim hover:text-fg border border-border'
                 }`}
               >
-                {closing && <Loader2 size={11} className="animate-spin" />}
+                {closing && <Loader2 className="icon-xs animate-spin" />}
                 {confirmClose ? 'Confirm close' : 'Close'}
               </button>
             )}
             {existingWorktree && (
-              <span className="text-[11px] text-faint truncate" title={existingWorktree.path}>
+              <span className="text-xs text-faint truncate" title={existingWorktree.path}>
                 {existingWorktree.branch}
               </span>
             )}
@@ -433,12 +486,12 @@ function ItemRow({
                 disabled={!comment.trim() || commenting}
                 className="text-xs bg-surface hover:bg-surface-hover rounded px-2 py-1 text-fg-bright disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
               >
-                {commenting && <Loader2 size={11} className="animate-spin" />}
+                {commenting && <Loader2 className="icon-xs animate-spin" />}
                 Comment
               </button>
               {commented && (
                 <span className="text-xs text-success flex items-center gap-1">
-                  <Check size={11} /> Posted
+                  <Check className="icon-xs" /> Posted
                 </span>
               )}
               {commentError && <span className="text-xs text-danger">{commentError}</span>}
@@ -456,6 +509,7 @@ export function InboxScreen({
   onSelectWorktree
 }: InboxScreenProps): JSX.Element {
   const inbox = useInbox()
+  const inboxSnooze = useInboxSnooze()
   const settings = useSettings()
   const worktrees = useWorktrees()
   const backend = useBackend()
@@ -515,6 +569,11 @@ export function InboxScreen({
   }, [worktrees.originByRoot])
 
   const [showAddItem, setShowAddItem] = useState(false)
+  const [snoozeCalendarFor, setSnoozeCalendarFor] = useState<{
+    key: string
+    updatedAt: string
+    anchor: { top: number; left: number; width: number; height: number }
+  } | null>(null)
   const [activeQueryId, setActiveQueryId] = useState<string | null>(
     queries[0]?.id ?? null
   )
@@ -558,8 +617,20 @@ export function InboxScreen({
   const loading = activeQueryId ? !!inbox.loading[activeQueryId] : false
   const error = activeQueryId ? inbox.errors[activeQueryId] : null
 
-  const items = useMemo(() => filterAndSort(rawItems, filter, sort), [rawItems, filter, sort])
+  const sorted = useMemo(() => filterAndSort(rawItems, filter, sort), [rawItems, filter, sort])
   const truncated = totalCount > rawItems.length
+
+  // Split into Active vs Snoozed. Snoozed items drop to a greyed section
+  // below; they wake (server-side) on wakeAt or when the item changes.
+  const snoozeByKey = inboxSnooze.byKey
+  const activeItems = useMemo(
+    () => sorted.filter((it) => !snoozeByKey[inboxSnoozeKey(it)]),
+    [sorted, snoozeByKey]
+  )
+  const snoozedItems = useMemo(
+    () => sorted.filter((it) => snoozeByKey[inboxSnoozeKey(it)]),
+    [sorted, snoozeByKey]
+  )
 
   const handleRefresh = (): void => {
     if (!activeQueryId) return
@@ -567,6 +638,56 @@ export function InboxScreen({
   }
 
   const itemKey = (it: InboxItem): string => `${it.kind}:${it.owner}/${it.repo}#${it.number}`
+
+  const snoozeItem = (it: InboxItem, e: React.MouseEvent): void => {
+    const key = inboxSnoozeKey(it)
+    if (e.altKey) {
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      setSnoozeCalendarFor({
+        key,
+        updatedAt: it.updatedAt,
+        anchor: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
+      })
+      return
+    }
+    const days = Math.max(1, Math.floor(settings.snoozeDefaultDays ?? 7))
+    void backend.snoozeInboxItem(key, Date.now() + days * 86400000, it.updatedAt)
+  }
+
+  const wakeItem = (it: InboxItem): void => {
+    void backend.unsnoozeInboxItem(inboxSnoozeKey(it))
+  }
+
+  const handleSnoozeCalendarPick = (wakeAt: number): void => {
+    if (!snoozeCalendarFor) return
+    void backend.snoozeInboxItem(snoozeCalendarFor.key, wakeAt, snoozeCalendarFor.updatedAt)
+    setSnoozeCalendarFor(null)
+  }
+
+  const renderItemRow = (it: InboxItem, isSnoozed: boolean): JSX.Element => {
+    const key = itemKey(it)
+    const entry = snoozeByKey[key]
+    return (
+      <ItemRow
+        key={key}
+        item={it}
+        expanded={!!expanded[key]}
+        onToggle={() => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))}
+        onCreateWorktree={() => void handleRowAction(it)}
+        createWorktreePending={!!creating[key]}
+        createWorktreeError={createError[key] ?? null}
+        existingWorktree={findExistingWorktree(it)}
+        inMergeQueue={
+          it.kind === 'pr' && !!inbox.mergeQueueByKey[`pr:${it.owner}/${it.repo}#${it.number}`]
+        }
+        onAfterClose={handleRefresh}
+        snoozed={isSnoozed}
+        wakeAt={entry ? entry.wakeAt : null}
+        onSnooze={(e) => snoozeItem(it, e)}
+        onWake={() => wakeItem(it)}
+      />
+    )
+  }
 
   const handleRowAction = async (it: InboxItem): Promise<void> => {
     const existing = findExistingWorktree(it)
@@ -620,7 +741,7 @@ export function InboxScreen({
           onClick={onClose}
           className="no-drag flex items-center gap-1 text-dim hover:text-fg text-xs cursor-pointer"
         >
-          <ArrowLeft size={12} />
+          <ArrowLeft className="icon-xs" />
           <span>Back</span>
         </button>
         <span className="ml-3 text-xs font-semibold text-fg-bright">Inbox</span>
@@ -648,6 +769,15 @@ export function InboxScreen({
         />
       )}
 
+      {snoozeCalendarFor && (
+        <SnoozeCalendar
+          anchor={snoozeCalendarFor.anchor}
+          defaultDays={Math.max(1, Math.floor(settings.snoozeDefaultDays ?? 7))}
+          onPick={handleSnoozeCalendarPick}
+          onDismiss={() => setSnoozeCalendarFor(null)}
+        />
+      )}
+
       {queries.length === 0 ? (
         <EmptyState onOpenSettings={onOpenSettings} />
       ) : (
@@ -670,7 +800,7 @@ export function InboxScreen({
                 >
                   <span>{q.name}</span>
                   {tabLoading ? (
-                    <Loader2 size={10} className="animate-spin text-faint" />
+                    <Loader2 className="icon-2xs animate-spin text-faint" />
                   ) : (
                     count > 0 && <span className="text-faint">{count}</span>
                   )}
@@ -682,14 +812,14 @@ export function InboxScreen({
               title="Manage inbox queries"
               className="ml-auto text-faint hover:text-fg p-1 rounded cursor-pointer"
             >
-              <SettingsIcon size={12} />
+              <SettingsIcon className="icon-xs" />
             </button>
           </div>
 
           {/* Controls */}
           <div className="px-3 py-2 flex items-center gap-2 border-b border-border shrink-0">
             <div className="relative flex-1">
-              <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+              <Search className="icon-xs absolute left-2 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
               <input
                 type="text"
                 value={filter}
@@ -713,19 +843,19 @@ export function InboxScreen({
               title="Refresh this query"
               className="text-dim hover:text-fg hover:bg-surface rounded p-1 transition-colors cursor-pointer disabled:opacity-40"
             >
-              {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              {loading ? <Loader2 className="icon-xs animate-spin" /> : <RefreshCw className="icon-xs" />}
             </button>
           </div>
 
           {/* Status bar — query string + truncation banner */}
           {activeQuery && (
-            <div className="px-3 py-1 text-[10px] text-faint border-b border-border shrink-0 truncate">
+            <div className="px-3 py-1 text-xs text-faint border-b border-border shrink-0 truncate">
               <code className="text-dim">{activeQuery.query}</code>
             </div>
           )}
           {truncated && (
-            <div className="px-3 py-1.5 text-[11px] text-warning bg-warning/5 border-b border-border shrink-0 flex items-center gap-1.5">
-              <AlertCircle size={11} className="shrink-0" />
+            <div className="px-3 py-1.5 text-xs text-warning bg-warning/5 border-b border-border shrink-0 flex items-center gap-1.5">
+              <AlertCircle className="icon-xs shrink-0" />
               <span>
                 Showing {rawItems.length} most recently updated of {totalCount}.
                 Refine your query to see the rest.
@@ -733,40 +863,26 @@ export function InboxScreen({
             </div>
           )}
           {error && (
-            <div className="px-3 py-1.5 text-[11px] text-danger bg-danger/5 border-b border-border shrink-0 flex items-center gap-1.5">
-              <AlertCircle size={11} className="shrink-0" />
+            <div className="px-3 py-1.5 text-xs text-danger bg-danger/5 border-b border-border shrink-0 flex items-center gap-1.5">
+              <AlertCircle className="icon-xs shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {/* List */}
           <div className="flex-1 overflow-y-auto">
-            {items.length === 0 && !loading && !error && (
+            {sorted.length === 0 && !loading && !error && (
               <div className="px-4 py-8 text-center text-xs text-faint">
                 {filter ? 'No items match the filter.' : 'No items match this query.'}
               </div>
             )}
-            {items.map((it) => {
-              const key = itemKey(it)
-              return (
-                <ItemRow
-                  key={key}
-                  item={it}
-                  expanded={!!expanded[key]}
-                  onToggle={() =>
-                    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
-                  }
-                  onCreateWorktree={() => void handleRowAction(it)}
-                  createWorktreePending={!!creating[key]}
-                  createWorktreeError={createError[key] ?? null}
-                  existingWorktree={findExistingWorktree(it)}
-                  inMergeQueue={
-                    it.kind === 'pr' && !!inbox.mergeQueueByKey[`pr:${it.owner}/${it.repo}#${it.number}`]
-                  }
-                  onAfterClose={handleRefresh}
-                />
-              )
-            })}
+            {activeItems.map((it) => renderItemRow(it, false))}
+            {snoozedItems.length > 0 && (
+              <div className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-faint bg-panel/40 border-y border-border">
+                Snoozed · {snoozedItems.length}
+              </div>
+            )}
+            {snoozedItems.map((it) => renderItemRow(it, true))}
           </div>
         </>
       )}
@@ -782,7 +898,7 @@ function EmptyState({ onOpenSettings }: EmptyStateProps): JSX.Element {
   return (
     <div className="flex-1 flex items-center justify-center">
       <div className="max-w-sm text-center px-6">
-        <CircleCheck size={28} className="mx-auto text-faint mb-3" />
+        <CircleCheck className="icon-xl mx-auto text-faint mb-3" />
         <div className="text-sm font-semibold text-fg-bright mb-1">
           No inbox queries yet
         </div>
