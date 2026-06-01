@@ -52,6 +52,44 @@ function sortByName(items: RunnerItem[]): RunnerItem[] {
   )
 }
 
+/** Validate + normalize an untrusted array of runner-ish objects into clean
+ *  RunnerItems. Each needs a non-empty name + command (description coerced to
+ *  ''); icon is kept only when a non-empty string, cardinality only when an
+ *  integer >= 1. Dedups case-insensitively by name (first occurrence wins).
+ *  Order is preserved — callers sort if they need alphabetical. Shared by the
+ *  disk seeder (per-worktree agent runners) and the .harness.json repo-config
+ *  path (per-repo user runners). */
+export function sanitizeRunnerList(raw: unknown): RunnerItem[] {
+  if (!Array.isArray(raw)) return []
+  const items: RunnerItem[] = []
+  const seen = new Set<string>()
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const rec = item as Record<string, unknown>
+    const name = typeof rec.name === 'string' ? rec.name.trim() : ''
+    const command = typeof rec.command === 'string' ? rec.command.trim() : ''
+    if (!name || !command) continue
+    const key = name.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    const icon = typeof rec.icon === 'string' ? rec.icon.trim() : ''
+    const cardinality =
+      typeof rec.cardinality === 'number' &&
+      Number.isInteger(rec.cardinality) &&
+      rec.cardinality >= 1
+        ? rec.cardinality
+        : undefined
+    items.push({
+      name,
+      command,
+      description: typeof rec.description === 'string' ? rec.description : '',
+      ...(icon ? { icon } : {}),
+      ...(cardinality != null ? { cardinality } : {})
+    })
+  }
+  return items
+}
+
 export function runnersReducer(
   state: RunnersState,
   event: RunnersEvent

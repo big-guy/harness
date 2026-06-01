@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { initialRunners, runnersReducer, type RunnerItem } from './runners'
+import {
+  initialRunners,
+  runnersReducer,
+  sanitizeRunnerList,
+  type RunnerItem
+} from './runners'
 
 const r = (name: string, command = `cmd ${name}`, description = `desc ${name}`): RunnerItem => ({
   name,
@@ -88,5 +93,57 @@ describe('runnersReducer', () => {
       payload: { worktreePath: WT_B, name: 'build' }
     })
     expect(s2).toBe(s1)
+  })
+})
+
+describe('sanitizeRunnerList', () => {
+  it('returns [] for non-array input', () => {
+    expect(sanitizeRunnerList(undefined)).toEqual([])
+    expect(sanitizeRunnerList(null)).toEqual([])
+    expect(sanitizeRunnerList({})).toEqual([])
+    expect(sanitizeRunnerList('nope')).toEqual([])
+  })
+
+  it('drops entries missing a name or command, trims, coerces description', () => {
+    const out = sanitizeRunnerList([
+      { name: '  build  ', command: '  npm run build  ' },
+      { name: 'no-command' },
+      { command: 'no-name' },
+      { name: 'bad', command: '   ' },
+      null,
+      'string'
+    ])
+    expect(out).toEqual([{ name: 'build', command: 'npm run build', description: '' }])
+  })
+
+  it('keeps a valid icon + integer cardinality >= 1, drops invalid ones', () => {
+    const out = sanitizeRunnerList([
+      { name: 'a', command: 'cmd', icon: ' Play ', cardinality: 1 },
+      { name: 'b', command: 'cmd', icon: '  ', cardinality: 0 },
+      { name: 'c', command: 'cmd', cardinality: 2.5 },
+      { name: 'd', command: 'cmd', cardinality: -3 }
+    ])
+    expect(out).toEqual([
+      { name: 'a', command: 'cmd', description: '', icon: 'Play', cardinality: 1 },
+      { name: 'b', command: 'cmd', description: '' },
+      { name: 'c', command: 'cmd', description: '' },
+      { name: 'd', command: 'cmd', description: '' }
+    ])
+  })
+
+  it('dedups case-insensitively by name, first occurrence wins', () => {
+    const out = sanitizeRunnerList([
+      { name: 'Dev', command: 'first' },
+      { name: 'dev', command: 'second' }
+    ])
+    expect(out).toEqual([{ name: 'Dev', command: 'first', description: '' }])
+  })
+
+  it('preserves input order (no sorting)', () => {
+    const out = sanitizeRunnerList([
+      { name: 'zebra', command: 'z' },
+      { name: 'apple', command: 'a' }
+    ]) as RunnerItem[]
+    expect(out.map((i) => i.name)).toEqual(['zebra', 'apple'])
   })
 })

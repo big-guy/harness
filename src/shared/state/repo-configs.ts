@@ -1,3 +1,5 @@
+import type { RunnerItem } from './runners'
+
 export type RightPanelKey =
   | 'merge'
   | 'pr'
@@ -33,6 +35,11 @@ export interface RepoConfig {
   setupCommand?: string
   teardownCommand?: string
   mergeStrategy?: 'squash' | 'merge-commit' | 'fast-forward'
+  /** User-defined Toolbox runners for this repo, persisted to .harness.json
+   *  and available across every worktree of the repo. Distinct from the
+   *  per-worktree runners an agent registers via the register_runner MCP
+   *  tool (those live in the runners slice, not here). */
+  runners?: RunnerItem[]
   /** @deprecated use hiddenRightPanels.merge. Migrated on load. */
   hideMergePanel?: boolean
   /** @deprecated use hiddenRightPanels.pr. Migrated on load. */

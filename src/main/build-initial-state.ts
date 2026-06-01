@@ -12,7 +12,7 @@ import { initialJsonClaude } from '../shared/state/json-claude'
 import { initialSnooze } from '../shared/state/snooze'
 import { initialAnnouncements } from '../shared/state/announcements'
 import { initialScratchpad } from '../shared/state/scratchpad'
-import type { RunnerItem } from '../shared/state/runners'
+import { sanitizeRunnerList, type RunnerItem } from '../shared/state/runners'
 import {
   initialSettings,
   DEFAULT_LIGHT_THEME,
@@ -160,31 +160,7 @@ function sanitizeRunners(
   const out: Record<string, RunnerItem[]> = {}
   for (const [worktreePath, list] of Object.entries(raw)) {
     if (!worktreePath || !Array.isArray(list)) continue
-    const items: RunnerItem[] = []
-    const seen = new Set<string>()
-    for (const item of list) {
-      if (!item || typeof item !== 'object') continue
-      const name = typeof item.name === 'string' ? item.name.trim() : ''
-      const command = typeof item.command === 'string' ? item.command.trim() : ''
-      if (!name || !command) continue
-      const key = name.toLowerCase()
-      if (seen.has(key)) continue
-      seen.add(key)
-      const icon = typeof item.icon === 'string' ? item.icon.trim() : ''
-      const cardinality =
-        typeof item.cardinality === 'number' &&
-        Number.isInteger(item.cardinality) &&
-        item.cardinality >= 1
-          ? item.cardinality
-          : undefined
-      items.push({
-        name,
-        command,
-        description: typeof item.description === 'string' ? item.description : '',
-        ...(icon ? { icon } : {}),
-        ...(cardinality != null ? { cardinality } : {})
-      })
-    }
+    const items = sanitizeRunnerList(list)
     if (items.length > 0) out[worktreePath] = items
   }
   return out

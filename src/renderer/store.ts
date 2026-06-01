@@ -613,6 +613,30 @@ export function useRunners(worktreePath: string | null) {
   )
 }
 
+/** repoRoot the given worktree belongs to (''" if the worktree isn't known).
+ *  Per-id selector — the Toolbox needs it to read/write the repo's
+ *  .harness.json user runners. */
+export function useRepoRootForWorktree(worktreePath: string | null): string {
+  return useAppState((s) =>
+    worktreePath
+      ? (s.worktrees.list.find((w) => w.path === worktreePath)?.repoRoot ?? '')
+      : ''
+  )
+}
+
+/** User-defined runners for the worktree's repo, read from .harness.json
+ *  (the repoConfigs slice). Distinct from useRunners (per-worktree agent
+ *  runners). Returns the stable empty array when the repo has none so it
+ *  doesn't churn re-renders. */
+export function useUserRunners(worktreePath: string | null): readonly RunnerItem[] {
+  return useAppState((s) => {
+    if (!worktreePath) return EMPTY_RUNNERS
+    const repoRoot = s.worktrees.list.find((w) => w.path === worktreePath)?.repoRoot
+    if (!repoRoot) return EMPTY_RUNNERS
+    return s.repoConfigs.byRepo[repoRoot]?.runners ?? EMPTY_RUNNERS
+  })
+}
+
 export function useSnooze() {
   return useAppState((s) => s.snooze)
 }
