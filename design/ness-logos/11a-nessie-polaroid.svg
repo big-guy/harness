@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <clipPath id="sqP"><rect width="256" height="256" rx="56" ry="56"/></clipPath>
+
+    <!-- the creature: humps trailing left, neck + head rising right -->
+    <g id="nessieP">
+      <path d="M 56 159 A 22 17 0 0 1 100 159 Z"/>
+      <path d="M 96 159 A 28 23 0 0 1 152 159 Z"/>
+      <path d="M 154 159
+               C 149 126 148 98 160 82
+               C 168 71 183 69 195 75
+               C 204 79 210 85 212 91
+               C 213 94 210 96 206 96
+               C 200 96 193 95 187 97
+               C 181 99 179 104 178 112
+               C 177 128 178 146 178 159 Z"/>
+    </g>
+
+    <!-- rippled + diffuse water -->
+    <filter id="rippleP" x="-25%" y="-25%" width="150%" height="160%">
+      <feTurbulence type="turbulence" baseFrequency="0.015 0.05"
+                    numOctaves="2" seed="7" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="7"
+                         xChannelSelector="R" yChannelSelector="G" result="disp"/>
+      <feGaussianBlur in="disp" stdDeviation="1.4"/>
+    </filter>
+
+    <!-- depth fade for the reflection -->
+    <linearGradient id="fadeP" x1="0" y1="159" x2="0" y2="214"
+                    gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <mask id="fademaskP"><rect width="256" height="256" fill="url(#fadeP)"/></mask>
+
+    <!-- photo window of the polaroid -->
+    <clipPath id="photoP"><rect x="69" y="48" width="118" height="112"/></clipPath>
+
+    <!-- soft drop shadow to lift the polaroid off the background -->
+    <filter id="cardShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7"
+                    flood-color="#000" flood-opacity="0.55"/>
+    </filter>
+  </defs>
+
+  <rect width="256" height="256" rx="56" ry="56" fill="#0a0a0a"/>
+
+  <g clip-path="url(#sqP)">
+    <!-- black background scattered with gray dots -->
+    <g fill="#454545">
+      <circle cx="18"  cy="20"  r="4"/><circle cx="52"  cy="20"  r="4"/><circle cx="86"  cy="20"  r="4"/><circle cx="120" cy="20"  r="4"/><circle cx="154" cy="20"  r="4"/><circle cx="188" cy="20"  r="4"/><circle cx="222" cy="20"  r="4"/><circle cx="240" cy="20"  r="4"/>
+      <circle cx="18"  cy="54"  r="4"/><circle cx="240" cy="54"  r="4"/>
+      <circle cx="18"  cy="88"  r="4"/><circle cx="240" cy="88"  r="4"/>
+      <circle cx="18"  cy="122" r="4"/><circle cx="240" cy="122" r="4"/>
+      <circle cx="18"  cy="156" r="4"/><circle cx="240" cy="156" r="4"/>
+      <circle cx="18"  cy="190" r="4"/><circle cx="240" cy="190" r="4"/>
+      <circle cx="18"  cy="224" r="4"/><circle cx="52"  cy="236" r="4"/><circle cx="86"  cy="236" r="4"/><circle cx="120" cy="236" r="4"/><circle cx="154" cy="236" r="4"/><circle cx="188" cy="236" r="4"/><circle cx="222" cy="236" r="4"/><circle cx="240" cy="224" r="4"/>
+    </g>
+
+    <!-- the polaroid, tilted slightly to the right -->
+    <g transform="rotate(5 128 121)" filter="url(#cardShadow)">
+      <!-- white card with the classic deep bottom border -->
+      <rect x="57" y="36" width="142" height="170" rx="3" fill="#f5f5f5"/>
+
+      <!-- the photo: a mini Nessie scene -->
+      <g clip-path="url(#photoP)">
+        <rect x="69" y="48" width="118" height="112" fill="#0a0a0a"/>
+        <g transform="translate(69 48) scale(0.461)">
+          <!-- waterline -->
+          <line x1="0" y1="159" x2="256" y2="159"
+                stroke="#22c55e" stroke-width="2" opacity="0.3"/>
+          <!-- rippled, diffuse gray reflection -->
+          <g mask="url(#fademaskP)" filter="url(#rippleP)">
+            <use href="#nessieP" fill="#a3a3a3" opacity="0.2"
+                 transform="matrix(1 0 0 -0.5 0 238.5)"/>
+          </g>
+          <!-- green creature silhouette -->
+          <use href="#nessieP" fill="#22c55e"/>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>
