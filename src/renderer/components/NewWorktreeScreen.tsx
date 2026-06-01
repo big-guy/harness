@@ -134,6 +134,9 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, d
   const [prsLoadingRepo, setPrsLoadingRepo] = useState<string | null>(null)
   const [prsError, setPrsError] = useState<string | null>(null)
   const [prClickPending, setPrClickPending] = useState<number | null>(null)
+  // PR mode is select-then-create — same pattern as the other modes. Clicking
+  // a row selects it; the footer "Create worktree" button submits.
+  const [selectedPRNumber, setSelectedPRNumber] = useState<number | null>(null)
 
   // Same pattern as prsByRepo: cache normalized branch lists per repo
   // for the lifetime of the modal. Reset when repo changes.
@@ -203,26 +206,29 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, d
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, selectedRepo])
 
-  const handlePRClick = useCallback(
-    async (prNumber: number) => {
-      if (prClickPending !== null) return
-      setPrClickPending(prNumber)
-      setError(null)
-      try {
-        await onPRSubmit(
-          selectedRepo,
-          prNumber,
-          reviewPrompt.trim(),
-          agentKindOverride,
-          modelOverride.trim() || undefined
-        )
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to open PR')
-        setPrClickPending(null)
-      }
-    },
-    [onPRSubmit, prClickPending, selectedRepo, reviewPrompt, agentKindOverride, modelOverride]
-  )
+  const handlePRSelect = useCallback((prNumber: number) => {
+    setSelectedPRNumber((prev) => (prev === prNumber ? null : prNumber))
+    setError(null)
+  }, [])
+
+  const handlePRSubmit = useCallback(async () => {
+    if (prClickPending !== null) return
+    if (selectedPRNumber === null) return
+    setPrClickPending(selectedPRNumber)
+    setError(null)
+    try {
+      await onPRSubmit(
+        selectedRepo,
+        selectedPRNumber,
+        reviewPrompt.trim(),
+        agentKindOverride,
+        modelOverride.trim() || undefined
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to open PR')
+      setPrClickPending(null)
+    }
+  }, [onPRSubmit, prClickPending, selectedPRNumber, selectedRepo, reviewPrompt, agentKindOverride, modelOverride])
 
   // Lazy-fetch branches for the selected repo when entering fresh mode.
   // Same self-cancellation pattern as the PR list above.
@@ -321,7 +327,8 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, d
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
-        handleSubmit()
+        if (mode === 'pr') void handlePRSubmit()
+        else handleSubmit()
       }
       if (e.key === 'Escape') {
         e.preventDefault()
@@ -336,8 +343,13 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, d
         cycleRepo(1)
       }
     },
-    [handleSubmit, onCancel, cycleRepo]
+    [mode, handlePRSubmit, handleSubmit, onCancel, cycleRepo]
   )
+
+  // Selection is per-(repo, PR-list) — switching repos invalidates it.
+  useEffect(() => {
+    setSelectedPRNumber(null)
+  }, [selectedRepo, mode])
 
   const handleBranchKey = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey) {
@@ -652,9 +664,10 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, d
                   loading={prsLoadingRepo === selectedRepo}
                   error={prsError}
                   disabled={prClickPending !== null}
+                  selectedNumber={selectedPRNumber}
                   pendingNumber={prClickPending}
                   viewerLogin={settings.viewerLogin}
-                  onPick={handlePRClick}
+                  onSelect={handlePRSelect}
                 />
               </>
             )}
@@ -714,14 +727,37 @@ export function NewWorktreeScreen({ onSubmit, onPRSubmit, onCancel, repoRoots, d
             )}
 
             {mode === 'pr' && (
-              <div className="flex items-center justify-end mt-6 gap-3">
-                <button
-                  onClick={onCancel}
-                  disabled={prClickPending !== null}
-                  className="px-4 py-2 text-sm text-dim hover:text-fg transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
+              <div className="flex items-center justify-between mt-6 gap-3">
+                <div className="text-xs text-faint">
+                  <span className="font-mono">⌘⏎</span> to create ·{' '}
+                  <span className="font-mono">Esc</span> to cancel
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={onCancel}
+                    disabled={prClickPending !== null}
+                    className="px-4 py-2 text-sm text-dim hover:text-fg transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => void handlePRSubmit()}
+                    disabled={selectedPRNumber === null || prClickPending !== null}
+                    className="brand-gradient-bg text-white font-semibold text-sm px-5 py-2.5 rounded-lg flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 transition-all shadow-lg cursor-pointer"
+                  >
+                    {prClickPending !== null ? (
+                      <>
+                        <Loader2 className="icon-sm animate-spin" />
+                        Creating…
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="icon-sm" />
+                        Create worktree
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -770,9 +806,12 @@ interface PRPickerListProps {
   loading: boolean
   error: string | null
   disabled: boolean
+  /** Currently-selected PR number — drives the highlight. */
+  selectedNumber: number | null
+  /** PR number currently being submitted — drives the row spinner. */
   pendingNumber: number | null
   viewerLogin: string | null
-  onPick: (prNumber: number) => void
+  onSelect: (prNumber: number) => void
 }
 
 const CHECKS_OVERALL_COLORS: Record<NonNullable<PRSummary['checksOverall']>, string> = {
@@ -811,9 +850,10 @@ function PRPickerList({
   loading,
   error,
   disabled,
+  selectedNumber,
   pendingNumber,
   viewerLogin,
-  onPick
+  onSelect
 }: PRPickerListProps): JSX.Element {
   // Persist across reopens of the same modal session but not across
   // app restarts — useState in the modal component, not a slice.
@@ -850,7 +890,7 @@ function PRPickerList({
     : prs
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2 mt-5">
       {showFilter && (
         <div className="flex items-center gap-2">
           <button
@@ -885,9 +925,10 @@ function PRPickerList({
               key={pr.number}
               pr={pr}
               viewerLogin={viewerLogin}
+              isSelected={selectedNumber === pr.number}
               isPending={pendingNumber === pr.number}
               disabled={disabled}
-              onPick={onPick}
+              onSelect={onSelect}
             />
           ))
         )}
@@ -899,12 +940,13 @@ function PRPickerList({
 interface PRPickerRowProps {
   pr: PRSummary
   viewerLogin: string | null
+  isSelected: boolean
   isPending: boolean
   disabled: boolean
-  onPick: (prNumber: number) => void
+  onSelect: (prNumber: number) => void
 }
 
-function PRPickerRow({ pr, viewerLogin, isPending, disabled, onPick }: PRPickerRowProps): JSX.Element {
+function PRPickerRow({ pr, viewerLogin, isSelected, isPending, disabled, onSelect }: PRPickerRowProps): JSX.Element {
   const viewerRequested = isViewerRequested(pr, viewerLogin)
   const visibleLabels = pr.labels.slice(0, MAX_VISIBLE_LABELS)
   const overflowLabels = pr.labels.length - visibleLabels.length
@@ -946,10 +988,11 @@ function PRPickerRow({ pr, viewerLogin, isPending, disabled, onPick }: PRPickerR
   return (
     <button
       type="button"
-      onClick={() => onPick(pr.number)}
+      onClick={() => onSelect(pr.number)}
       disabled={disabled}
-      className={`text-left bg-panel/60 border border-border/60 rounded-xl p-3 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${
-        isPending ? 'border-accent bg-panel' : 'hover:border-accent hover:bg-panel'
+      aria-pressed={isSelected}
+      className={`text-left bg-panel/60 border rounded-xl p-3 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${
+        isSelected || isPending ? 'border-accent bg-panel' : 'border-border/60 hover:border-accent hover:bg-panel'
       }`}
     >
       <div className="flex items-baseline gap-2">
