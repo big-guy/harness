@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { X, Loader2, ArrowLeft, FileText, FilePlus2, GitBranch } from 'lucide-react'
-import { useBackend, getBackend } from '../backend'
+import { useBackend } from '../backend'
 import type { IssueTemplate } from '../types'
 
 interface RepoChoice {
@@ -95,7 +95,6 @@ export function AddInboxItemModal({ repos, onClose, onCreated }: AddInboxItemMod
         body
       })
       if (result.ok) {
-        getBackend().openExternal(result.htmlUrl)
         onCreated?.()
         onClose()
       } else {

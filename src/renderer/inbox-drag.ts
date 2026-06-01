@@ -15,6 +15,14 @@ export interface InboxDragItem {
   title: string
   /** GitHub html_url of the issue/PR — used to build the dropped prompt. */
   url: string
+  /** The prompt to insert when dropped on an EXISTING worktree. Defaults to
+   *  "Look at this <url>" for a plain row drag; the "Fix this" /
+   *  "Investigate this" handles set their own. */
+  prompt: string
+  /** Override for the kickoff prompt when dropped on "Add worktree". Only
+   *  set by the fix/investigate handles — a plain row drag leaves this unset
+   *  so worktree creation uses the default review/issue prompt. */
+  worktreePrompt?: string
 }
 
 export function setInboxDragData(e: DragEvent, item: InboxDragItem): void {
@@ -45,7 +53,8 @@ export function getInboxDragItem(e: DragEvent): InboxDragItem | null {
       typeof p.repo === 'string' &&
       typeof p.number === 'number' &&
       typeof p.title === 'string' &&
-      typeof p.url === 'string'
+      typeof p.url === 'string' &&
+      typeof p.prompt === 'string'
     ) {
       return p as InboxDragItem
     }

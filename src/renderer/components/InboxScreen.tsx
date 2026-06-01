@@ -13,7 +13,11 @@ import {
   ExternalLink,
   Settings as SettingsIcon,
   Search,
-  Plus
+  Plus,
+  Wrench,
+  HardHat,
+  ClipboardCheck,
+  Check
 } from 'lucide-react'
 import { useInbox, useSettings, useWorktrees } from '../store'
 import { getBackend, useBackend } from '../backend'
@@ -139,10 +143,17 @@ interface ItemRowProps {
   createWorktreePending: boolean
   createWorktreeError: string | null
   /** Existing worktree for this item, if any. When set, the action label
-   *  switches from "Check out…" to "Open existing worktree". */
+   *  switches from "Review this"/"Start work" to "Open existing worktree". */
   existingWorktree: Worktree | null
   inMergeQueue: boolean
+  /** Called after the item is closed on GitHub so the list can refresh. */
+  onAfterClose: () => void
 }
+
+const lookAtPrompt = (url: string): string => `Look at this ${url}`
+const fixPrompt = (url: string): string => `Prepare a reproducer and propose a fix: ${url}`
+const investigatePrompt = (url: string): string =>
+  `Investigate this issue and propose a response: ${url}`
 
 function ItemRow({
   item,
@@ -152,86 +163,164 @@ function ItemRow({
   createWorktreePending,
   createWorktreeError,
   existingWorktree,
-  inMergeQueue
+  inMergeQueue,
+  onAfterClose
 }: ItemRowProps): JSX.Element {
+  const backend = useBackend()
+  const [comment, setComment] = useState('')
+  const [commenting, setCommenting] = useState(false)
+  const [commented, setCommented] = useState(false)
+  const [commentError, setCommentError] = useState<string | null>(null)
+  const [confirmClose, setConfirmClose] = useState(false)
+  const [closing, setClosing] = useState(false)
+  const [closeError, setCloseError] = useState<string | null>(null)
+
+  const dragBase = {
+    kind: item.kind,
+    owner: item.owner,
+    repo: item.repo,
+    number: item.number,
+    title: item.title,
+    url: item.url
+  }
+
+  const submitComment = async (): Promise<void> => {
+    const body = comment.trim()
+    if (!body || commenting) return
+    setCommenting(true)
+    setCommentError(null)
+    const r = await backend.createInboxComment(item.owner, item.repo, item.number, body)
+    setCommenting(false)
+    if (r.ok) {
+      setComment('')
+      setCommented(true)
+    } else {
+      setCommentError(r.error)
+    }
+  }
+
+  const handleClose = async (): Promise<void> => {
+    if (!confirmClose) {
+      setConfirmClose(true)
+      return
+    }
+    setClosing(true)
+    setCloseError(null)
+    const r = await backend.closeInboxItem(item.owner, item.repo, item.number, item.kind)
+    setClosing(false)
+    if (r.ok) {
+      onAfterClose()
+    } else {
+      setConfirmClose(false)
+      setCloseError(r.error)
+    }
+  }
+
   return (
-    <div
-      className="border-b border-border"
-      draggable
-      onDragStart={(e) =>
-        setInboxDragData(e, {
-          kind: item.kind,
-          owner: item.owner,
-          repo: item.repo,
-          number: item.number,
-          title: item.title,
-          url: item.url
-        })
-      }
-      title="Drag onto a worktree to reference it, or onto “Add worktree” to start one"
-    >
-      <button
-        onClick={onToggle}
-        className="w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-panel-raised/40 transition-colors cursor-pointer"
-      >
-        <span className="mt-0.5">
-          <StateIcon item={item} inMergeQueue={inMergeQueue} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-xs text-faint shrink-0">
-              {item.owner}/{item.repo}#{item.number}
-            </span>
-            <span className="text-sm text-fg-bright truncate">{item.title}</span>
-          </div>
-          <div className="flex items-center gap-2 mt-0.5 text-[11px] text-dim">
-            {item.author && <UserBadge user={item.author} />}
-            <span>updated {formatRelative(item.updatedAt)} ago</span>
-            {item.commentCount > 0 && <span>· {item.commentCount} comments</span>}
-            {item.milestone && (
-              <span className="rounded-sm bg-surface text-fg px-1 text-[10px]">
-                {item.milestone.title}
-              </span>
-            )}
-            {existingWorktree && (
-              <span className="rounded-sm bg-accent/15 text-accent px-1 text-[10px]">
-                in worktree
-              </span>
-            )}
-            {inMergeQueue && (
-              <span className="rounded-sm bg-purple-400/15 text-purple-400 px-1 text-[10px]">
-                queued
-              </span>
-            )}
-            {item.labels.length > 0 && (
-              <span className="flex items-center gap-1 truncate">
-                {item.labels.slice(0, 4).map((l) => (
-                  <span
-                    key={l.name}
-                    className="rounded-sm px-1 text-[10px]"
-                    style={{
-                      backgroundColor: `#${l.color}33`,
-                      color: `#${l.color}`
-                    }}
-                  >
-                    {l.name}
-                  </span>
-                ))}
-              </span>
-            )}
-          </div>
+    <div className="border-b border-border">
+      <div className="flex items-stretch">
+        {/* Per-intent drag handles, stacked at the left. Each carries its own
+            prompt: dropping onto a worktree inserts it; dropping onto "Add
+            worktree" seeds a new worktree with it. */}
+        <div className="flex flex-col items-center justify-center gap-1.5 pl-2 pr-1 shrink-0 text-faint">
+          <button
+            draggable
+            onClick={(e) => e.stopPropagation()}
+            onDragStart={(e) =>
+              setInboxDragData(e, {
+                ...dragBase,
+                prompt: fixPrompt(item.url),
+                worktreePrompt: fixPrompt(item.url)
+              })
+            }
+            title="Fix this — drag onto a worktree (or “Add worktree”): prepare a reproducer and propose a fix"
+            className="hover:text-fg cursor-grab active:cursor-grabbing"
+          >
+            <Wrench size={12} />
+          </button>
+          <button
+            draggable
+            onClick={(e) => e.stopPropagation()}
+            onDragStart={(e) =>
+              setInboxDragData(e, {
+                ...dragBase,
+                prompt: investigatePrompt(item.url),
+                worktreePrompt: investigatePrompt(item.url)
+              })
+            }
+            title="Investigate this — drag onto a worktree (or “Add worktree”): investigate this issue and propose a response"
+            className="hover:text-fg cursor-grab active:cursor-grabbing"
+          >
+            <Search size={12} />
+          </button>
         </div>
-        <a
-          href={item.url}
-          target="_blank"
-          rel="noreferrer"
-          draggable={false}
-          onClick={(e) => e.stopPropagation()}
-          className="text-faint hover:text-fg shrink-0"
+
+        <button
+          draggable
+          onDragStart={(e) => setInboxDragData(e, { ...dragBase, prompt: lookAtPrompt(item.url) })}
+          onClick={onToggle}
+          title="Drag onto a worktree to reference it, or onto “Add worktree” to start one"
+          className="min-w-0 flex-1 text-left px-3 py-2 flex items-start gap-2 hover:bg-panel-raised/40 transition-colors cursor-pointer"
         >
-          <ExternalLink size={12} />
-        </a>
-      </button>
+          <span className="mt-0.5">
+            <StateIcon item={item} inMergeQueue={inMergeQueue} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-xs text-faint shrink-0">
+                {item.owner}/{item.repo}#{item.number}
+              </span>
+              <span className="text-sm text-fg-bright truncate">{item.title}</span>
+            </div>
+            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-dim">
+              {item.author && <UserBadge user={item.author} />}
+              <span>updated {formatRelative(item.updatedAt)} ago</span>
+              {item.commentCount > 0 && <span>· {item.commentCount} comments</span>}
+              {item.milestone && (
+                <span className="rounded-sm bg-surface text-fg px-1 text-[10px]">
+                  {item.milestone.title}
+                </span>
+              )}
+              {existingWorktree && (
+                <span className="rounded-sm bg-accent/15 text-accent px-1 text-[10px]">
+                  in worktree
+                </span>
+              )}
+              {inMergeQueue && (
+                <span className="rounded-sm bg-purple-400/15 text-purple-400 px-1 text-[10px]">
+                  queued
+                </span>
+              )}
+              {item.labels.length > 0 && (
+                <span className="flex items-center gap-1 truncate">
+                  {item.labels.slice(0, 4).map((l) => (
+                    <span
+                      key={l.name}
+                      className="rounded-sm px-1 text-[10px]"
+                      style={{
+                        backgroundColor: `#${l.color}33`,
+                        color: `#${l.color}`
+                      }}
+                    >
+                      {l.name}
+                    </span>
+                  ))}
+                </span>
+              )}
+            </div>
+          </div>
+          <a
+            href={item.url}
+            target="_blank"
+            rel="noreferrer"
+            draggable={false}
+            onClick={(e) => e.stopPropagation()}
+            className="text-faint hover:text-fg shrink-0"
+          >
+            <ExternalLink size={12} />
+          </a>
+        </button>
+      </div>
       {expanded && (
         <div className="px-3 pb-3 pt-1 border-t border-border bg-panel-raised/30">
           {item.kind === 'pr' && (() => {
@@ -273,19 +362,25 @@ function ItemRow({
               ))}
             </div>
           )}
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-3 flex items-center gap-2 flex-wrap">
             <button
               onClick={onCreateWorktree}
               disabled={createWorktreePending}
               className="text-xs bg-accent text-app rounded px-2 py-1 font-semibold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
             >
-              {createWorktreePending && <Loader2 size={11} className="animate-spin" />}
+              {createWorktreePending ? (
+                <Loader2 size={11} className="animate-spin" />
+              ) : existingWorktree ? null : item.kind === 'pr' ? (
+                <ClipboardCheck size={11} />
+              ) : (
+                <HardHat size={11} />
+              )}
               <span>
                 {existingWorktree
                   ? 'Open existing worktree'
                   : item.kind === 'pr'
-                    ? 'Check out for review'
-                    : 'Start working on this'}
+                    ? 'Review this'
+                    : 'Start work'}
               </span>
             </button>
             {existingWorktree && (
@@ -293,9 +388,53 @@ function ItemRow({
                 {existingWorktree.branch}
               </span>
             )}
-            {createWorktreeError && (
-              <span className="text-xs text-danger">{createWorktreeError}</span>
-            )}
+            <button
+              onClick={() => void handleClose()}
+              disabled={closing}
+              className={`ml-auto text-xs rounded px-2 py-1 cursor-pointer flex items-center gap-1.5 transition-colors disabled:opacity-50 ${
+                confirmClose
+                  ? 'bg-danger/20 text-danger border border-danger/50'
+                  : 'text-dim hover:text-fg border border-border'
+              }`}
+            >
+              {closing && <Loader2 size={11} className="animate-spin" />}
+              {confirmClose ? 'Confirm close' : 'Close'}
+            </button>
+          </div>
+          {createWorktreeError && (
+            <div className="text-xs text-danger mt-1">{createWorktreeError}</div>
+          )}
+          {closeError && <div className="text-xs text-danger mt-1">{closeError}</div>}
+
+          {/* Comment composer */}
+          <div className="mt-3">
+            <textarea
+              value={comment}
+              onChange={(e) => {
+                setComment(e.target.value)
+                setCommented(false)
+                setCommentError(null)
+              }}
+              placeholder="Add a comment…"
+              rows={2}
+              className="w-full bg-panel border border-border-strong rounded px-2 py-1.5 text-xs text-fg-bright placeholder-faint outline-none focus:border-accent resize-y"
+            />
+            <div className="mt-1 flex items-center gap-2">
+              <button
+                onClick={() => void submitComment()}
+                disabled={!comment.trim() || commenting}
+                className="text-xs bg-surface hover:bg-surface-hover rounded px-2 py-1 text-fg-bright disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
+              >
+                {commenting && <Loader2 size={11} className="animate-spin" />}
+                Comment
+              </button>
+              {commented && (
+                <span className="text-xs text-success flex items-center gap-1">
+                  <Check size={11} /> Posted
+                </span>
+              )}
+              {commentError && <span className="text-xs text-danger">{commentError}</span>}
+            </div>
           </div>
         </div>
       )}
@@ -602,6 +741,7 @@ export function InboxScreen({
                   inMergeQueue={
                     it.kind === 'pr' && !!inbox.mergeQueueByKey[`pr:${it.owner}/${it.repo}#${it.number}`]
                   }
+                  onAfterClose={handleRefresh}
                 />
               )
             })}

@@ -41,7 +41,7 @@ import { getWeeklyStats } from './weekly-stats'
 import type { TerminalTab, PaneNode, PaneLeaf } from '../shared/state/terminals'
 import { getLeaves, mapLeaves } from '../shared/state/terminals'
 import { listWorktrees, listBranches, continueWorktree, isWorktreeDirty, defaultWorktreeDir, getChangedFiles, getFileDiff, getBranchCommits, getCommitDiff, getCommitMeta, getCommitChangedFiles, getCommitFileDiffSides, getCommitRangeChangedFiles, getCommitRangeFileDiffSides, getMainWorktreeStatus, prepareMainForMerge, mergeWorktreeLocally, getBranchSha, previewMergeConflicts, getBranchDiffStats, listAllFiles, listRecentCommitShas, readWorktreeFile, readWorktreeFileBinary, writeWorktreeFile, getFileDiffSides, getCurrentBranch, symlinkClaudeSettings, type MergeStrategy } from './worktree'
-import { listOpenPRs, testToken, starRepo, unstarRepo, isRepoStarred, mergePR, approvePR, getRepoInfo, listIssueTemplates, createIssue, type GitHubMergeMethod, type MergePRResult } from './github'
+import { listOpenPRs, testToken, starRepo, unstarRepo, isRepoStarred, mergePR, approvePR, getRepoInfo, listIssueTemplates, createIssue, createIssueComment, closeInboxItem, type GitHubMergeMethod, type MergePRResult } from './github'
 import { AVAILABLE_EDITORS, DEFAULT_EDITOR_ID, openInEditor } from './editor'
 import { setSecret, getSecret, hasSecret, deleteSecret } from './secrets'
 import { resolveGitHubToken, getTokenSource, invalidateTokenCache, getCachedToken } from './github-auth'
@@ -1642,6 +1642,28 @@ function registerIpcHandlers(): void {
   })
 
   transport.onRequest(
+    'inbox:createComment',
+    async (_ctx, owner: string, repo: string, number: number, body: string) => {
+      if (!owner || !repo || typeof number !== 'number') {
+        return { ok: false as const, error: 'Invalid item reference' }
+      }
+      return createIssueComment(owner, repo, number, typeof body === 'string' ? body : '')
+    }
+  )
+
+  transport.onRequest(
+    'inbox:closeItem',
+    async (_ctx, owner: string, repo: string, number: number, kind: 'issue' | 'pr') => {
+      if (!owner || !repo || typeof number !== 'number') {
+        return { ok: false as const, error: 'Invalid item reference' }
+      }
+      const result = await closeInboxItem(owner, repo, number, kind === 'pr' ? 'pr' : 'issue')
+      if (result.ok) inboxPoller.refreshAllIfStale()
+      return result
+    }
+  )
+
+  transport.onRequest(
     'inbox:createIssue',
     async (_ctx, owner: string, repo: string, fields: { title?: unknown; body?: unknown }) => {
       if (!owner || !repo) return { ok: false as const, error: 'Repository not specified' }
@@ -1660,7 +1682,14 @@ function registerIpcHandlers(): void {
     'inbox:createWorktree',
     async (
       _ctx,
-      ref: { kind: 'issue' | 'pr'; owner: string; repo: string; number: number; title: string }
+      ref: {
+        kind: 'issue' | 'pr'
+        owner: string
+        repo: string
+        number: number
+        title: string
+        initialPrompt?: string
+      }
     ): Promise<InboxCreateOutcome> => {
       if (!ref || typeof ref !== 'object') {
         throw new Error('Invalid inbox item reference')

@@ -37,6 +37,7 @@ import { Activity } from './components/Activity'
 import { Cleanup } from './components/Cleanup'
 import { CommandCenter } from './components/CommandCenter'
 import { InboxScreen } from './components/InboxScreen'
+import { Toasts } from './components/Toasts'
 import { showToast } from './toast'
 import type { InboxDragItem } from './inbox-drag'
 import { CommandPalette } from './components/CommandPalette'
@@ -1312,6 +1313,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
     <HotkeysProvider bindings={resolvedHotkeys}>
     <div className="flex h-full flex-col">
       <MonacoWorkerFailedBanner />
+      <Toasts />
       {resizeToast && (
         <div className="pointer-events-none fixed top-12 left-1/2 -translate-x-1/2 z-[60]">
           <div className="rounded-md border border-border-strong bg-panel/95 px-3 py-1.5 text-sm text-fg-bright shadow-lg backdrop-blur">
@@ -1508,7 +1510,7 @@ const setQuestStep = useCallback((next: QuestStep) => {
             inboxUnreadCount={inboxUnreadCount}
             onDropInboxItemOnWorktree={(worktreePath, item: InboxDragItem) => {
               setShowInbox(false)
-              handleSendToAgent(worktreePath, `Look at this ${item.url}`)
+              handleSendToAgent(worktreePath, item.prompt)
             }}
             onDropInboxItemOnNewWorktree={(item: InboxDragItem) => {
               setShowInbox(false)
@@ -1518,7 +1520,8 @@ const setQuestStep = useCallback((next: QuestStep) => {
                   owner: item.owner,
                   repo: item.repo,
                   number: item.number,
-                  title: item.title
+                  title: item.title,
+                  initialPrompt: item.worktreePrompt
                 })
                 .then((result) => {
                   setActiveWorktreeId(result.kind === 'pending' ? result.pendingId : result.worktreePath)

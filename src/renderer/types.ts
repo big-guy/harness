@@ -258,7 +258,14 @@ export interface ElectronAPI {
   refreshInboxAllIfStale(): Promise<boolean>
   refreshInboxOne(queryId: string): Promise<boolean>
   createInboxWorktree(
-    ref: { kind: 'issue' | 'pr'; owner: string; repo: string; number: number; title: string }
+    ref: {
+      kind: 'issue' | 'pr'
+      owner: string
+      repo: string
+      number: number
+      title: string
+      initialPrompt?: string
+    }
   ): Promise<
     | { kind: 'pending'; pendingId: string; repoRoot: string; branchName: string; initialPrompt: string }
     | { kind: 'existing'; worktreePath: string }
@@ -269,6 +276,18 @@ export interface ElectronAPI {
     repo: string,
     fields: { title: string; body: string }
   ): Promise<{ ok: true; htmlUrl: string; number: number } | { ok: false; error: string }>
+  createInboxComment(
+    owner: string,
+    repo: string,
+    number: number,
+    body: string
+  ): Promise<{ ok: true; htmlUrl: string } | { ok: false; error: string }>
+  closeInboxItem(
+    owner: string,
+    repo: string,
+    number: number,
+    kind: 'issue' | 'pr'
+  ): Promise<{ ok: true } | { ok: false; error: string }>
 
   refreshAnnouncements(): Promise<boolean>
   dismissAnnouncement(id: string): Promise<boolean>

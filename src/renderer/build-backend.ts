@@ -219,12 +219,23 @@ export function buildBackend(
     refreshInboxAllIfStale: () => req('inbox:refreshAllIfStale'),
     refreshInboxOne: (queryId: string) => req('inbox:refreshOne', queryId),
     createInboxWorktree: (
-      ref: { kind: 'issue' | 'pr'; owner: string; repo: string; number: number; title: string }
+      ref: {
+        kind: 'issue' | 'pr'
+        owner: string
+        repo: string
+        number: number
+        title: string
+        initialPrompt?: string
+      }
     ) => req('inbox:createWorktree', ref),
     listIssueTemplates: (owner: string, repo: string) =>
       req('inbox:listIssueTemplates', owner, repo),
     createIssue: (owner: string, repo: string, fields: { title: string; body: string }) =>
       req('inbox:createIssue', owner, repo, fields),
+    createInboxComment: (owner: string, repo: string, number: number, body: string) =>
+      req('inbox:createComment', owner, repo, number, body),
+    closeInboxItem: (owner: string, repo: string, number: number, kind: 'issue' | 'pr') =>
+      req('inbox:closeItem', owner, repo, number, kind),
 
     refreshAnnouncements: () => req('announcements:refresh'),
     dismissAnnouncement: (id: string) => req('announcements:dismiss', id),

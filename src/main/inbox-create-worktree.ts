@@ -13,6 +13,10 @@ export interface InboxItemRef {
   number: number
   /** Item title — used to slugify the branch name for issues. */
   title: string
+  /** Overrides the auto-generated kickoff prompt. Set when a specific
+   *  drag handle (e.g. "Fix this" / "Investigate this") seeds the new
+   *  worktree with its own prompt instead of the default review/issue one. */
+  initialPrompt?: string
 }
 
 export type InboxCreateOutcome =
@@ -117,7 +121,7 @@ async function preparePR(
     )
   }
 
-  const initialPrompt = buildPRPrompt(ref, prRef.isFork)
+  const initialPrompt = ref.initialPrompt?.trim() || buildPRPrompt(ref, prRef.isFork)
   return {
     kind: 'pending',
     pendingId: deps.generatePendingId(),
@@ -145,7 +149,7 @@ async function prepareIssue(
     return { kind: 'existing', worktreePath: existing.path }
   }
 
-  const initialPrompt = buildIssuePrompt(ref)
+  const initialPrompt = ref.initialPrompt?.trim() || buildIssuePrompt(ref)
   return {
     kind: 'pending',
     pendingId: deps.generatePendingId(),

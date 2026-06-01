@@ -1580,3 +1580,88 @@ export async function createIssue(
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
 }
+
+// ---------------------------------------------------------------------------
+// Issue comment + close — Inbox row actions.
+// ---------------------------------------------------------------------------
+
+export async function createIssueComment(
+  owner: string,
+  repo: string,
+  number: number,
+  body: string
+): Promise<{ ok: true; htmlUrl: string } | { ok: false; error: string }> {
+  const token = getCachedToken()
+  if (!token) return { ok: false, error: 'No GitHub token configured' }
+  const trimmed = (body || '').trim()
+  if (!trimmed) return { ok: false, error: 'Comment is empty' }
+  try {
+    const res = await trackedFetch(
+      `https://api.github.com/repos/${owner}/${repo}/issues/${number}/comments`,
+      {
+        method: 'POST',
+        headers: {
+          Accept: 'application/vnd.github+json',
+          'User-Agent': 'Harness',
+          'X-GitHub-Api-Version': '2022-11-28',
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ body: trimmed })
+      }
+    )
+    if (res.status === 201) {
+      const data = (await res.json()) as { html_url: string }
+      return { ok: true, htmlUrl: data.html_url }
+    }
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, error: 'Unauthorized — token needs repo (issues) scope' }
+    }
+    let apiMessage = ''
+    try {
+      apiMessage = ((await res.json()) as { message?: string })?.message || ''
+    } catch {
+      // ignore
+    }
+    return { ok: false, error: apiMessage || `GitHub ${res.status} ${res.statusText}` }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+export async function closeInboxItem(
+  owner: string,
+  repo: string,
+  number: number,
+  kind: 'issue' | 'pr'
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const token = getCachedToken()
+  if (!token) return { ok: false, error: 'No GitHub token configured' }
+  const path = kind === 'pr' ? 'pulls' : 'issues'
+  try {
+    const res = await trackedFetch(`https://api.github.com/repos/${owner}/${repo}/${path}/${number}`, {
+      method: 'PATCH',
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'Harness',
+        'X-GitHub-Api-Version': '2022-11-28',
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ state: 'closed' })
+    })
+    if (res.status === 200) return { ok: true }
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, error: 'Unauthorized — token needs repo scope' }
+    }
+    let apiMessage = ''
+    try {
+      apiMessage = ((await res.json()) as { message?: string })?.message || ''
+    } catch {
+      // ignore
+    }
+    return { ok: false, error: apiMessage || `GitHub ${res.status} ${res.statusText}` }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
