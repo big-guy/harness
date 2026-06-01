@@ -10,6 +10,7 @@ import { groupWorktrees } from '../worktree-sort'
 import { WorktreeTab } from './WorktreeTab'
 import { SnoozeCalendar } from './SnoozeCalendar'
 import { repoNameColor } from './RepoIcon'
+import { isInboxDrag, getInboxDragItem, type InboxDragItem } from '../inbox-drag'
 import { BackendChipStrip } from './BackendChipStrip'
 import { useBackend } from '../backend'
 
@@ -33,6 +34,12 @@ interface SidebarProps {
   /** Non-main worktrees. Used to decide whether to show the "spawn your first agent" nudge. */
   agentCount: number
   onSelectWorktree: (path: string) => void
+  /** Drop an inbox item onto an existing worktree — inserts a "Look at
+   *  this <link>" prompt into that worktree's agent. */
+  onDropInboxItemOnWorktree?: (worktreePath: string, item: InboxDragItem) => void
+  /** Drop an inbox item onto an "Add worktree" affordance — creates a new
+   *  worktree (PR review / issue prompt) for the item's repo. */
+  onDropInboxItemOnNewWorktree?: (item: InboxDragItem) => void
   onDismissPendingWorktree: (id: string) => void
   onNewWorktree: (repoRoot?: string) => void
   onContinueWorktree: (worktreePath: string, newBranchName: string) => Promise<void>
@@ -80,6 +87,8 @@ export function Sidebar({
   prLoading,
   agentCount,
   onSelectWorktree,
+  onDropInboxItemOnWorktree,
+  onDropInboxItemOnNewWorktree,
   onDismissPendingWorktree,
   onNewWorktree,
   onContinueWorktree,
@@ -115,6 +124,33 @@ export function Sidebar({
     for (const d of pendingDeletions) s.add(d.path)
     return s
   }, [pendingDeletions])
+  // Drop-target highlight for inbox-item drags. Value is a worktree path,
+  // the sentinel 'new' for the "Add worktree" affordances, or null.
+  const [inboxDropTarget, setInboxDropTarget] = useState<string | null>(null)
+
+  const inboxDropProps = useCallback(
+    (target: string, onDrop: (item: InboxDragItem) => void) => ({
+      onDragOver: (e: React.DragEvent) => {
+        if (!isInboxDrag(e)) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+        if (inboxDropTarget !== target) setInboxDropTarget(target)
+      },
+      onDragLeave: (e: React.DragEvent) => {
+        // Only clear when leaving the element itself (not bubbling from a child).
+        if (e.currentTarget === e.target) setInboxDropTarget((t) => (t === target ? null : t))
+      },
+      onDrop: (e: React.DragEvent) => {
+        const item = getInboxDragItem(e)
+        setInboxDropTarget(null)
+        if (!item) return
+        e.preventDefault()
+        onDrop(item)
+      }
+    }),
+    [inboxDropTarget]
+  )
+
   const [continueTarget, setContinueTarget] = useState<{ path: string; oldBranch: string } | null>(null)
   const [continueBranchName, setContinueBranchName] = useState('')
   const [continuing, setContinuing] = useState(false)
@@ -327,7 +363,12 @@ export function Sidebar({
         {agentCount === 0 && (
           <button
             onClick={() => onNewWorktree()}
-            className="group relative mx-2 mb-2 mt-1 w-[calc(100%-1rem)] text-left bg-panel-raised border border-border-strong hover:border-accent rounded-lg overflow-hidden transition-colors cursor-pointer"
+            {...(onDropInboxItemOnNewWorktree
+              ? inboxDropProps('new', (item) => onDropInboxItemOnNewWorktree(item))
+              : {})}
+            className={`group relative mx-2 mb-2 mt-1 w-[calc(100%-1rem)] text-left bg-panel-raised border rounded-lg overflow-hidden transition-colors cursor-pointer ${
+              inboxDropTarget === 'new' ? 'border-accent ring-2 ring-accent ring-inset' : 'border-border-strong hover:border-accent'
+            }`}
           >
             <div className="brand-gradient-bg h-0.5" />
             <div className="p-3">
@@ -369,7 +410,17 @@ export function Sidebar({
               <span className="text-faint ml-auto">{group.worktrees.length}</span>
             </button>
             {!isGroupCollapsed(scope, group.key) && group.worktrees.map((wt) => (
-              <div key={wt.path}>
+              <div
+                key={wt.path}
+                className={
+                  inboxDropTarget === wt.path
+                    ? 'rounded ring-2 ring-accent ring-inset bg-accent/5'
+                    : undefined
+                }
+                {...(onDropInboxItemOnWorktree
+                  ? inboxDropProps(wt.path, (item) => onDropInboxItemOnWorktree(wt.path, item))
+                  : {})}
+              >
                 <WorktreeTab
                   worktree={wt}
                   isActive={wt.path === activeWorktreeId}
@@ -479,7 +530,12 @@ export function Sidebar({
               {!repoCollapsed && agentCount > 0 && (
                 <button
                   onClick={() => onNewWorktree(repoRoot === '__unified__' ? undefined : repoRoot)}
-                  className="group relative w-full flex items-center gap-2 px-3 py-1.5 text-dim hover:bg-panel-raised transition-colors cursor-pointer overflow-hidden"
+                  {...(onDropInboxItemOnNewWorktree
+                    ? inboxDropProps(`new:${repoRoot}`, (item) => onDropInboxItemOnNewWorktree(item))
+                    : {})}
+                  className={`group relative w-full flex items-center gap-2 px-3 py-1.5 text-dim hover:bg-panel-raised transition-colors cursor-pointer overflow-hidden ${
+                    inboxDropTarget === `new:${repoRoot}` ? 'ring-2 ring-accent ring-inset bg-accent/5' : ''
+                  }`}
                 >
                   <span className="absolute left-0 top-0 bottom-0 w-0.5 brand-gradient-flow-bar opacity-0 group-hover:opacity-100 transition-opacity" />
                   <Plus

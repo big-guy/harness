@@ -18,6 +18,7 @@ import {
 import { useInbox, useSettings, useWorktrees } from '../store'
 import { getBackend, useBackend } from '../backend'
 import { AddInboxItemModal } from './AddInboxItemModal'
+import { setInboxDragData } from '../inbox-drag'
 import type { InboxItem } from '../../shared/state/inbox'
 import type { Worktree } from '../types'
 
@@ -154,7 +155,21 @@ function ItemRow({
   inMergeQueue
 }: ItemRowProps): JSX.Element {
   return (
-    <div className="border-b border-border">
+    <div
+      className="border-b border-border"
+      draggable
+      onDragStart={(e) =>
+        setInboxDragData(e, {
+          kind: item.kind,
+          owner: item.owner,
+          repo: item.repo,
+          number: item.number,
+          title: item.title,
+          url: item.url
+        })
+      }
+      title="Drag onto a worktree to reference it, or onto “Add worktree” to start one"
+    >
       <button
         onClick={onToggle}
         className="w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-panel-raised/40 transition-colors cursor-pointer"
@@ -210,6 +225,7 @@ function ItemRow({
           href={item.url}
           target="_blank"
           rel="noreferrer"
+          draggable={false}
           onClick={(e) => e.stopPropagation()}
           className="text-faint hover:text-fg shrink-0"
         >

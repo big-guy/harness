@@ -37,6 +37,8 @@ import { Activity } from './components/Activity'
 import { Cleanup } from './components/Cleanup'
 import { CommandCenter } from './components/CommandCenter'
 import { InboxScreen } from './components/InboxScreen'
+import { showToast } from './toast'
+import type { InboxDragItem } from './inbox-drag'
 import { CommandPalette } from './components/CommandPalette'
 import { HotkeyCheatsheet } from './components/HotkeyCheatsheet'
 import { NewProjectScreen } from './components/NewProjectScreen'
@@ -1504,6 +1506,29 @@ const setQuestStep = useCallback((next: QuestStep) => {
             onOpenInbox={() => setShowInbox(true)}
             inboxActive={showInbox}
             inboxUnreadCount={inboxUnreadCount}
+            onDropInboxItemOnWorktree={(worktreePath, item: InboxDragItem) => {
+              setShowInbox(false)
+              handleSendToAgent(worktreePath, `Look at this ${item.url}`)
+            }}
+            onDropInboxItemOnNewWorktree={(item: InboxDragItem) => {
+              setShowInbox(false)
+              void backend
+                .createInboxWorktree({
+                  kind: item.kind,
+                  owner: item.owner,
+                  repo: item.repo,
+                  number: item.number,
+                  title: item.title
+                })
+                .then((result) => {
+                  setActiveWorktreeId(result.kind === 'pending' ? result.pendingId : result.worktreePath)
+                })
+                .catch((err) =>
+                  showToast(
+                    `Couldn't create worktree: ${err instanceof Error ? err.message : String(err)}`
+                  )
+                )
+            }}
             onOpenNewProject={() => setShowNewProject(true)}
             onOpenMyWeek={() => setShowMyWeek(true)}
             width={effectiveSidebarWidth}
