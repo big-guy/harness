@@ -6,40 +6,75 @@
          no fill here so each <use> can color it (green original, gray reflection) -->
     <g id="nessie">
       <!-- far hump (smaller, trailing) -->
-      <path d="M 34 159 A 22 17 0 0 1 78 159 Z"/>
+      <path d="M 56 159 A 22 17 0 0 1 100 159 Z"/>
       <!-- near hump (larger, merges into neck base) -->
-      <path d="M 74 159 A 26 22 0 0 1 126 159 Z"/>
-      <!-- neck + head, snout pointing right -->
-      <path d="M 130 159
-               C 122 124 120 92 138 76
-               C 148 67 162 66 174 71
-               C 184 75 190 82 192 90
-               C 198 90 205 91 208 95
-               C 210 98 207 101 202 101
-               C 196 101 189 99 183 100
-               C 175 101 172 106 171 114
-               C 170 132 172 148 172 159 Z"/>
+      <path d="M 96 159 A 28 23 0 0 1 152 159 Z"/>
+      <!-- skinny neck + head, snout pointing right -->
+      <path d="M 154 159
+               C 149 126 148 98 160 82
+               C 168 71 183 69 195 75
+               C 204 79 210 85 212 91
+               C 213 94 210 96 206 96
+               C 200 96 193 95 187 97
+               C 181 99 179 104 178 112
+               C 177 128 178 146 178 159 Z"/>
     </g>
+
+    <!-- rippled + diffuse water: watery displacement then a soft blur -->
+    <filter id="ripple" x="-25%" y="-25%" width="150%" height="160%">
+      <feTurbulence type="turbulence" baseFrequency="0.015 0.05"
+                    numOctaves="2" seed="7" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="7"
+                         xChannelSelector="R" yChannelSelector="G" result="disp"/>
+      <feGaussianBlur in="disp" stdDeviation="1.4"/>
+    </filter>
+
+    <!-- depth fade: reflection dissolves the deeper it goes -->
+    <linearGradient id="fade11" x1="0" y1="159" x2="0" y2="214"
+                    gradientUnits="userSpaceOnUse">
+      <stop offset="0"   stop-color="#fff" stop-opacity="0.95"/>
+      <stop offset="1"   stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <mask id="fademask11"><rect width="256" height="256" fill="url(#fade11)"/></mask>
   </defs>
 
   <rect width="256" height="256" rx="56" ry="56" fill="#0a0a0a"/>
 
   <g clip-path="url(#sq11)">
-    <!-- yellow moon in the upper-left -->
-    <circle cx="58" cy="58" r="27" fill="#fbbf24"/>
-
-    <!-- faint moon shimmer on the water -->
-    <ellipse cx="58" cy="172" rx="20" ry="6" fill="#fbbf24" opacity="0.14"/>
+    <!-- yellow git graph (branch + merge), bigger and tucked behind the monster -->
+    <g fill="none" stroke="#fbbf24" stroke-width="4.5"
+       stroke-linecap="round" stroke-linejoin="round">
+      <!-- main line -->
+      <path d="M 126 28 L 126 112"/>
+      <!-- feature branch: forks right and runs behind the neck before merging back -->
+      <path d="M 126 28 C 126 50 180 38 180 52 L 180 92 C 180 106 126 102 126 112"/>
+    </g>
+    <g fill="#fbbf24">
+      <circle cx="126" cy="28" r="8"/>
+      <circle cx="126" cy="70" r="8"/>
+      <circle cx="126" cy="112" r="8"/>
+      <circle cx="180" cy="52" r="8"/>
+      <circle cx="180" cy="92" r="8"/>
+    </g>
 
     <!-- waterline -->
     <line x1="0" y1="159" x2="256" y2="159"
           stroke="#22c55e" stroke-width="1.5" opacity="0.3"/>
 
-    <!-- gray reflection: mirrored + compressed across the waterline -->
-    <use href="#nessie" fill="#a3a3a3" opacity="0.16"
-         transform="matrix(1 0 0 -0.5 0 238.5)"/>
+    <!-- gray reflection: mirrored + compressed, then rippled + diffused + faded -->
+    <g mask="url(#fademask11)" filter="url(#ripple)">
+      <use href="#nessie" fill="#a3a3a3" opacity="0.2"
+           transform="matrix(1 0 0 -0.5 0 238.5)"/>
+    </g>
 
-    <!-- green creature silhouette -->
+    <!-- faint surface ripple lines -->
+    <g stroke="#a3a3a3" stroke-width="1" opacity="0.08" stroke-linecap="round">
+      <line x1="150" y1="171" x2="214" y2="171"/>
+      <line x1="140" y1="184" x2="206" y2="184"/>
+      <line x1="158" y1="196" x2="200" y2="196"/>
+    </g>
+
+    <!-- green creature silhouette (drawn last → occludes the graph behind it) -->
     <use href="#nessie" fill="#22c55e"/>
   </g>
 </svg>
