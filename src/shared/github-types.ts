@@ -48,12 +48,18 @@ export interface ReviewSyncComment {
   draft?: boolean
   /** remoteId of the comment this one replies to (thread root), if any. */
   inReplyToId?: number
+  /** GraphQL node id of the review thread this comment belongs to. */
+  threadId?: string
+  /** True when the thread is resolved on GitHub. */
+  resolved?: boolean
 }
 
 export interface ReviewSyncInput {
   comments: ReviewSyncComment[]
   reviewedFiles: string[]
   files: string[]
+  /** Review-thread node ids to resolve on GitHub this sync (never unresolve). */
+  resolveThreadIds?: string[]
   /** Pull only — fetch PR comments without pushing local comments or viewed
    *  state. Used by the auto-sync on review open so it can't clobber GitHub
    *  state from an empty local review. */

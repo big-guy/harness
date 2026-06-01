@@ -1291,7 +1291,9 @@ export async function syncPRReview(
   // 3. Push un-synced line comments as drafts on the pending review.
   const toPush = input.pullOnly
     ? []
-    : input.comments.filter((c) => c.remoteId === undefined && c.lineNumber > 0)
+    : input.comments.filter(
+        (c) => c.remoteId === undefined && c.lineNumber > 0 && c.inReplyToId === undefined
+      )
   let pushed = 0
   let failed = 0
   if (toPush.length > 0) {
@@ -1335,6 +1337,43 @@ export async function syncPRReview(
     }
   }
 
+  // 3b. Push replies. A reply targets an existing comment (its inReplyToId),
+  //     so it posts directly via REST in_reply_to (published immediately).
+  if (!input.pullOnly) {
+    const replies = input.comments.filter(
+      (c) => c.remoteId === undefined && c.inReplyToId !== undefined
+    )
+    for (const r of replies) {
+      try {
+        const res = await ghRequest(token, `${base}/comments`, 'POST', {
+          body: r.body,
+          in_reply_to: r.inReplyToId
+        })
+        if (res.ok) pushed++
+        else {
+          failed++
+          const msg = (res.json as { message?: string } | null)?.message ?? ''
+          log('github', `reply rejected (in_reply_to ${r.inReplyToId}) HTTP ${res.status} ${msg}`)
+        }
+      } catch (err) {
+        failed++
+        log('github', 'reply post error', formatErr(err))
+      }
+    }
+  }
+
+  // 3c. Resolve threads the user asked to resolve. Never unresolve.
+  if (!input.pullOnly && input.resolveThreadIds && input.resolveThreadIds.length > 0) {
+    for (const threadId of input.resolveThreadIds) {
+      const r = await ghGraphQL(
+        token,
+        'mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{id}}}',
+        { id: threadId }
+      )
+      if (!r.ok) log('github', `resolve thread failed ${threadId}: ${r.error}`)
+    }
+  }
+
   // 4. Push viewed state — only MARK locally-reviewed files. Never unmark:
   //    a file viewed on GitHub (but not locally) must not get cleared.
   //    Skipped on a pull-only sync.
@@ -1349,6 +1388,41 @@ export async function syncPRReview(
       )
       if (!r.ok) log('github', `mark viewed failed for ${path}: ${r.error}`)
     }
+  }
+
+  // 4c. Pull review threads → thread node id + resolved state per comment.
+  const threadInfo = new Map<number, { threadId: string; resolved: boolean }>()
+  const threadsQuery = await ghGraphQL(
+    token,
+    'query($o:String!,$n:String!,$num:Int!){repository(owner:$o,name:$n){pullRequest(number:$num){reviewThreads(first:100){nodes{id isResolved comments(first:100){nodes{databaseId}}}}}}}',
+    { o: owner, n: repo, num: prNumber }
+  )
+  if (threadsQuery.ok) {
+    const nodes =
+      (
+        threadsQuery.data as {
+          repository?: {
+            pullRequest?: {
+              reviewThreads?: {
+                nodes?: Array<{
+                  id: string
+                  isResolved: boolean
+                  comments?: { nodes?: Array<{ databaseId?: number }> }
+                }>
+              }
+            }
+          }
+        }
+      )?.repository?.pullRequest?.reviewThreads?.nodes ?? []
+    for (const t of nodes) {
+      for (const c of t.comments?.nodes ?? []) {
+        if (typeof c.databaseId === 'number') {
+          threadInfo.set(c.databaseId, { threadId: t.id, resolved: t.isResolved })
+        }
+      }
+    }
+  } else {
+    log('github', `review threads query failed: ${threadsQuery.error}`)
   }
 
   // 4b. Pull GitHub's viewed state and union it with the local set, so files
@@ -1469,6 +1543,17 @@ export async function syncPRReview(
         (c) => c.filePath === p.filePath && c.body === p.body && c.lineNumber > 0
       )
       if (local) p.lineNumber = local.lineNumber
+    }
+  }
+
+  // Attach thread node id + resolved state to each pulled comment.
+  for (const p of pulled) {
+    if (p.remoteId !== undefined) {
+      const ti = threadInfo.get(p.remoteId)
+      if (ti) {
+        p.threadId = ti.threadId
+        p.resolved = ti.resolved
+      }
     }
   }
 

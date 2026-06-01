@@ -22,6 +22,10 @@ export interface ReviewComment {
   draft?: boolean
   /** remoteId of the comment this replies to (thread root), if any. */
   inReplyToId?: number
+  /** GraphQL node id of the review thread this comment belongs to. */
+  threadId?: string
+  /** True when the thread is resolved on GitHub. */
+  resolved?: boolean
 }
 
 interface ReviewFileTreeProps {

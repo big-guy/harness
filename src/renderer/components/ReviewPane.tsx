@@ -223,6 +223,37 @@ export function ReviewPane({
     setComments((prev) => prev.filter((c) => c.id !== id))
   }, [])
 
+  // A reply targets a thread root by its GitHub id, on the root's file+line.
+  const handleAddReply = useCallback(
+    (root: { filePath: string; lineNumber: number; remoteId: number }, body: string) => {
+      setComments((prev) => [
+        ...prev,
+        {
+          id: `comment-${++commentIdCounter}`,
+          filePath: root.filePath,
+          lineNumber: root.lineNumber,
+          body,
+          timestamp: Date.now(),
+          inReplyToId: root.remoteId,
+          draft: true
+        }
+      ])
+    },
+    []
+  )
+
+  // Threads the user has asked to resolve; sent on the next sync, then
+  // cleared (GitHub's resolved state comes back via the pull).
+  const [pendingResolve, setPendingResolve] = useState<Set<string>>(new Set())
+  const handleResolveThread = useCallback((threadId: string) => {
+    setPendingResolve((prev) => {
+      if (prev.has(threadId)) return prev
+      const next = new Set(prev)
+      next.add(threadId)
+      return next
+    })
+  }, [])
+
   const formatComments = useCallback((): string => {
     if (comments.length === 0) return ''
     const lines = ['Review feedback on your changes:', '']
@@ -270,10 +301,12 @@ export function ReviewPane({
             lineNumber: c.lineNumber,
             body: c.body,
             remoteId: c.remoteId,
-            author: c.author
+            author: c.author,
+            inReplyToId: c.inReplyToId
           })),
           reviewedFiles: [...reviewedFiles],
           files: files.map((f) => f.path),
+          resolveThreadIds: pullOnly ? [] : [...pendingResolve],
           pullOnly
         })
         if (!result.ok) {
@@ -294,12 +327,17 @@ export function ReviewPane({
             createdAt: c.createdAt,
             htmlUrl: c.htmlUrl,
             draft: c.draft,
-            inReplyToId: c.inReplyToId
+            inReplyToId: c.inReplyToId,
+            threadId: c.threadId,
+            resolved: c.resolved
           }))
         )
         // Reflect the merged viewed state (local ∪ GitHub) so files viewed
         // on GitHub show as reviewed here too.
         setReviewedFiles(new Set(result.reviewedFiles))
+        // Resolve requests were sent; GitHub's resolved state is now in the
+        // pulled comments, so clear the pending set.
+        if (!pullOnly) setPendingResolve(new Set())
         setSyncState(result.failed > 0 ? 'error' : 'ok')
         setSyncDetail(
           pullOnly
@@ -313,7 +351,7 @@ export function ReviewPane({
         setSyncDetail(err instanceof Error ? err.message : 'Sync failed')
       }
     },
-    [syncing, prNumber, isWholeBranch, backend, worktreePath, comments, reviewedFiles, files]
+    [syncing, prNumber, isWholeBranch, backend, worktreePath, comments, reviewedFiles, files, pendingResolve]
   )
 
   const handleSync = useCallback(() => void runSync(false), [runSync])
@@ -574,6 +612,9 @@ export function ReviewPane({
             onDeleteComment={handleDeleteComment}
             wordWrap={wordWrap}
             onWordWrapChange={setWordWrap}
+            onAddReply={handleAddReply}
+            onResolveThread={handleResolveThread}
+            pendingResolve={pendingResolve}
           />
         </div>
       </div>

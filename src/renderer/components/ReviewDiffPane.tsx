@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
-import { ArrowRightFromLine, Check, FoldVertical, MessagesSquare, UnfoldVertical, WrapText } from 'lucide-react'
+import { ArrowRightFromLine, Check, CheckCheck, FoldVertical, MessagesSquare, Reply, UnfoldVertical, WrapText } from 'lucide-react'
 import type { FileDiffSides, ChangedFile } from '../types'
 import type { ReviewComment } from './ReviewFileTree'
 import { MonacoDiffEditor } from './MonacoDiffEditor'
@@ -39,6 +39,13 @@ interface ReviewDiffPaneProps {
   onDeleteComment: (id: string) => void
   wordWrap: boolean
   onWordWrapChange: (next: boolean) => void
+  onAddReply: (
+    root: { filePath: string; lineNumber: number; remoteId: number },
+    body: string
+  ) => void
+  onResolveThread: (threadId: string) => void
+  /** Thread ids queued to resolve on the next sync. */
+  pendingResolve: ReadonlySet<string>
 }
 
 const STATUS_LABEL: Record<ChangedFile['status'], string> = {
@@ -269,23 +276,174 @@ function InlineComment({
 }
 
 /** A comment thread: the root comment followed by its replies, each inset
- *  and touching the one above so the reply relationship reads visually. */
+ *  and touching the one above so the reply relationship reads visually. A
+ *  footer holds the reply field and resolve control. */
 function CommentThread({
   thread,
   onDelete,
-  forceExpanded
+  forceExpanded,
+  onAddReply,
+  onResolveThread,
+  pendingResolve
 }: {
   thread: ReviewComment[]
   onDelete: (id: string) => void
   forceExpanded?: boolean
+  onAddReply: (
+    root: { filePath: string; lineNumber: number; remoteId: number },
+    body: string
+  ) => void
+  onResolveThread: (threadId: string) => void
+  pendingResolve: ReadonlySet<string>
 }): JSX.Element {
+  const root = thread[0]
+  const [replying, setReplying] = useState(false)
+  const [replyBody, setReplyBody] = useState('')
+  const replyRef = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => {
+    if (replying) replyRef.current?.focus()
+  }, [replying])
+
+  const canReply = root.remoteId !== undefined
+  const resolved = thread.some((c) => c.resolved)
+  const resolving = !!root.threadId && pendingResolve.has(root.threadId)
+  const canResolve = !!root.threadId && !resolved && !root.draft
+
+  const submitReply = (): void => {
+    const body = replyBody.trim()
+    if (!body || root.remoteId === undefined) return
+    onAddReply({ filePath: root.filePath, lineNumber: root.lineNumber, remoteId: root.remoteId }, body)
+    setReplyBody('')
+    setReplying(false)
+  }
+
   return (
-    <div style={{ margin: '4px 0', display: 'flex', flexDirection: 'column' }}>
+    <div
+      style={{ margin: '4px 0', display: 'flex', flexDirection: 'column', opacity: resolved ? 0.6 : 1 }}
+    >
       {thread.map((c, i) => (
         <div key={c.id} style={{ marginLeft: i === 0 ? 0 : 16, minWidth: 0 }}>
           <InlineComment comment={c} onDelete={() => onDelete(c.id)} forceExpanded={forceExpanded} />
         </div>
       ))}
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          marginTop: '4px',
+          marginLeft: thread.length > 1 ? 16 : 0,
+          fontSize: '11px'
+        }}
+      >
+        {canReply && !replying && (
+          <button
+            onClick={() => setReplying(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              color: 'var(--color-faint)',
+              cursor: 'pointer'
+            }}
+          >
+            <Reply size={12} /> Reply
+          </button>
+        )}
+        {resolved ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--color-success)' }}>
+            <CheckCheck size={12} /> Resolved
+          </span>
+        ) : resolving ? (
+          <span style={{ color: 'var(--color-faint)' }}>Resolving on next sync…</span>
+        ) : canResolve ? (
+          <button
+            onClick={() => root.threadId && onResolveThread(root.threadId)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              color: 'var(--color-faint)',
+              cursor: 'pointer'
+            }}
+          >
+            <CheckCheck size={12} /> Resolve
+          </button>
+        ) : null}
+      </div>
+
+      {replying && (
+        <div style={{ marginTop: '4px', marginLeft: thread.length > 1 ? 16 : 0, maxWidth: '760px' }}>
+          <textarea
+            ref={replyRef}
+            value={replyBody}
+            onChange={(e) => setReplyBody(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault()
+                submitReply()
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                setReplying(false)
+              }
+              e.stopPropagation()
+            }}
+            placeholder="Reply…"
+            rows={2}
+            style={{
+              width: '100%',
+              background: 'var(--color-surface)',
+              color: 'var(--color-fg)',
+              fontSize: '12px',
+              borderRadius: '4px',
+              border: '1px solid var(--color-border)',
+              padding: '6px 8px',
+              resize: 'none',
+              outline: 'none',
+              fontFamily: 'inherit'
+            }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '4px' }}>
+            <button
+              onClick={() => setReplying(false)}
+              style={{
+                fontSize: '11px',
+                padding: '2px 8px',
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-faint)',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={submitReply}
+              disabled={!replyBody.trim()}
+              style={{
+                fontSize: '11px',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                background: replyBody.trim() ? 'var(--color-accent)' : 'var(--color-border)',
+                color: 'var(--color-fg)',
+                border: 'none',
+                cursor: replyBody.trim() ? 'pointer' : 'default',
+                opacity: replyBody.trim() ? 1 : 0.4
+              }}
+            >
+              Reply
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -418,7 +576,10 @@ export function ReviewDiffPane({
   onAddComment,
   onDeleteComment,
   wordWrap,
-  onWordWrapChange
+  onWordWrapChange,
+  onAddReply,
+  onResolveThread,
+  pendingResolve
 }: ReviewDiffPaneProps): JSX.Element {
   const backend = useBackend()
   const settings = useSettings()
@@ -571,6 +732,9 @@ export function ReviewDiffPane({
               thread={item.thread}
               onDelete={(id) => onDeleteComment(id)}
               forceExpanded={expandAll}
+              onAddReply={onAddReply}
+              onResolveThread={onResolveThread}
+              pendingResolve={pendingResolve}
             />
           )
         } else if (item.type === 'input') {
@@ -608,7 +772,7 @@ export function ReviewDiffPane({
     })
 
     viewZonesRef.current = newZones
-  }, [comments, commentLine, editorNonce, expandAll, clearViewZones, onAddComment, onDeleteComment])
+  }, [comments, commentLine, editorNonce, expandAll, clearViewZones, onAddComment, onDeleteComment, onAddReply, onResolveThread, pendingResolve])
 
   // Clean up view zones on unmount
   useEffect(() => {
