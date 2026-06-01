@@ -654,10 +654,7 @@ export function TerminalPanel({
                 onMouseDown={(e) => e.stopPropagation()}
               >
                 {runners.length === 0 ? (
-                  <div className="px-3 py-2 text-faint">
-                    No runners registered. Agents can add them with the
-                    register_runner tool.
-                  </div>
+                  <div className="px-3 py-2 text-faint">No runners registered.</div>
                 ) : (
                   runners.map((runner) => {
                     const Icon = resolveLucideIcon(runner.icon)
