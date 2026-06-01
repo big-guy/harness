@@ -343,6 +343,17 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
   const fitAddonRef = useRef<FitAddon | null>(null)
   const searchAddonRef = useRef<SearchAddon | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const restartButtonRef = useRef<HTMLButtonElement>(null)
+
+  // When the agent-exited overlay appears on the visible pane, focus the
+  // "Start a new session" button so Enter/Space confirms it (a focused
+  // native <button> activates on both keys). Gating on `visible` keeps
+  // hidden tabs' overlays from stealing focus.
+  useEffect(() => {
+    if (exited && visible && type === 'agent' && onRestartAgent) {
+      restartButtonRef.current?.focus()
+    }
+  }, [exited, visible, type, onRestartAgent])
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<{ resultIndex: number; resultCount: number } | null>(null)
@@ -1072,6 +1083,7 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
           <div className="flex flex-col items-center gap-3 text-sm">
             <div className="text-dim">{agentDisplayName(agentKind)} exited.</div>
             <button
+              ref={restartButtonRef}
               onClick={onRestartAgent}
               className="px-3 py-1.5 rounded border border-border bg-panel text-fg-bright hover:bg-border transition-colors"
             >
