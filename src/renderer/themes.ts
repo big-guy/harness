@@ -73,6 +73,13 @@ export const THEME_OPTIONS: ThemeOption[] = [
     mode: 'light'
   },
   {
+    id: 'hub-delight',
+    label: 'Hub delight',
+    description: 'GitHub Light — crisp white with the classic GitHub blue.',
+    swatches: ['#ffffff', '#eaeef2', '#24292e', '#0366d6'],
+    mode: 'light'
+  },
+  {
     id: 'cyberfunk',
     label: 'Cyberfunk',
     description: 'Pitch-black neon — magenta wiring, orange sparks.',
