@@ -39,6 +39,7 @@ import type {
   StateEventListener
 } from '../shared/transport/transport'
 import type { ElectronAPI } from './types'
+import type { Schedule } from '../shared/state/schedules'
 
 export type { ElectronOnlyHelpers }
 
@@ -403,6 +404,9 @@ export function buildBackend(
       req('inboxSnooze:snooze', key, wakeAt, updatedAt),
     unsnoozeInboxItem: (key: string) => req('inboxSnooze:unsnooze', key),
     setSnoozeDefaultDays: (days: number) => req('config:setSnoozeDefaultDays', days),
+
+    saveSchedule: (schedule: Schedule) => req('schedules:save', schedule),
+    removeSchedule: (id: string) => req('schedules:remove', id),
 
     setScratchpadText: (worktreePath: string, text: string) =>
       req('scratchpad:setText', worktreePath, text),

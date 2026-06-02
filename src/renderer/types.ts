@@ -16,6 +16,9 @@ export type { SessionCostSummary, ClaudeAuthInfo, SubscriptionTier }
 import type { AddRepoResult } from '../shared/repo-pick'
 export type { AddRepoResult }
 
+import type { Schedule } from '../shared/state/schedules'
+
+
 /** Per-kind dirtiness flags for a worktree. `git` reflects
  *  uncommitted changes; `scratchpad` reflects a non-empty scratchpad
  *  note. The delete-worktree flow surfaces each kind separately so the
@@ -425,6 +428,8 @@ export interface ElectronAPI {
   snoozeInboxItem(key: string, wakeAt: number, updatedAt: string): Promise<boolean>
   unsnoozeInboxItem(key: string): Promise<boolean>
   setSnoozeDefaultDays(days: number): Promise<boolean>
+  saveSchedule(schedule: Schedule): Promise<boolean>
+  removeSchedule(id: string): Promise<boolean>
   setScratchpadText(worktreePath: string, text: string): Promise<boolean>
   openInEditor(worktreePath: string, filePath?: string): Promise<{ ok: true } | { ok: false; error: string }>
 

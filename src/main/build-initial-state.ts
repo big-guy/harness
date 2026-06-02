@@ -14,6 +14,7 @@ import { initialAnnouncements } from '../shared/state/announcements'
 import { initialScratchpad } from '../shared/state/scratchpad'
 import { initialInbox } from '../shared/state/inbox'
 import { initialInboxSnooze } from '../shared/state/inbox-snooze'
+import { sanitizeSchedules } from '../shared/state/schedules'
 import { initialSshBootstrap } from '../shared/state/ssh-bootstrap'
 import {
   initialSettings,
@@ -78,6 +79,7 @@ export function buildInitialAppState(
     inboxSnooze: config.inboxSnooze
       ? { byKey: { ...config.inboxSnooze } }
       : initialInboxSnooze,
+    schedules: { items: sanitizeSchedules(config.schedules) },
     settings: {
       ...initialSettings,
       themeMode:

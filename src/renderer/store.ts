@@ -587,6 +587,10 @@ export function useInboxSnooze() {
   return useAppState((s) => s.inboxSnooze)
 }
 
+export function useSchedules() {
+  return useAppState((s) => s.schedules)
+}
+
 export function useOnboarding() {
   return useAppState((s) => s.onboarding)
 }

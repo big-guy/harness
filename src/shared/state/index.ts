@@ -114,6 +114,12 @@ import {
   type InboxSnoozeEvent,
   type InboxSnoozeState
 } from './inbox-snooze'
+import {
+  initialSchedules,
+  schedulesReducer,
+  type SchedulesEvent,
+  type SchedulesState
+} from './schedules'
 
 export type { SettingsState, SettingsEvent }
 export type { UpdaterState, UpdaterEvent, UpdaterStatus } from './updater'
@@ -206,6 +212,14 @@ export type {
 } from './inbox'
 export type { InboxSnoozeState, InboxSnoozeEvent, InboxSnoozeEntry } from './inbox-snooze'
 export { inboxSnoozeKey } from './inbox-snooze'
+export type {
+  SchedulesState,
+  SchedulesEvent,
+  Schedule,
+  ScheduleRepeat,
+  ScheduleTarget
+} from './schedules'
+export { SCHEDULE_REPEATS, sanitizeSchedules } from './schedules'
 
 export interface AppState {
   settings: SettingsState
@@ -225,6 +239,7 @@ export interface AppState {
   sshBootstrap: SshBootstrapState
   inbox: InboxState
   inboxSnooze: InboxSnoozeState
+  schedules: SchedulesState
 }
 
 export type StateEvent =
@@ -245,6 +260,7 @@ export type StateEvent =
   | SshBootstrapEvent
   | InboxEvent
   | InboxSnoozeEvent
+  | SchedulesEvent
 
 export const initialState: AppState = {
   settings: initialSettings,
@@ -263,7 +279,8 @@ export const initialState: AppState = {
   scratchpad: initialScratchpad,
   sshBootstrap: initialSshBootstrap,
   inbox: initialInbox,
-  inboxSnooze: initialInboxSnooze
+  inboxSnooze: initialInboxSnooze,
+  schedules: initialSchedules
 }
 
 export function rootReducer(state: AppState, event: StateEvent): AppState {
@@ -348,6 +365,9 @@ export function rootReducer(state: AppState, event: StateEvent): AppState {
   if (event.type.startsWith('inboxSnooze/')) {
     return { ...state, inboxSnooze: inboxSnoozeReducer(state.inboxSnooze, event as InboxSnoozeEvent) }
   }
+  if (event.type.startsWith('schedules/')) {
+    return { ...state, schedules: schedulesReducer(state.schedules, event as SchedulesEvent) }
+  }
   return state
 }
 
@@ -395,7 +415,8 @@ export function mergeWireSnapshot(state: WireSnapshotState): AppState {
     scratchpad: { ...initialState.scratchpad, ...state.scratchpad },
     sshBootstrap: { ...initialState.sshBootstrap, ...state.sshBootstrap },
     inbox: { ...initialState.inbox, ...state.inbox },
-    inboxSnooze: { ...initialState.inboxSnooze, ...state.inboxSnooze }
+    inboxSnooze: { ...initialState.inboxSnooze, ...state.inboxSnooze },
+    schedules: { ...initialState.schedules, ...state.schedules }
   }
 }
 

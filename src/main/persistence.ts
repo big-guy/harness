@@ -12,6 +12,7 @@ import {
 import type { CostsState } from '../shared/state/costs'
 import type { SnoozeEntry } from '../shared/state/snooze'
 import type { InboxSnoozeEntry } from '../shared/state/inbox-snooze'
+import type { Schedule } from '../shared/state/schedules'
 
 export type { PersistedPane, PersistedPaneNode, PersistedTab }
 
@@ -252,6 +253,9 @@ export interface Config {
   // Snoozed inbox items keyed by `<kind>:<owner>/<repo>#<number>`. Wakes
   // when wakeAt is reached or the item changes (updatedAt advances).
   inboxSnooze?: Record<string, InboxSnoozeEntry>
+  // User-defined Workflow schedules (Schedule tab). Each fires a prompt at a
+  // chosen time, once or on a repeat, targeting a repo or a worktree.
+  schedules?: Schedule[]
   // When true, high-volume diagnostic log categories (currently
   // [github-api] per-call lines) are written to debug.log. Default off.
   expandedDiagnosticLoggingEnabled?: boolean

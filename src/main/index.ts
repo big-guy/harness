@@ -74,6 +74,7 @@ import type { AddRepoResult } from '../shared/repo-pick'
 import { isWorktreeMerged } from '../shared/state/prs'
 import { MAX_WAKE } from '../shared/state/snooze'
 import { inboxSnoozeKey } from '../shared/state/inbox-snooze'
+import { sanitizeSchedule } from '../shared/state/schedules'
 import { hasScratchpadNote } from '../shared/state/scratchpad'
 import {
   DEFAULT_LIGHT_THEME,
@@ -555,6 +556,19 @@ store.subscribe((event) => {
       delete config.inboxSnooze
     } else {
       config.inboxSnooze = byKey
+    }
+    saveConfig(config)
+  }
+})
+
+// Persist Workflow schedules so they survive restart.
+store.subscribe((event) => {
+  if (event.type.startsWith('schedules/')) {
+    const items = store.getSnapshot().state.schedules.items
+    if (items.length === 0) {
+      delete config.schedules
+    } else {
+      config.schedules = items
     }
     saveConfig(config)
   }
@@ -3697,6 +3711,22 @@ function registerIpcHandlers(): void {
   transport.onRequest('inboxSnooze:unsnooze', (_ctx, key: string) => {
     if (typeof key !== 'string' || !key) return false
     store.dispatch({ type: 'inboxSnooze/clear', payload: key })
+    return true
+  })
+
+  // Upsert a Workflow schedule. The renderer assigns the id (so it can edit
+  // an existing one by passing the same id); the server sanitizes and rejects
+  // malformed drafts. Returns false when the draft is invalid.
+  transport.onRequest('schedules:save', (_ctx, raw: unknown) => {
+    const schedule = sanitizeSchedule(raw)
+    if (!schedule) return false
+    store.dispatch({ type: 'schedules/added', payload: schedule })
+    return true
+  })
+
+  transport.onRequest('schedules:remove', (_ctx, id: string) => {
+    if (typeof id !== 'string' || !id) return false
+    store.dispatch({ type: 'schedules/removed', payload: { id } })
     return true
   })
 
