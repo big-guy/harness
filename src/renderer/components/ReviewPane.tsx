@@ -178,9 +178,20 @@ export function ReviewPane({
   // anyway; the file-load effect above preserves a still-valid selection
   // once the list arrives.
   const fileRequest = useReviewFileRequest(worktreePath)
+  const scrolledRequestRef = useRef(-1)
   useEffect(() => {
-    if (fileRequest) setSelectedFile(fileRequest.filePath)
-  }, [fileRequest?.nonce, fileRequest?.filePath])
+    if (!fileRequest) return
+    setSelectedFile(fileRequest.filePath)
+    // Scroll the stacked view to the requested file. The request can arrive
+    // before the file list has rendered (review tab just opened), so the
+    // `files` dep re-runs this once the section element exists; the ref guard
+    // makes sure we only auto-scroll once per request, not on later refreshes.
+    if (scrolledRequestRef.current === fileRequest.nonce) return
+    if (!sectionRefs.current.has(fileRequest.filePath)) return
+    scrolledRequestRef.current = fileRequest.nonce
+    const id = requestAnimationFrame(() => scrollToFile(fileRequest.filePath))
+    return () => cancelAnimationFrame(id)
+  }, [fileRequest?.nonce, fileRequest?.filePath, files, scrollToFile])
 
   const { totalAdditions, totalDeletions } = useMemo(() => {
     let add = 0
