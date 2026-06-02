@@ -107,11 +107,13 @@ export function MonacoDiffEditor({
         verticalScrollbarSize: 10,
         horizontalScrollbarSize: 10,
         useShadows: false,
-        // Auto-height mode: the editor grows to its content and the OUTER
-        // container scrolls, so hide the inner vertical scrollbar and let
-        // wheel events bubble up rather than being consumed here.
+        // Auto-height mode: the editor grows to exactly its content height and
+        // the OUTER container scrolls. Hide the inner vertical scrollbar, but
+        // keep mouse-wheel handling ON — with no vertical scroll room and
+        // alwaysConsumeMouseWheel off, vertical wheel bubbles up to the stacked
+        // container while HORIZONTAL wheel still scrolls long lines here.
         ...(autoHeight
-          ? { vertical: 'hidden' as const, handleMouseWheel: false, alwaysConsumeMouseWheel: false }
+          ? { vertical: 'hidden' as const, alwaysConsumeMouseWheel: false }
           : {})
       }
     })
