@@ -29,6 +29,7 @@ import { inboxSnoozeKey } from '../../shared/state/inbox-snooze'
 import { formatWakeAt } from '../../shared/state/snooze'
 import { AddInboxItemModal } from './AddInboxItemModal'
 import { SnoozeCalendar } from './SnoozeCalendar'
+import { ScheduleTab } from './ScheduleTab'
 import { setInboxDragData } from '../inbox-drag'
 import type { InboxItem } from '../../shared/state/inbox'
 import type { Worktree } from '../types'
@@ -952,18 +953,6 @@ function AddItemButton({ onClick }: { onClick: () => void }): JSX.Element {
       <Plus className="icon-sm shrink-0 text-dim group-hover:[stroke:url(#harness-add-gradient)] transition-colors" />
       <span className="text-sm font-medium brand-gradient-flow-text-hover">Add item</span>
     </button>
-  )
-}
-
-function ScheduleTab(): JSX.Element {
-  return (
-    <div className="flex-1 flex items-center justify-center">
-      <div className="max-w-sm text-center px-6">
-        <CalendarClock className="icon-xl mx-auto text-faint mb-3" />
-        <div className="text-sm font-semibold text-fg-bright mb-1">Schedule</div>
-        <div className="text-xs text-dim leading-relaxed">Coming soon.</div>
-      </div>
-    </div>
   )
 }
 
