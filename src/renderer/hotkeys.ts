@@ -249,7 +249,7 @@ export const ACTION_LABELS: Record<Action, string> = {
   uiScaleDown: 'Decrease UI size',
   uiScaleReset: 'Reset UI size',
   cycleWorktreeDetail: 'Cycle worktree detail (sidebar)',
-  toggleInbox: 'Toggle inbox'
+  toggleInbox: 'Toggle workflow'
 }
 
 export type CategoryId =

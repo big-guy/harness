@@ -19,7 +19,9 @@ import {
   ClipboardCheck,
   Check,
   Clock,
-  BellRing
+  BellRing,
+  Inbox as InboxIcon,
+  CalendarClock
 } from 'lucide-react'
 import { useInbox, useInboxSnooze, useSettings, useWorktrees } from '../store'
 import { getBackend, useBackend } from '../backend'
@@ -571,6 +573,7 @@ export function InboxScreen({
   }, [worktrees.originByRoot])
 
   const rootRef = useRef<HTMLDivElement>(null)
+  const [topTab, setTopTab] = useState<'inbox' | 'schedule'>('inbox')
   const [showAddItem, setShowAddItem] = useState(false)
   const [snoozeCalendarFor, setSnoozeCalendarFor] = useState<{
     key: string
@@ -763,41 +766,72 @@ export function InboxScreen({
             ESC
           </kbd>
         </button>
-        <span className="ml-3 text-xs font-semibold text-fg-bright">Inbox</span>
+        <span className="ml-3 text-xs font-semibold text-fg-bright">Workflow</span>
       </div>
 
-      {/* Add item — opens a new GitHub issue in one of the tracked repos.
-          Styled to match the sidebar's "Add worktree" affordance. */}
-      <button
-        onClick={() => setShowAddItem(true)}
-        className="group relative w-full flex items-center gap-2 px-3 py-2 text-dim hover:bg-panel-raised transition-colors cursor-pointer overflow-hidden border-b border-border shrink-0"
-      >
-        <span className="absolute left-0 top-0 bottom-0 w-0.5 brand-gradient-flow-bar opacity-0 group-hover:opacity-100 transition-opacity" />
-        <Plus className="icon-sm shrink-0 text-dim group-hover:[stroke:url(#harness-add-gradient)] transition-colors" />
-        <span className="text-sm font-medium brand-gradient-flow-text-hover">Add item</span>
-      </button>
+      {/* Top-level tabs — switch the overlay between the GitHub Inbox and the
+          Schedule of recurring/scheduled agents. */}
+      <div className="shrink-0 flex items-stretch border-b border-border bg-app">
+        {(
+          [
+            { id: 'inbox', label: 'Inbox', Icon: InboxIcon },
+            { id: 'schedule', label: 'Schedule', Icon: CalendarClock }
+          ] as const
+        ).map(({ id, label, Icon }) => {
+          const isActive = topTab === id
+          return (
+            <button
+              key={id}
+              onClick={() => setTopTab(id)}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm cursor-pointer transition-colors border-b-2 -mb-px ${
+                isActive
+                  ? 'text-fg-bright border-accent'
+                  : 'text-dim border-transparent hover:text-fg hover:bg-panel/60'
+              }`}
+            >
+              <Icon className="icon-sm" />
+              <span>{label}</span>
+            </button>
+          )
+        })}
+      </div>
 
-      {showAddItem && (
-        <AddInboxItemModal
-          repos={availableRepos}
-          onClose={() => setShowAddItem(false)}
-          onCreated={() => void backend.refreshInboxAllIfStale()}
-        />
-      )}
-
-      {snoozeCalendarFor && (
-        <SnoozeCalendar
-          anchor={snoozeCalendarFor.anchor}
-          defaultDays={Math.max(1, Math.floor(settings.snoozeDefaultDays ?? 7))}
-          onPick={handleSnoozeCalendarPick}
-          onDismiss={() => setSnoozeCalendarFor(null)}
-        />
-      )}
-
-      {queries.length === 0 ? (
-        <EmptyState onOpenSettings={onOpenSettings} />
+      {topTab === 'schedule' ? (
+        <ScheduleTab />
+      ) : queries.length === 0 ? (
+        <>
+          <AddItemButton onClick={() => setShowAddItem(true)} />
+          {showAddItem && (
+            <AddInboxItemModal
+              repos={availableRepos}
+              onClose={() => setShowAddItem(false)}
+              onCreated={() => void backend.refreshInboxAllIfStale()}
+            />
+          )}
+          <EmptyState onOpenSettings={onOpenSettings} />
+        </>
       ) : (
         <>
+          {/* Add item — opens a new GitHub issue in one of the tracked repos. */}
+          <AddItemButton onClick={() => setShowAddItem(true)} />
+
+          {showAddItem && (
+            <AddInboxItemModal
+              repos={availableRepos}
+              onClose={() => setShowAddItem(false)}
+              onCreated={() => void backend.refreshInboxAllIfStale()}
+            />
+          )}
+
+          {snoozeCalendarFor && (
+            <SnoozeCalendar
+              anchor={snoozeCalendarFor.anchor}
+              defaultDays={Math.max(1, Math.floor(settings.snoozeDefaultDays ?? 7))}
+              onPick={handleSnoozeCalendarPick}
+              onDismiss={() => setSnoozeCalendarFor(null)}
+            />
+          )}
+
           {/* Query tabs */}
           <div className="px-3 pt-2 flex items-center gap-1 border-b border-border overflow-x-auto">
             {queries.map((q) => {
@@ -902,6 +936,33 @@ export function InboxScreen({
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+/** The "Add item" affordance, styled to match the sidebar's "Add worktree".
+ *  Extracted so both the empty-state and populated Inbox tab share it. */
+function AddItemButton({ onClick }: { onClick: () => void }): JSX.Element {
+  return (
+    <button
+      onClick={onClick}
+      className="group relative w-full flex items-center gap-2 px-3 py-2 text-dim hover:bg-panel-raised transition-colors cursor-pointer overflow-hidden border-b border-border shrink-0"
+    >
+      <span className="absolute left-0 top-0 bottom-0 w-0.5 brand-gradient-flow-bar opacity-0 group-hover:opacity-100 transition-opacity" />
+      <Plus className="icon-sm shrink-0 text-dim group-hover:[stroke:url(#harness-add-gradient)] transition-colors" />
+      <span className="text-sm font-medium brand-gradient-flow-text-hover">Add item</span>
+    </button>
+  )
+}
+
+function ScheduleTab(): JSX.Element {
+  return (
+    <div className="flex-1 flex items-center justify-center">
+      <div className="max-w-sm text-center px-6">
+        <CalendarClock className="icon-xl mx-auto text-faint mb-3" />
+        <div className="text-sm font-semibold text-fg-bright mb-1">Schedule</div>
+        <div className="text-xs text-dim leading-relaxed">Coming soon.</div>
+      </div>
     </div>
   )
 }
