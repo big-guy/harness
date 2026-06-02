@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
-import { Check, CheckCheck, FoldVertical, MessagesSquare, Reply, UnfoldVertical } from 'lucide-react'
+import { Check, CheckCheck, Copy, FoldVertical, MessagesSquare, Reply, UnfoldVertical } from 'lucide-react'
 import type { FileDiffSides, ChangedFile } from '../types'
 import type { ReviewComment } from './ReviewFileTree'
 import { MonacoDiffEditor } from './MonacoDiffEditor'
@@ -585,6 +585,7 @@ export function ReviewDiffPane({
   const [loading, setLoading] = useState(false)
   const [commentLine, setCommentLine] = useState<number | null>(null)
   const [expandAll, setExpandAll] = useState(false)
+  const [copiedPath, setCopiedPath] = useState(false)
   // Bumped each time the diff editor (re)mounts so the view-zone effect
   // re-runs and re-draws comments — the editor unmounts/remounts on every
   // file switch, and a ref alone wouldn't retrigger the effect.
@@ -906,6 +907,24 @@ export function ReviewDiffPane({
     <div className="flex flex-col h-full">
       {/* File header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-panel shrink-0">
+        <Tooltip label={copiedPath ? 'Copied!' : 'Copy file path'}>
+          <button
+            onClick={() => {
+              void navigator.clipboard.writeText(file.path)
+              setCopiedPath(true)
+              window.setTimeout(() => setCopiedPath(false), 1200)
+            }}
+            aria-label="Copy file path"
+            className="shrink-0 text-faint hover:text-fg cursor-pointer"
+          >
+            {copiedPath ? (
+              <Check className="icon-xs text-success" />
+            ) : (
+              <Copy className="icon-xs" />
+            )}
+          </button>
+        </Tooltip>
+
         <Tooltip label={<span className="font-mono">{file.path}</span>} side="top">
           <span
             className="text-xs font-mono truncate flex-1 min-w-0"
