@@ -957,7 +957,7 @@ export function ReviewDiffPane({
             <button
               onClick={jumpToFirstComment}
               aria-label="Jump to first comment"
-              className="shrink-0 flex items-center gap-1 px-2 py-1 rounded border border-border text-info hover:text-info/70 transition-colors cursor-pointer"
+              className="shrink-0 flex items-center gap-1 px-2 py-1 rounded border border-border text-xs text-info hover:text-info/70 transition-colors cursor-pointer"
             >
               <MessagesSquare className="icon-xs" />
               {comments.length}
