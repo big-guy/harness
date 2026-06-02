@@ -798,7 +798,7 @@ export function InboxScreen({
       </div>
 
       {topTab === 'schedule' ? (
-        <ScheduleTab />
+        <ScheduleTab onSelectWorktree={onSelectWorktree} />
       ) : queries.length === 0 ? (
         <>
           <AddItemButton onClick={() => setShowAddItem(true)} />

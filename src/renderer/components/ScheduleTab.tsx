@@ -9,13 +9,19 @@ import {
   GitBranch,
   FolderGit2,
   Repeat,
-  Power
+  Power,
+  ArrowRight,
+  Loader2
 } from 'lucide-react'
 import { useSchedules, useWorktrees } from '../store'
 import { useBackend } from '../backend'
+import { Tooltip } from './Tooltip'
 import {
   SCHEDULE_REPEATS,
+  categorizeSchedule,
+  scheduleWorktreePath,
   type Schedule,
+  type ScheduleCategory,
   type ScheduleRepeat,
   type ScheduleTarget
 } from '../../shared/state/schedules'
@@ -76,7 +82,11 @@ interface DraftState {
   worktreePath: string
 }
 
-export function ScheduleTab(): JSX.Element {
+export function ScheduleTab({
+  onSelectWorktree
+}: {
+  onSelectWorktree?: (path: string) => void
+}): JSX.Element {
   const backend = useBackend()
   const { items } = useSchedules()
   const worktrees = useWorktrees()
@@ -84,13 +94,35 @@ export function ScheduleTab(): JSX.Element {
   const [draft, setDraft] = useState<DraftState | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const sorted = useMemo(
-    () =>
-      [...items].sort(
-        (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()
-      ),
-    [items]
+  const livePaths = useMemo(
+    () => new Set(worktrees.list.map((w) => w.path)),
+    [worktrees.list]
   )
+
+  // Partition into the three lifecycle buckets. `now` is read once per render;
+  // a 60s store tick (the runner's scan) re-renders us, so it stays fresh.
+  const groups = useMemo(() => {
+    const now = Date.now()
+    const upcoming: Schedule[] = []
+    const active: Schedule[] = []
+    const past: Schedule[] = []
+    for (const s of items) {
+      const cat = categorizeSchedule(s, livePaths, now)
+      if (cat === 'active') active.push(s)
+      else if (cat === 'past') past.push(s)
+      else upcoming.push(s)
+    }
+    const byAtAsc = (a: Schedule, b: Schedule): number =>
+      Date.parse(a.at) - Date.parse(b.at)
+    const byRunDesc = (a: Schedule, b: Schedule): number =>
+      Date.parse(b.lastRunAt ?? b.at) - Date.parse(a.lastRunAt ?? a.at)
+    upcoming.sort(byAtAsc)
+    active.sort(byRunDesc)
+    past.sort(byRunDesc)
+    return { upcoming, active, past }
+  }, [items, livePaths])
+
+  const total = items.length
 
   const worktreesForRepo = useMemo(
     () =>
@@ -201,7 +233,7 @@ export function ScheduleTab(): JSX.Element {
       )}
 
       <div className="flex-1 overflow-y-auto">
-        {sorted.length === 0 && !draft && (
+        {total === 0 && !draft && (
           <div className="flex-1 flex items-center justify-center py-16">
             <div className="max-w-sm text-center px-6">
               <CalendarClock className="icon-xl mx-auto text-faint mb-3" />
@@ -213,15 +245,42 @@ export function ScheduleTab(): JSX.Element {
             </div>
           </div>
         )}
-        {sorted.map((s) => (
-          <ScheduleRow
-            key={s.id}
-            schedule={s}
-            onEdit={() => startEdit(s)}
-            onToggle={() => void toggleEnabled(s)}
-            onRemove={() => void remove(s.id)}
-          />
-        ))}
+        {(
+          [
+            ['Upcoming', groups.upcoming, 'upcoming'],
+            ['Active', groups.active, 'active'],
+            ['Past', groups.past, 'past']
+          ] as const
+        ).map(([label, list, cat]) =>
+          list.length === 0 ? null : (
+            <div key={cat}>
+              <div className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-faint bg-panel/40 border-y border-border flex items-center gap-1.5">
+                {cat === 'active' && <Loader2 className="icon-2xs animate-spin text-accent" />}
+                <span>
+                  {label} · {list.length}
+                </span>
+              </div>
+              {list.map((s) => (
+                <ScheduleRow
+                  key={s.id}
+                  schedule={s}
+                  category={cat}
+                  onEdit={() => startEdit(s)}
+                  onToggle={() => void toggleEnabled(s)}
+                  onRemove={() => void remove(s.id)}
+                  onOpenWorktree={
+                    onSelectWorktree
+                      ? () => {
+                          const wt = scheduleWorktreePath(s)
+                          if (wt) onSelectWorktree(wt)
+                        }
+                      : undefined
+                  }
+                />
+              ))}
+            </div>
+          )
+        )}
       </div>
     </div>
   )
@@ -229,14 +288,18 @@ export function ScheduleTab(): JSX.Element {
 
 function ScheduleRow({
   schedule,
+  category,
   onEdit,
   onToggle,
-  onRemove
+  onRemove,
+  onOpenWorktree
 }: {
   schedule: Schedule
+  category: ScheduleCategory
   onEdit: () => void
   onToggle: () => void
   onRemove: () => void
+  onOpenWorktree?: () => void
 }): JSX.Element {
   const s = schedule
   const targetIcon =
@@ -249,10 +312,13 @@ function ScheduleRow({
     s.target.kind === 'worktree'
       ? s.target.worktreePath.split('/').pop() || s.target.worktreePath
       : repoLabel(s.target.repoRoot)
+  // Upcoming rows lead with their next time; ran rows lead with when they ran.
+  const when = category === 'past' ? s.lastRunAt ?? s.at : s.at
+  const whenPrefix = category === 'past' ? 'Ran ' : category === 'active' ? 'Started ' : ''
   return (
     <div
       className={`group px-3 py-2 border-b border-border flex items-start gap-2 ${
-        s.enabled ? '' : 'opacity-50'
+        s.enabled || category !== 'upcoming' ? '' : 'opacity-50'
       }`}
     >
       <div className="flex-1 min-w-0">
@@ -267,43 +333,69 @@ function ScheduleRow({
         </div>
         <div className="mt-0.5 flex items-center gap-2 text-xs text-dim">
           <CalendarClock className="icon-2xs shrink-0" />
-          <span>{formatWhen(s.at)}</span>
+          <span>
+            {whenPrefix}
+            {formatWhen(when)}
+          </span>
           <span className="text-faint">·</span>
           <span className="flex items-center gap-1 min-w-0">
             {targetIcon}
             <span className="truncate">{targetText}</span>
           </span>
         </div>
-        {s.prompt.trim() !== '' && (
-          <div className="mt-1 text-xs text-faint line-clamp-2 whitespace-pre-wrap">
-            {s.prompt}
+        {category === 'past' && s.lastSummary ? (
+          <div className="mt-1 text-xs text-dim line-clamp-3 whitespace-pre-wrap border-l-2 border-border pl-2">
+            {s.lastSummary}
           </div>
+        ) : (
+          s.prompt.trim() !== '' && (
+            <div className="mt-1 text-xs text-faint line-clamp-2 whitespace-pre-wrap">
+              {s.prompt}
+            </div>
+          )
         )}
       </div>
       <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          onClick={onToggle}
-          title={s.enabled ? 'Pause' : 'Resume'}
-          className={`rounded p-1 cursor-pointer transition-colors ${
-            s.enabled ? 'text-dim hover:text-fg hover:bg-surface' : 'text-accent hover:bg-surface'
-          }`}
-        >
-          <Power className="icon-xs" />
-        </button>
-        <button
-          onClick={onEdit}
-          title="Edit"
-          className="text-dim hover:text-fg hover:bg-surface rounded p-1 cursor-pointer transition-colors"
-        >
-          <Pencil className="icon-xs" />
-        </button>
-        <button
-          onClick={onRemove}
-          title="Delete"
-          className="text-dim hover:text-danger hover:bg-surface rounded p-1 cursor-pointer transition-colors"
-        >
-          <Trash2 className="icon-xs" />
-        </button>
+        {category === 'active' && onOpenWorktree && (
+          <Tooltip label="Open worktree" side="left">
+            <button
+              onClick={onOpenWorktree}
+              className="text-dim hover:text-fg hover:bg-surface rounded p-1 cursor-pointer transition-colors"
+            >
+              <ArrowRight className="icon-xs" />
+            </button>
+          </Tooltip>
+        )}
+        {category !== 'past' && (
+          <Tooltip label={s.enabled ? 'Pause' : 'Resume'} side="left">
+            <button
+              onClick={onToggle}
+              className={`rounded p-1 cursor-pointer transition-colors ${
+                s.enabled ? 'text-dim hover:text-fg hover:bg-surface' : 'text-accent hover:bg-surface'
+              }`}
+            >
+              <Power className="icon-xs" />
+            </button>
+          </Tooltip>
+        )}
+        {category !== 'past' && (
+          <Tooltip label="Edit" side="left">
+            <button
+              onClick={onEdit}
+              className="text-dim hover:text-fg hover:bg-surface rounded p-1 cursor-pointer transition-colors"
+            >
+              <Pencil className="icon-xs" />
+            </button>
+          </Tooltip>
+        )}
+        <Tooltip label="Delete" side="left">
+          <button
+            onClick={onRemove}
+            className="text-dim hover:text-danger hover:bg-surface rounded p-1 cursor-pointer transition-colors"
+          >
+            <Trash2 className="icon-xs" />
+          </button>
+        </Tooltip>
       </div>
     </div>
   )
