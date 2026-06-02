@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -570,6 +570,7 @@ export function InboxScreen({
     )
   }, [worktrees.originByRoot])
 
+  const rootRef = useRef<HTMLDivElement>(null)
   const [showAddItem, setShowAddItem] = useState(false)
   const [snoozeCalendarFor, setSnoozeCalendarFor] = useState<{
     key: string
@@ -612,6 +613,19 @@ export function InboxScreen({
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [showAddItem, onClose])
+
+  // Clicking outside the inbox (e.g. on the sidebar) closes it. The Add-item
+  // modal and snooze calendar render inside this root, so clicks within them
+  // count as "inside"; when either is open we leave the dismissal to it.
+  useEffect(() => {
+    const handler = (e: MouseEvent): void => {
+      if (showAddItem || snoozeCalendarFor) return
+      const root = rootRef.current
+      if (root && !root.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showAddItem, snoozeCalendarFor, onClose])
 
   const activeQuery = queries.find((q) => q.id === activeQueryId) || null
   const rawItems = activeQueryId ? inbox.byQueryId[activeQueryId] || [] : []
@@ -736,7 +750,7 @@ export function InboxScreen({
   }
 
   return (
-    <div className="flex-1 min-w-0 flex flex-col bg-app">
+    <div ref={rootRef} className="flex-1 min-w-0 flex flex-col bg-app">
       {/* Title bar */}
       <div className="drag-region h-10 shrink-0 flex items-center px-3 border-b border-border">
         <button
