@@ -3,6 +3,7 @@ import {
   initialSchedules,
   schedulesReducer,
   sanitizeSchedules,
+  nextOccurrence,
   type Schedule
 } from './schedules'
 
@@ -104,6 +105,36 @@ describe('sanitizeSchedules', () => {
   it('returns [] for non-arrays', () => {
     expect(sanitizeSchedules(null)).toEqual([])
     expect(sanitizeSchedules({})).toEqual([])
+  })
+
+  it('returns null for one-time schedules', () => {
+    expect(nextOccurrence('2026-07-01T09:00:00.000Z', 'once', Date.now())).toBeNull()
+  })
+
+  it('daily steps to the next future day at the same time', () => {
+    const at = '2026-07-01T09:00:00.000Z'
+    const now = Date.parse('2026-07-03T10:00:00.000Z') // missed 1st, 2nd, 3rd(9am)
+    const next = nextOccurrence(at, 'daily', now)
+    expect(next).not.toBeNull()
+    expect(new Date(next!).getTime()).toBeGreaterThan(now)
+    // lands on the 4th at 09:00 UTC
+    expect(next).toBe('2026-07-04T09:00:00.000Z')
+  })
+
+  it('weekly steps by 7 days', () => {
+    const at = '2026-07-01T09:00:00.000Z'
+    const now = Date.parse('2026-07-05T00:00:00.000Z')
+    expect(nextOccurrence(at, 'weekly', now)).toBe('2026-07-08T09:00:00.000Z')
+  })
+
+  it('weekdays never lands on a weekend', () => {
+    // 2026-07-03 is a Friday; next weekday after Fri is Mon 2026-07-06.
+    const at = '2026-07-03T09:00:00.000Z'
+    const now = Date.parse('2026-07-03T12:00:00.000Z')
+    const next = nextOccurrence(at, 'weekdays', now)!
+    const day = new Date(next).getDay()
+    expect(day).not.toBe(0)
+    expect(day).not.toBe(6)
   })
 
   it('defaults repeat to once and enabled to true', () => {

@@ -38,6 +38,7 @@ import { AutoSleepMonitor } from './auto-sleep-monitor'
 import { WorktreeWatcher } from './worktree-watcher'
 import { SnoozeTimer } from './snooze-timer'
 import { InboxSnoozeTimer } from './inbox-snooze-timer'
+import { ScheduleRunner } from './schedule-runner'
 import { getWeeklyStats } from './weekly-stats'
 import type { TerminalTab, PaneNode, PaneLeaf } from '../shared/state/terminals'
 import { getLeaves, mapLeaves } from '../shared/state/terminals'
@@ -944,6 +945,82 @@ const worktreeDeletionFSM = new WorktreeDeletionFSM(store, {
   worktreesFSM
 })
 
+/** Branch-name-safe slug from a schedule title. */
+function slugForSchedule(title: string): string {
+  const s = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 32)
+  return s || 'task'
+}
+
+/** Deliver a scheduled prompt to a worktree's agent. Prefers an existing
+ *  awake agent tab (the active one first, then any), else spawns a fresh
+ *  json-claude chat and kicks it off with the prompt. */
+function deliverScheduleToWorktree(worktreePath: string, prompt: string): void {
+  if (!prompt) return
+  const tree = store.getSnapshot().state.terminals.panes[worktreePath]
+  const leaves = tree ? getLeaves(tree) : []
+  const sendable = (t: TerminalTab): boolean =>
+    t.type === 'agent' || (t.type === 'json-claude' && t.mode !== 'asleep')
+  let target: TerminalTab | undefined
+  for (const leaf of leaves) {
+    const active = leaf.tabs.find((t) => t.id === leaf.activeTabId)
+    if (active && sendable(active)) {
+      target = active
+      break
+    }
+  }
+  if (!target) {
+    for (const leaf of leaves) {
+      const c = leaf.tabs.find(sendable)
+      if (c) {
+        target = c
+        break
+      }
+    }
+  }
+  if (target?.type === 'json-claude') {
+    jsonClaudeManager.send(target.id, prompt)
+    return
+  }
+  if (target?.type === 'agent') {
+    // Bracketed paste so multi-line prompts land as one block on stdin.
+    ptyManager.write(target.id, '\x1b[200~' + prompt + '\x1b[201~')
+    return
+  }
+  // No live agent in this worktree — spawn a chat and send the prompt.
+  const sessionId = crypto.randomUUID()
+  panesFSM.addTab(worktreePath, {
+    id: sessionId,
+    type: 'json-claude',
+    label: 'Chat',
+    sessionId,
+    mode: 'awake'
+  })
+  startJsonClaudeSession(sessionId, worktreePath)
+  jsonClaudeManager.send(sessionId, prompt)
+}
+
+// Fires Workflow schedules. Repo targets create a fresh worktree and run the
+// prompt there; worktree targets send the prompt to that worktree's agent.
+const scheduleRunner = new ScheduleRunner(store, {
+  fire: async (schedule) => {
+    const prompt = schedule.prompt.trim()
+    if (schedule.target.kind === 'repo') {
+      await worktreesFSM.runPending({
+        id: `sched-${schedule.id}-${Date.now()}`,
+        repoRoot: schedule.target.repoRoot,
+        branchName: `schedule/${slugForSchedule(schedule.title)}-${Date.now().toString(36)}`,
+        initialPrompt: prompt || undefined
+      })
+    } else {
+      deliverScheduleToWorktree(schedule.target.worktreePath, prompt)
+    }
+  }
+})
+
 const activityDeriver = new ActivityDeriver(store)
 
 // Tears down idle json-mode subprocesses (yellow-dot tabs older than
@@ -1126,6 +1203,7 @@ const snoozeTimer = new SnoozeTimer(store)
 snoozeTimer.start()
 const inboxSnoozeTimer = new InboxSnoozeTimer(store)
 inboxSnoozeTimer.start()
+scheduleRunner.start()
 
 // Toggle "Warn Before Quitting". Shared by the Settings IPC handler and the
 // app-menu checkbox (wired into the desktop shell), so both stay in sync.

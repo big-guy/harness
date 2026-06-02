@@ -112,6 +112,60 @@ export function sanitizeSchedules(raw: unknown): Schedule[] {
   return out
 }
 
+function isWeekend(d: Date): boolean {
+  return d.getDay() === 0 || d.getDay() === 6
+}
+
+/** The next occurrence strictly after `now` for a repeating schedule, as an
+ *  ISO string. Returns null for one-time schedules (they don't recur). Steps
+ *  forward from `at` by the repeat interval — so a schedule that missed
+ *  several intervals (app was closed) lands on the next future slot, not a
+ *  burst of past ones. */
+export function nextOccurrence(
+  at: string,
+  repeat: ScheduleRepeat,
+  now: number
+): string | null {
+  if (repeat === 'once') return null
+  let d = new Date(at)
+  if (!Number.isFinite(d.getTime())) return null
+
+  const step = (date: Date): Date => {
+    const n = new Date(date)
+    switch (repeat) {
+      case 'daily':
+        n.setDate(n.getDate() + 1)
+        break
+      case 'weekly':
+        n.setDate(n.getDate() + 7)
+        break
+      case 'monthly':
+        n.setMonth(n.getMonth() + 1)
+        break
+      case 'weekdays':
+        do {
+          n.setDate(n.getDate() + 1)
+        } while (isWeekend(n))
+        break
+    }
+    return n
+  }
+
+  let guard = 0
+  do {
+    d = step(d)
+    guard++
+  } while (d.getTime() <= now && guard < 100_000)
+
+  // A weekdays schedule whose seed `at` fell on a weekend should still land
+  // on a weekday even when the loop above ran zero effective steps.
+  if (repeat === 'weekdays') {
+    while (isWeekend(d)) d = step(d)
+  }
+
+  return d.toISOString()
+}
+
 export function schedulesReducer(
   state: SchedulesState,
   event: SchedulesEvent
