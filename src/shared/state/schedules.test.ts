@@ -117,6 +117,19 @@ describe('categorizeSchedule', () => {
     expect(categorizeSchedule(s, new Set(), NOW)).toBe('past')
   })
 
+  it('past: a past-dated schedule with no run history is NOT upcoming', () => {
+    // one-shot that fired under older code (no lastRunAt recorded), now disabled
+    expect(categorizeSchedule(mk('a', { at: past, enabled: false }), new Set(), NOW)).toBe('past')
+    // even an enabled but overdue, never-run schedule is past, not upcoming
+    expect(categorizeSchedule(mk('a', { at: past, enabled: true }), new Set(), NOW)).toBe('past')
+  })
+
+  it('upcoming: a paused (disabled) schedule with a future time still shows upcoming', () => {
+    expect(categorizeSchedule(mk('a', { at: future, enabled: false }), new Set(), NOW)).toBe(
+      'upcoming'
+    )
+  })
+
   it('repeating: ran but next time is in the future -> upcoming, not past', () => {
     const s = mk('a', { repeat: 'daily', at: future, lastRunAt: past, lastWorktreePath: '/wt/gone' })
     expect(categorizeSchedule(s, new Set(), NOW)).toBe('upcoming')

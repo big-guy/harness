@@ -137,8 +137,12 @@ export function categorizeSchedule(
   const wt = scheduleWorktreePath(s)
   if (wt && liveWorktreePaths.has(wt)) return 'active'
   const at = Date.parse(s.at)
-  if (s.enabled && Number.isFinite(at) && at > now) return 'upcoming'
-  if (s.lastRunAt) return 'past'
+  const future = Number.isFinite(at) && at > now
+  // Upcoming means it will actually run again: enabled with a future time.
+  if (s.enabled && future) return 'upcoming'
+  // Anything with a past/invalid time, or that has already run, is in the
+  // past — only a still-future (e.g. paused) schedule stays Upcoming.
+  if (s.lastRunAt || !future) return 'past'
   return 'upcoming'
 }
 
