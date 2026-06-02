@@ -239,43 +239,78 @@ function ItemRow({
   return (
     <div className="border-b border-border">
       <div className="flex items-stretch">
-        {/* Per-intent drag handles, stacked at the left. Each carries its own
-            prompt: dropping onto a worktree inserts it; dropping onto "Add
-            worktree" seeds a new worktree with it. Hidden while snoozed. */}
-        {!snoozed && (
-          <div className="flex flex-col items-center justify-center gap-1.5 pl-2 pr-1 shrink-0 text-faint">
-            <button
-              draggable
+        {/* Quad of actions on the far left, in a 2×2 grid: drag-to-act
+            handles (Fix / Investigate) on top, open-externally + snooze/wake
+            below. The drag handles are hidden while snoozed; the bottom row
+            stays full-opacity even when the row is greyed so a snoozed item
+            can always be opened on GitHub or woken. */}
+        <div className="flex flex-col items-center justify-center gap-1.5 pl-2 pr-1 shrink-0 text-faint">
+          {!snoozed && (
+            <div className="flex items-center gap-1.5">
+              <button
+                draggable
+                onClick={(e) => e.stopPropagation()}
+                onDragStart={(e) =>
+                  setInboxDragData(e, {
+                    ...dragBase,
+                    prompt: fixPrompt(item.url),
+                    worktreePrompt: fixPrompt(item.url)
+                  })
+                }
+                title="Fix this — drag onto a worktree (or “Add worktree”): prepare a reproducer and propose a fix"
+                className="hover:text-fg cursor-grab active:cursor-grabbing"
+              >
+                <Wrench className="icon-xs" />
+              </button>
+              <button
+                draggable
+                onClick={(e) => e.stopPropagation()}
+                onDragStart={(e) =>
+                  setInboxDragData(e, {
+                    ...dragBase,
+                    prompt: investigatePrompt(item.url),
+                    worktreePrompt: investigatePrompt(item.url)
+                  })
+                }
+                title="Investigate this — drag onto a worktree (or “Add worktree”): investigate this issue and propose a response"
+                className="hover:text-fg cursor-grab active:cursor-grabbing"
+              >
+                <Search className="icon-xs" />
+              </button>
+            </div>
+          )}
+          <div className="flex items-center gap-1.5">
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noreferrer"
+              draggable={false}
               onClick={(e) => e.stopPropagation()}
-              onDragStart={(e) =>
-                setInboxDragData(e, {
-                  ...dragBase,
-                  prompt: fixPrompt(item.url),
-                  worktreePrompt: fixPrompt(item.url)
-                })
-              }
-              title="Fix this — drag onto a worktree (or “Add worktree”): prepare a reproducer and propose a fix"
-              className="hover:text-fg cursor-grab active:cursor-grabbing"
+              title="Open on GitHub"
+              className="hover:text-fg"
             >
-              <Wrench className="icon-xs" />
-            </button>
-            <button
-              draggable
-              onClick={(e) => e.stopPropagation()}
-              onDragStart={(e) =>
-                setInboxDragData(e, {
-                  ...dragBase,
-                  prompt: investigatePrompt(item.url),
-                  worktreePrompt: investigatePrompt(item.url)
-                })
-              }
-              title="Investigate this — drag onto a worktree (or “Add worktree”): investigate this issue and propose a response"
-              className="hover:text-fg cursor-grab active:cursor-grabbing"
-            >
-              <Search className="icon-xs" />
-            </button>
+              <ExternalLink className="icon-xs" />
+            </a>
+            {snoozed ? (
+              <button
+                onClick={onWake}
+                title={`Snoozed${wakeAt != null ? ` · wakes ${formatWakeAt(wakeAt)}` : ''} — click to wake`}
+                className="flex items-center gap-1 hover:text-fg cursor-pointer"
+              >
+                <BellRing className="icon-xs" />
+                {wakeAt != null && <span className="text-xs">{formatWakeAt(wakeAt)}</span>}
+              </button>
+            ) : (
+              <button
+                onClick={onSnooze}
+                title="Snooze · ⌥-click to pick a date"
+                className="hover:text-fg cursor-pointer"
+              >
+                <Clock className="icon-xs" />
+              </button>
+            )}
           </div>
-        )}
+        </div>
 
         <button
           draggable={!snoozed}
@@ -341,40 +376,7 @@ function ItemRow({
               )}
             </div>
           </div>
-          <a
-            href={item.url}
-            target="_blank"
-            rel="noreferrer"
-            draggable={false}
-            onClick={(e) => e.stopPropagation()}
-            className="text-faint hover:text-fg shrink-0"
-          >
-            <ExternalLink className="icon-xs" />
-          </a>
         </button>
-
-        {/* Snooze (active) / Wake (snoozed) control — full opacity even when
-            the row is greyed, so a snoozed item can always be woken. */}
-        <div className="flex items-center pr-2 shrink-0">
-          {snoozed ? (
-            <button
-              onClick={onWake}
-              title={`Snoozed${wakeAt != null ? ` · wakes ${formatWakeAt(wakeAt)}` : ''} — click to wake`}
-              className="flex items-center gap-1 text-faint hover:text-fg cursor-pointer"
-            >
-              <BellRing className="icon-xs" />
-              {wakeAt != null && <span className="text-xs">{formatWakeAt(wakeAt)}</span>}
-            </button>
-          ) : (
-            <button
-              onClick={onSnooze}
-              title="Snooze · ⌥-click to pick a date"
-              className="text-faint hover:text-fg cursor-pointer"
-            >
-              <Clock className="icon-xs" />
-            </button>
-          )}
-        </div>
       </div>
       {expanded && !snoozed && (
         <div className="px-3 pb-3 pt-1 border-t border-border bg-panel-raised/30">
@@ -739,15 +741,15 @@ export function InboxScreen({
       <div className="drag-region h-10 shrink-0 flex items-center px-3 border-b border-border">
         <button
           onClick={onClose}
-          className="no-drag flex items-center gap-1 text-dim hover:text-fg text-xs cursor-pointer"
+          className="no-drag flex items-center gap-1.5 text-dim hover:text-fg text-xs cursor-pointer"
         >
           <ArrowLeft className="icon-xs" />
           <span>Back</span>
+          <kbd className="text-xs text-faint bg-bg px-1.5 py-0.5 rounded border border-border font-mono">
+            ESC
+          </kbd>
         </button>
         <span className="ml-3 text-xs font-semibold text-fg-bright">Inbox</span>
-        <kbd className="no-drag ml-auto text-xs text-faint bg-bg px-1.5 py-0.5 rounded border border-border font-mono">
-          ESC
-        </kbd>
       </div>
 
       {/* Add item — opens a new GitHub issue in one of the tracked repos.

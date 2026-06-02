@@ -1560,6 +1560,8 @@ const setQuestStep = useCallback((next: QuestStep) => {
               setShowCleanup(false)
               setShowCommandCenter(true)
             }}
+            onOpenInbox={() => setShowInbox(true)}
+            inboxActive={showInbox}
             onOpenNewProject={() => setShowNewProject(true)}
             onOpenActivity={() => setShowActivity(true)}
             onOpenMyWeek={() => setShowMyWeek(true)}
