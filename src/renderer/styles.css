@@ -746,3 +746,16 @@ button, [role="button"], a[href], [onclick] {
   from { width: 0%; }
   to { width: 100%; }
 }
+/* On cancel the toast lingers and fades instead of vanishing, so a quick
+ * ⌘Q tap still reads (FADE_OUT_MS in useHoldToQuit.ts matches this 1500ms).
+ * The fill freezes where the hold stopped while the whole toast fades. */
+.hold-to-quit-toast.is-fading {
+  animation: hold-to-quit-fade 1500ms ease-out forwards;
+}
+.hold-to-quit-toast.is-fading .hold-to-quit-fill {
+  animation-play-state: paused;
+}
+@keyframes hold-to-quit-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}

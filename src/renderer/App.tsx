@@ -257,7 +257,7 @@ function DesktopApp(): JSX.Element {
   const [commandPaletteMode, setCommandPaletteMode] = useState<'root' | 'files'>('root')
   const [showPerfMonitor, setShowPerfMonitor] = useState(false)
   const [showHotkeyCheatsheet, setShowHotkeyCheatsheet] = useState(false)
-  const holdingToQuit = useHoldToQuit()
+  const holdToQuit = useHoldToQuit()
   const [showNewProject, setShowNewProject] = useState(false)
   const [reportIssueState, setReportIssueState] = useState<OpenReportIssueDetail | null>(null)
   const [showAddBackend, setShowAddBackend] = useState(false)
@@ -1711,7 +1711,9 @@ const setQuestStep = useCallback((next: QuestStep) => {
       isOpen={showAddBackend}
       onClose={() => setShowAddBackend(false)}
     />
-    {holdingToQuit && <HoldToQuitOverlay />}
+    {holdToQuit.phase !== 'idle' && (
+      <HoldToQuitOverlay key={holdToQuit.holdId} fading={holdToQuit.phase === 'fading'} />
+    )}
     </HotkeysProvider>
   )
 }
