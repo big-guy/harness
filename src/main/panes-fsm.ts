@@ -211,6 +211,9 @@ export class PanesFSM {
       teleportSessionId?: string
       agentKind?: AgentKind
       model?: string
+      /** Override the default Claude tab kind for this worktree. Scheduled
+       *  runs pass 'json' so the agent spawns main-side (eager/headless). */
+      claudeTabType?: 'json' | 'xterm'
     }
   ): PaneNode {
     const existing = this.getTree(wtPath)
@@ -235,7 +238,7 @@ export class PanesFSM {
     // first message via startJsonClaudeWithPrompt below.
     const wantsJson =
       agentKind === 'claude' &&
-      this.opts.getDefaultClaudeTabType?.() === 'json' &&
+      (opts?.claudeTabType ?? this.opts.getDefaultClaudeTabType?.()) === 'json' &&
       !opts?.teleportSessionId
     let agentTab: TerminalTab
     let jsonClaudeKickoff: { sessionId: string; initialPrompt?: string; model?: string } | null = null

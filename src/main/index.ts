@@ -75,7 +75,7 @@ import type { AddRepoResult } from '../shared/repo-pick'
 import { isWorktreeMerged } from '../shared/state/prs'
 import { MAX_WAKE } from '../shared/state/snooze'
 import { inboxSnoozeKey } from '../shared/state/inbox-snooze'
-import { sanitizeSchedule } from '../shared/state/schedules'
+import { sanitizeSchedule, scheduleWorktreePath } from '../shared/state/schedules'
 import { hasScratchpadNote } from '../shared/state/scratchpad'
 import {
   DEFAULT_LIGHT_THEME,
@@ -931,9 +931,9 @@ const worktreesFSM = new WorktreesFSM(store, {
   getRepoRoots: () => config.repoRoots || [],
   getWorktreeSetupCmd: () => config.worktreeSetupCommand || '',
   getWorktreeBaseMode: () => config.worktreeBase || DEFAULT_WORKTREE_BASE,
-  onWorktreeCreated: ({ createdPath, initialPrompt, teleportSessionId, agentKind, model }) => {
+  onWorktreeCreated: ({ createdPath, initialPrompt, teleportSessionId, agentKind, model, claudeTabType }) => {
     void prPoller.refreshAll()
-    panesFSM.ensureInitialized(createdPath, { initialPrompt, teleportSessionId, agentKind, model })
+    panesFSM.ensureInitialized(createdPath, { initialPrompt, teleportSessionId, agentKind, model, claudeTabType })
     if (teleportSessionId) {
       setTimeout(() => void worktreesFSM.refreshList(), 10_000)
     }
@@ -1009,12 +1009,30 @@ const scheduleRunner = new ScheduleRunner(store, {
   fire: async (schedule) => {
     const prompt = schedule.prompt.trim()
     if (schedule.target.kind === 'repo') {
-      await worktreesFSM.runPending({
+      // Force json-mode so the agent starts main-side (eagerly, headless) —
+      // a scheduled worktree must run without the user switching to it.
+      const outcome = await worktreesFSM.runPending({
         id: `sched-${schedule.id}-${Date.now()}`,
         repoRoot: schedule.target.repoRoot,
         branchName: `schedule/${slugForSchedule(schedule.title)}-${Date.now().toString(36)}`,
-        initialPrompt: prompt || undefined
+        initialPrompt: prompt || undefined,
+        claudeTabType: 'json'
       })
+      // Record the created worktree so the schedule shows as "Active" while
+      // it lives, and so the MCP complete endpoint can map it back.
+      const createdPath =
+        'createdPath' in outcome ? outcome.createdPath : undefined
+      if (createdPath) {
+        const current = store
+          .getSnapshot()
+          .state.schedules.items.find((s) => s.id === schedule.id)
+        if (current) {
+          store.dispatch({
+            type: 'schedules/updated',
+            payload: { ...current, lastWorktreePath: createdPath }
+          })
+        }
+      }
     } else {
       deliverScheduleToWorktree(schedule.target.worktreePath, prompt)
     }
@@ -4202,6 +4220,32 @@ async function runBoot(): Promise<void> {
             bodyPreview: it.bodyPreview
           }))
         }
+      }
+    },
+    schedules: {
+      completeScheduledWork: (worktreePath, summary) => {
+        const snap = store.getSnapshot().state
+        const sched = snap.schedules.items.find(
+          (s) => scheduleWorktreePath(s) === worktreePath
+        )
+        if (!sched) {
+          return { ok: false as const, error: 'no schedule is associated with this worktree' }
+        }
+        // Record the summary so it survives in the "Past" view, then delete
+        // the worktree (force — the agent declared the work done; a dirty
+        // tree shouldn't block the autonomous cleanup).
+        store.dispatch({
+          type: 'schedules/updated',
+          payload: { ...sched, lastSummary: summary, lastRunAt: new Date().toISOString() }
+        })
+        const wt = snap.worktrees.list.find((w) => w.path === worktreePath)
+        worktreeDeletionFSM.enqueue({
+          repoRoot: wt?.repoRoot ?? sched.target.repoRoot,
+          path: worktreePath,
+          branch: wt?.branch ?? '',
+          force: true
+        })
+        return { ok: true as const, title: sched.title }
       }
     },
     runWorktreeSetup: (ctx) => worktreesFSM.runWorktreeSetup(ctx),

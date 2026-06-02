@@ -38,7 +38,21 @@ export interface Schedule {
   enabled: boolean
   /** ISO datetime the schedule was created. */
   createdAt: string
+  /** ISO datetime of the most recent fire. Unset until the schedule has run
+   *  at least once — used to tell "Upcoming" (never run) from "Past" (ran,
+   *  worktree gone). */
+  lastRunAt?: string
+  /** Worktree associated with the most recent run. For a worktree target this
+   *  mirrors target.worktreePath; for a repo target it's the worktree the
+   *  fire created. Its liveness decides "Active" vs "Past". */
+  lastWorktreePath?: string
+  /** Summary the agent reported when it signaled the scheduled work was done
+   *  (via the MCP complete endpoint). Shown on Past rows. */
+  lastSummary?: string
 }
+
+/** Which lifecycle bucket a schedule belongs to in the Schedule tab. */
+export type ScheduleCategory = 'upcoming' | 'active' | 'past'
 
 export interface SchedulesState {
   /** All schedules, newest occurrence first is NOT guaranteed — the UI sorts. */
@@ -93,8 +107,39 @@ export function sanitizeSchedule(raw: unknown): Schedule | null {
     prompt,
     target,
     enabled: r.enabled !== false,
-    createdAt: typeof r.createdAt === 'string' ? r.createdAt : at
+    createdAt: typeof r.createdAt === 'string' ? r.createdAt : at,
+    ...(typeof r.lastRunAt === 'string' ? { lastRunAt: r.lastRunAt } : {}),
+    ...(typeof r.lastWorktreePath === 'string' && r.lastWorktreePath
+      ? { lastWorktreePath: r.lastWorktreePath }
+      : {}),
+    ...(typeof r.lastSummary === 'string' && r.lastSummary
+      ? { lastSummary: r.lastSummary }
+      : {})
   }
+}
+
+/** The worktree associated with a schedule, if any — for liveness checks. */
+export function scheduleWorktreePath(s: Schedule): string | null {
+  if (s.target.kind === 'worktree') return s.target.worktreePath
+  return s.lastWorktreePath ?? null
+}
+
+/** Bucket a schedule for the Schedule tab. A live associated worktree means
+ *  it's running now ("Active"); otherwise an enabled future time means it's
+ *  waiting ("Upcoming"); a schedule that has already run with no live
+ *  worktree is "Past". Repeating schedules naturally oscillate Active ↔
+ *  Upcoming and never get stuck in Past. */
+export function categorizeSchedule(
+  s: Schedule,
+  liveWorktreePaths: Set<string>,
+  now: number
+): ScheduleCategory {
+  const wt = scheduleWorktreePath(s)
+  if (wt && liveWorktreePaths.has(wt)) return 'active'
+  const at = Date.parse(s.at)
+  if (s.enabled && Number.isFinite(at) && at > now) return 'upcoming'
+  if (s.lastRunAt) return 'past'
+  return 'upcoming'
 }
 
 /** Validate + normalize an untrusted array of schedules. Drops invalid

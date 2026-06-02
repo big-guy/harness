@@ -77,11 +77,13 @@ export class ScheduleRunner {
 
   private fireOne(schedule: Schedule, now: number): void {
     // Advance (or disable) BEFORE the side effect so a throw or a re-entrant
-    // scan can't double-fire the same slot.
+    // scan can't double-fire the same slot. Stamp lastRunAt so the schedule
+    // is no longer "never run" (Upcoming) once it has fired.
     const next = nextOccurrence(schedule.at, schedule.repeat, now)
+    const base = { ...schedule, lastRunAt: new Date(now).toISOString() }
     this.store.dispatch({
       type: 'schedules/updated',
-      payload: next ? { ...schedule, at: next } : { ...schedule, enabled: false }
+      payload: next ? { ...base, at: next } : { ...base, enabled: false }
     })
     try {
       const r = this.opts.fire(schedule)
@@ -95,12 +97,18 @@ export class ScheduleRunner {
     }
   }
 
-  /** Drop worktree-scoped schedules whose worktree no longer exists. */
+  /** Drop worktree-scoped schedules that never ran once their worktree is
+   *  gone — they're temporary and can no longer fire. A worktree-scoped
+   *  schedule that HAS run is kept so it surfaces under "Past". */
   private prune(): void {
     const snap = this.store.getSnapshot().state
     const paths = new Set(snap.worktrees.list.map((w) => w.path))
     for (const s of snap.schedules.items) {
-      if (s.target.kind === 'worktree' && !paths.has(s.target.worktreePath)) {
+      if (
+        s.target.kind === 'worktree' &&
+        !paths.has(s.target.worktreePath) &&
+        !s.lastRunAt
+      ) {
         this.store.dispatch({ type: 'schedules/removed', payload: { id: s.id } })
       }
     }

@@ -456,6 +456,22 @@ const TOOLS = [
       },
       required: ['query']
     }
+  },
+  {
+    name: 'complete_scheduled_work',
+    description:
+      "Signal that the SCHEDULED task you were started for is complete. Call this ONLY when you are running as a Harness scheduled run (a worktree Harness created from a Schedule and kicked off automatically) and you have finished the work. Pass a concise `summary` of what you did and the outcome — Harness records it and then DELETES this worktree, so make the summary self-contained (it's the only record that survives). Do NOT call this in an ordinary interactive session; it has no effect when the worktree isn't backed by a schedule.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        summary: {
+          type: 'string',
+          description:
+            'A concise, self-contained summary of what was done and the outcome. This is retained after the worktree is deleted; include anything a human would need to know.'
+        }
+      },
+      required: ['summary']
+    }
   }
 ]
 
@@ -740,6 +756,15 @@ async function handleToolCall(name, args) {
       throw new Error(((r && r.error) || 'inbox query not found') + avail)
     }
     return JSON.stringify(r, null, 2)
+  }
+  if (name === 'complete_scheduled_work') {
+    const summary = args && typeof args.summary === 'string' ? args.summary.trim() : ''
+    if (!summary) throw new Error('summary is required')
+    const r = await callControl('POST', '/schedules/complete', { summary })
+    if (!r || r.ok === false) {
+      throw new Error((r && r.error) || 'this worktree is not backed by a schedule')
+    }
+    return 'Scheduled work "' + (r.title || 'task') + '" marked complete; worktree will be removed.'
   }
   throw new Error('unknown tool: ' + name)
 }

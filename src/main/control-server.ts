@@ -115,6 +115,17 @@ export interface ControlServerDeps {
   browser: BrowserQueries
   shell: ShellQueries
   inbox: InboxQueries
+  schedules: ScheduleQueries
+}
+
+export interface ScheduleQueries {
+  /** Mark the schedule backing `worktreePath` complete: record the agent's
+   *  summary, then delete the worktree. Returns the schedule title on
+   *  success, or ok:false when no schedule is associated with the worktree. */
+  completeScheduledWork: (
+    worktreePath: string,
+    summary: string
+  ) => { ok: true; title: string } | { ok: false; error: string }
 }
 
 export interface InboxQueries {
@@ -215,6 +226,28 @@ async function handleRequest(
   // helps agents understand the overall harness state.
   if (req.method === 'GET' && path === '/repos') {
     return sendJson(res, 200, { repoRoots: deps.getRepoRoots() })
+  }
+
+  // complete_scheduled_work — the agent signals its scheduled run is done.
+  // Scoped to the caller's worktree: Harness records the summary on the
+  // backing schedule and deletes this worktree.
+  if (req.method === 'POST' && path === '/schedules/complete') {
+    const { scope, terminalId } = resolveScope(req, deps)
+    if (!terminalId) {
+      return sendJson(res, 400, { error: 'X-Harness-Terminal-Id header required' })
+    }
+    if (!scope) {
+      return sendJson(res, 404, {
+        error: 'caller terminal is not associated with a worktree'
+      })
+    }
+    const body = await readJson(req)
+    const summary = typeof body.summary === 'string' ? body.summary.trim() : ''
+    if (!summary) {
+      return sendJson(res, 400, { error: 'summary is required' })
+    }
+    const result = deps.schedules.completeScheduledWork(scope.worktreePath, summary)
+    return sendJson(res, result.ok ? 200 : 404, result)
   }
 
   // get_inbox_list — return the items of one configured inbox query (by id

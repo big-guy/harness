@@ -96,6 +96,22 @@ describe('ScheduleRunner', () => {
     runner.stop()
   })
 
+  it('keeps a worktree-scoped schedule that already ran even if its worktree is gone', () => {
+    const store = storeWith([
+      mk({
+        id: 'wt',
+        at: '2026-07-09T09:00:00.000Z',
+        lastRunAt: '2026-06-30T09:00:00.000Z',
+        target: { kind: 'worktree', worktreePath: '/wt/gone', repoRoot: '/repo' }
+      })
+    ])
+    const fire = vi.fn()
+    const runner = new ScheduleRunner(store, { fire })
+    runner.start()
+    expect(store.getSnapshot().state.schedules.items).toHaveLength(1)
+    runner.stop()
+  })
+
   it('keeps worktree-scoped schedules whose worktree still exists', () => {
     const store = storeWith(
       [

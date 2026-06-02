@@ -64,6 +64,10 @@ interface WorktreesFSMOptions {
     teleportSessionId?: string
     agentKind?: 'claude' | 'codex'
     model?: string
+    /** Force the Claude tab kind for this worktree, overriding the user's
+     *  default. Scheduled runs pass 'json' so the agent starts main-side
+     *  (eagerly, headless) without the user switching to the worktree. */
+    claudeTabType?: 'json' | 'xterm'
   }) => void
 }
 
@@ -115,6 +119,9 @@ export class WorktreesFSM {
     teleportSessionId?: string
     agentKind?: 'claude' | 'codex'
     model?: string
+    /** Force the Claude tab kind (scheduled runs pass 'json' for eager,
+     *  headless start). Passed through to onWorktreeCreated. */
+    claudeTabType?: 'json' | 'xterm'
     /** When set, check out an existing branch instead of creating one
      * with `-b`. Used when the user picks from the existing-branches
      * dropdown — git resolves names like `origin/foo` to a local
@@ -126,7 +133,7 @@ export class WorktreesFSM {
      * instead of from the repo's default base. */
     baseRef?: string
   }): Promise<PendingOutcome> {
-    const { id, repoRoot, branchName, initialPrompt, teleportSessionId, agentKind, model, checkoutExisting, baseRef } = params
+    const { id, repoRoot, branchName, initialPrompt, teleportSessionId, agentKind, model, claudeTabType, checkoutExisting, baseRef } = params
     const pending: PendingWorktree = {
       id,
       repoRoot,
@@ -154,7 +161,8 @@ export class WorktreesFSM {
         initialPrompt,
         teleportSessionId,
         agentKind,
-        model
+        model,
+        claudeTabType
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -237,8 +245,9 @@ export class WorktreesFSM {
     teleportSessionId?: string
     agentKind?: 'claude' | 'codex'
     model?: string
+    claudeTabType?: 'json' | 'xterm'
   }): Promise<PendingOutcome> {
-    const { id, repoRoot, created, initialPrompt, teleportSessionId, agentKind, model } = args
+    const { id, repoRoot, created, initialPrompt, teleportSessionId, agentKind, model, claudeTabType } = args
 
     const setupCmd = this.resolveSetupCmd(repoRoot)
     let setupFailed = false
@@ -274,7 +283,8 @@ export class WorktreesFSM {
       initialPrompt,
       teleportSessionId,
       agentKind,
-      model
+      model,
+      claudeTabType
     })
     await this.refreshList()
 
