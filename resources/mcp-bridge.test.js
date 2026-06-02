@@ -402,3 +402,108 @@ describe('mcp-bridge add_inbox_item', () => {
     expect(response.result.content[0].text).toMatch(/No GitHub token configured/)
   })
 })
+
+describe('mcp-bridge get_inbox_list', () => {
+  let stub
+  let bridge
+
+  afterEach(async () => {
+    if (bridge) await bridge.kill()
+    if (stub) await stub.close()
+  })
+
+  it('forwards query + filter as GET params and returns the list JSON', async () => {
+    stub = await startStub((req, body, res) => {
+      if (req.url === '/scope') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        return res.end(JSON.stringify({ scope: null, browser: { enabled: true, mode: 'full' } }))
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          ok: true,
+          query: { id: 'q1', name: 'My PRs' },
+          total: 1,
+          matched: 1,
+          items: [{ key: 'pr:o/r#42', title: 'Fix it' }]
+        })
+      )
+    })
+    bridge = spawnBridge(stub.port, 'tok')
+
+    bridge.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })
+    await bridge.next()
+    bridge.send({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'get_inbox_list', arguments: { query: 'My PRs', filter: 'fix bug' } }
+    })
+    const response = await bridge.next()
+
+    expect(response.result.isError).toBeFalsy()
+    expect(response.result.content[0].text).toContain('pr:o/r#42')
+
+    const getCall = stub.captured.find((c) => c.method === 'GET' && c.url.startsWith('/inbox/items'))
+    expect(getCall).toBeDefined()
+    expect(getCall.url).toContain('query=My+PRs')
+    expect(getCall.url).toContain('filter=fix+bug')
+  })
+
+  it('rejects missing query locally without hitting the server', async () => {
+    stub = await startStub((req, body, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ scope: null, browser: { enabled: true, mode: 'full' } }))
+    })
+    bridge = spawnBridge(stub.port, 'tok')
+
+    bridge.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })
+    await bridge.next()
+    bridge.send({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'get_inbox_list', arguments: {} }
+    })
+    const response = await bridge.next()
+
+    expect(response.result.isError).toBe(true)
+    expect(response.result.content[0].text).toMatch(/query.*required/)
+    const getCall = stub.captured.find((c) => c.url.startsWith('/inbox/items'))
+    expect(getCall).toBeUndefined()
+  })
+
+  it('surfaces available query names when the query is unknown', async () => {
+    stub = await startStub((req, body, res) => {
+      if (req.url === '/scope') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        return res.end(JSON.stringify({ scope: null, browser: { enabled: true, mode: 'full' } }))
+      }
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          ok: false,
+          error: 'no inbox query matches "nope" (by id or name)',
+          available: [{ id: 'q1', name: 'My PRs' }, { id: 'q2', name: 'Assigned' }]
+        })
+      )
+    })
+    bridge = spawnBridge(stub.port, 'tok')
+
+    bridge.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })
+    await bridge.next()
+    bridge.send({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'get_inbox_list', arguments: { query: 'nope' } }
+    })
+    const response = await bridge.next()
+
+    expect(response.result.isError).toBe(true)
+    const text = response.result.content[0].text
+    expect(text).toMatch(/no inbox query matches/)
+    expect(text).toContain('My PRs')
+    expect(text).toContain('Assigned')
+  })
+})

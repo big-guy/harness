@@ -128,6 +128,15 @@ export interface InboxQueries {
   /** Resolve a repo root's GitHub origin, used to default owner/repo from the
    * caller's worktree when the tool omits them. */
   getOriginInfo: (repoRoot: string) => Promise<{ owner: string; repo: string } | null>
+  /** Resolve a configured inbox query by id or name (case-insensitive) and
+   * return its current items, optionally narrowed by a whitespace-separated
+   * AND filter. Returns the list of available queries on a miss. */
+  getList: (
+    idOrName: string,
+    filter: string | undefined
+  ) =>
+    | { ok: true; query: { id: string; name: string }; total: number; matched: number; items: unknown[] }
+    | { ok: false; error: string; available: Array<{ id: string; name: string }> }
 }
 
 const FULL_CONTROL_BROWSER_PATHS = new Set([
@@ -206,6 +215,15 @@ async function handleRequest(
   // helps agents understand the overall harness state.
   if (req.method === 'GET' && path === '/repos') {
     return sendJson(res, 200, { repoRoots: deps.getRepoRoots() })
+  }
+
+  // get_inbox_list — return the items of one configured inbox query (by id
+  // or name), optionally narrowed by a filter. Workspace-wide read.
+  if (req.method === 'GET' && path === '/inbox/items') {
+    const queryArg = (url.searchParams.get('query') || '').trim()
+    const filter = url.searchParams.get('filter') || undefined
+    const result = deps.inbox.getList(queryArg, filter)
+    return sendJson(res, result.ok ? 200 : 404, result)
   }
 
   // add_inbox_item — open a new GitHub issue (the same action the Add-item

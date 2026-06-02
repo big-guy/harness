@@ -4045,7 +4045,56 @@ async function runBoot(): Promise<void> {
         if (result.ok) inboxPoller.refreshAllIfStale()
         return result
       },
-      getOriginInfo: (repoRoot) => getRepoOriginInfo(repoRoot)
+      getOriginInfo: (repoRoot) => getRepoOriginInfo(repoRoot),
+      getList: (idOrName, filter) => {
+        const snap = store.getSnapshot().state
+        const queries = snap.settings.inboxQueries
+        const available = queries.map((qq) => ({ id: qq.id, name: qq.name }))
+        const needle = idOrName.trim().toLowerCase()
+        const q =
+          queries.find((qq) => qq.id.toLowerCase() === needle) ??
+          queries.find((qq) => qq.name.toLowerCase() === needle)
+        if (!q) {
+          return {
+            ok: false as const,
+            error: idOrName
+              ? `no inbox query matches "${idOrName}" (by id or name)`
+              : 'query (inbox query name or id) is required',
+            available
+          }
+        }
+        const all = snap.inbox.byQueryId[q.id] ?? []
+        const terms = (filter ?? '').toLowerCase().split(/\s+/).filter(Boolean)
+        const matched = all.filter((it) => {
+          if (terms.length === 0) return true
+          const hay = `${it.owner}/${it.repo}#${it.number} ${it.title} ${
+            it.author?.login ?? ''
+          } ${it.labels.map((l) => l.name).join(' ')} ${it.state} ${it.kind}`.toLowerCase()
+          return terms.every((t) => hay.includes(t))
+        })
+        return {
+          ok: true as const,
+          query: { id: q.id, name: q.name },
+          total: all.length,
+          matched: matched.length,
+          items: matched.map((it) => ({
+            key: `${it.kind}:${it.owner}/${it.repo}#${it.number}`,
+            kind: it.kind,
+            repo: `${it.owner}/${it.repo}`,
+            number: it.number,
+            title: it.title,
+            url: it.url,
+            state: it.state,
+            author: it.author?.login ?? null,
+            labels: it.labels.map((l) => l.name),
+            assignees: it.assignees.map((a) => a.login),
+            commentCount: it.commentCount,
+            createdAt: it.createdAt,
+            updatedAt: it.updatedAt,
+            bodyPreview: it.bodyPreview
+          }))
+        }
+      }
     },
     runWorktreeSetup: (ctx) => worktreesFSM.runWorktreeSetup(ctx),
     runPendingPRWorktree: async (params) => {

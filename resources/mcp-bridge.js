@@ -436,6 +436,26 @@ const TOOLS = [
       },
       required: ['title']
     }
+  },
+  {
+    name: 'get_inbox_list',
+    description:
+      "Return the items of one of Harness's configured Inbox lists (the saved GitHub search queries shown as tabs in the Inbox). Pass the query's name or id. Optionally pass a filter — a whitespace-separated set of terms that are AND-matched (case-insensitive) against each item's owner/repo#number, title, author, labels, state, and kind. Returns { query, total, matched, items[] } where each item includes a `key` (e.g. \"pr:owner/repo#42\") you can reuse elsewhere. On an unknown query the error lists the available query names.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Name or id of the configured inbox query (the Inbox tab label).'
+        },
+        filter: {
+          type: 'string',
+          description:
+            'Optional. Whitespace-separated terms AND-matched (case-insensitive) against each item (owner/repo#number, title, author, labels, state, kind).'
+        }
+      },
+      required: ['query']
+    }
   }
 ]
 
@@ -703,6 +723,23 @@ async function handleToolCall(name, args) {
     })
     if (!r || r.ok === false) throw new Error((r && r.error) || 'failed to create issue')
     return 'Added inbox item ' + r.owner + '/' + r.repo + '#' + r.number + ' → ' + r.htmlUrl
+  }
+  if (name === 'get_inbox_list') {
+    const query = args && typeof args.query === 'string' ? args.query.trim() : ''
+    if (!query) throw new Error('query (inbox query name or id) is required')
+    const q = new URLSearchParams({ query })
+    if (args && typeof args.filter === 'string' && args.filter.trim()) {
+      q.set('filter', args.filter)
+    }
+    const r = await callControl('GET', '/inbox/items?' + q.toString())
+    if (!r || r.ok === false) {
+      const avail =
+        r && Array.isArray(r.available) && r.available.length
+          ? ' Available queries: ' + r.available.map((a) => a.name).join(', ') + '.'
+          : ''
+      throw new Error(((r && r.error) || 'inbox query not found') + avail)
+    }
+    return JSON.stringify(r, null, 2)
   }
   throw new Error('unknown tool: ' + name)
 }
