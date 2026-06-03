@@ -14,6 +14,13 @@ export interface AgentSpawnOpts {
   model?: string | null
   systemPrompt?: string
   tuiFullscreen?: boolean
+  /** Resolved per-repo Claude home directory (CLAUDE_CONFIG_DIR) for
+   *  this worktree, or empty/undefined for the default `~/.claude`. The
+   *  spawn-args builder uses it to probe the correct
+   *  `<configDir>/projects/…` transcript location when deciding
+   *  `--resume` vs `--session-id`; without it a custom-home session
+   *  misdetects as fresh and Claude rejects the existing id on restore. */
+  configDir?: string
   /** Harness-control MCP bridge runtime info. The Codex agent injects
    *  this as `-c mcp_servers.harness-control.*` overrides at spawn
    *  time because Codex's `.mcp.json` does no interpolation (see
@@ -44,8 +51,8 @@ export interface AgentModule {
    *  Claude wrote per-worktree entries before the global-install era;
    *  Codex has its own equivalent. Used by the boot migration sweep. */
   stripHooksFromWorktree(worktreePath: string): boolean
-  sessionFileExists(cwd: string, sessionId: string): boolean
-  latestSessionId(cwd: string): string | null
+  sessionFileExists(cwd: string, sessionId: string, configDir?: string): boolean
+  latestSessionId(cwd: string, configDir?: string): string | null
   buildSpawnArgs(opts: AgentSpawnOpts): string
 }
 

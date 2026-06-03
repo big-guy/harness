@@ -108,19 +108,28 @@ export function stripHooksFromWorktree(worktreePath: string): boolean {
   return true
 }
 
-export function sessionFileExists(cwd: string, sessionId: string): boolean {
+/** Root of Claude's per-project transcript store. Honors a per-repo
+ *  CLAUDE_CONFIG_DIR override (sessions for custom-home repos live under
+ *  `<configDir>/projects/…`, not `~/.claude/projects/…`); falls back to
+ *  the default home when unset. */
+function claudeProjectsRoot(configDir?: string): string {
+  const base = configDir && configDir.trim() ? configDir.trim() : join(homedir(), '.claude')
+  return join(base, 'projects')
+}
+
+export function sessionFileExists(cwd: string, sessionId: string, configDir?: string): boolean {
   try {
     const encoded = cwd.replace(/[^a-zA-Z0-9]/g, '-')
-    return existsSync(join(homedir(), '.claude', 'projects', encoded, `${sessionId}.jsonl`))
+    return existsSync(join(claudeProjectsRoot(configDir), encoded, `${sessionId}.jsonl`))
   } catch {
     return false
   }
 }
 
-export function latestSessionId(cwd: string): string | null {
+export function latestSessionId(cwd: string, configDir?: string): string | null {
   try {
     const encoded = cwd.replace(/[^a-zA-Z0-9]/g, '-')
-    const dir = join(homedir(), '.claude', 'projects', encoded)
+    const dir = join(claudeProjectsRoot(configDir), encoded)
     const files = readdirSync(dir).filter((f) => f.endsWith('.jsonl'))
     if (files.length === 0) return null
     let bestId: string | null = null
@@ -153,7 +162,7 @@ export function buildSpawnArgs(opts: AgentSpawnOpts): string {
   const cmd = `${tuiPrefix}${opts.command}${modelFlag}${nameFlag}${systemPromptFlag}${pluginFlag}`
 
   if (opts.teleportSessionId && opts.sessionId) {
-    const exists = sessionFileExists(opts.cwd, opts.sessionId)
+    const exists = sessionFileExists(opts.cwd, opts.sessionId, opts.configDir)
     if (!exists) {
       return `${cmd} --teleport ${opts.teleportSessionId} --session-id ${opts.sessionId}`
     }
@@ -163,7 +172,7 @@ export function buildSpawnArgs(opts: AgentSpawnOpts): string {
     return opts.initialPrompt ? `${cmd} ${shellQuote(opts.initialPrompt)}` : cmd
   }
 
-  const exists = sessionFileExists(opts.cwd, opts.sessionId)
+  const exists = sessionFileExists(opts.cwd, opts.sessionId, opts.configDir)
   if (exists) return `${cmd} --resume ${opts.sessionId}`
   const base = `${cmd} --session-id ${opts.sessionId}`
   return opts.initialPrompt ? `${base} ${shellQuote(opts.initialPrompt)}` : base

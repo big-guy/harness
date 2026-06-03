@@ -202,10 +202,14 @@ export function bundledClaudeBinPath(): string {
 }
 
 
-function transcriptPathFor(sessionId: string, worktreePath: string): string {
+function transcriptPathFor(
+  sessionId: string,
+  worktreePath: string,
+  configDir?: string
+): string {
+  const base = configDir && configDir.trim() ? configDir.trim() : join(homedir(), '.claude')
   return join(
-    homedir(),
-    '.claude',
+    base,
     'projects',
     worktreePath.replace(/[^a-zA-Z0-9]/g, '-'),
     `${sessionId}.jsonl`
@@ -273,7 +277,11 @@ export class JsonClaudeManager {
     sessionId: string,
     worktreePath: string
   ): JsonClaudeChatEntry[] {
-    const transcriptPath = transcriptPathFor(sessionId, worktreePath)
+    const transcriptPath = transcriptPathFor(
+      sessionId,
+      worktreePath,
+      this.opts.getClaudeConfigDir(worktreePath)
+    )
     if (!existsSync(transcriptPath)) return []
 
     let counter = 0
@@ -469,7 +477,9 @@ export class JsonClaudeManager {
 
     const useSystemClaude = this.opts.getUseSystemClaude()
     const claudeCommand = this.opts.getClaudeCommand() || 'claude'
-    const existingSession = existsSync(transcriptPathFor(sessionId, worktreePath))
+    const existingSession = existsSync(
+      transcriptPathFor(sessionId, worktreePath, this.opts.getClaudeConfigDir(worktreePath))
+    )
     const resumeOrSet = existingSession
       ? ['--resume', sessionId]
       : ['--session-id', sessionId]
@@ -956,7 +966,11 @@ export class JsonClaudeManager {
     worktreePath: string,
     apiMessageId: string
   ): { ok: boolean; reason?: string } {
-    const transcriptPath = transcriptPathFor(sessionId, worktreePath)
+    const transcriptPath = transcriptPathFor(
+      sessionId,
+      worktreePath,
+      this.opts.getClaudeConfigDir(worktreePath)
+    )
     if (!existsSync(transcriptPath)) {
       // No on-disk session yet — caller still re-seeds the (empty) slice.
       return { ok: true }

@@ -33,7 +33,9 @@ export function stripHooksFromWorktree(worktreePath: string): boolean {
   return stripHarnessEntriesFromHooksFile(legacyWorktreeHooksPath(worktreePath))
 }
 
-export function sessionFileExists(_cwd: string, sessionId: string): boolean {
+// configDir is accepted for interface parity with the Claude agent but
+// ignored — Codex transcripts live under $CODEX_HOME, not Claude's home.
+export function sessionFileExists(_cwd: string, sessionId: string, _configDir?: string): boolean {
   try {
     const sessionsDir = join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'sessions')
     const walkDir = (dir: string): boolean => {
@@ -52,7 +54,7 @@ export function sessionFileExists(_cwd: string, sessionId: string): boolean {
   }
 }
 
-export function latestSessionId(_cwd: string): string | null {
+export function latestSessionId(_cwd: string, _configDir?: string): string | null {
   try {
     const sessionsDir = join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'sessions')
     let bestId: string | null = null

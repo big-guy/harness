@@ -195,6 +195,18 @@ function resolveCallerScope(terminalId: string) {
   }
 }
 
+/** Resolve a worktree path to its repo's per-repo CLAUDE_CONFIG_DIR
+ *  override (absolute, ~-expanded), or '' for the default ~/.claude.
+ *  Single source of truth for the json-claude manager and the
+ *  agent:* IPC handlers so resume-detection and the spawned env agree
+ *  on which Claude home is in effect. */
+function claudeConfigDirForWorktree(worktreePath: string): string {
+  const snap = store.getSnapshot().state
+  const wt = snap.worktrees.list.find((w) => w.path === worktreePath)
+  if (!wt) return ''
+  return resolveClaudeConfigDir(snap.repoLocal.byRepo[wt.repoRoot])
+}
+
 /** Find the worktree that owns a given shell tab id. Only matches tabs whose
  * type is 'shell'; agent/browser/diff/file tabs are not addressable via the
  * shell MCP even if an id collision were possible. */
@@ -338,12 +350,8 @@ const jsonClaudeManager = new JsonClaudeManager(store, {
   closeApprovalSession: (sessionId) => approvalBridge.stopSession(sessionId),
   getClaudeEnvVars: () =>
     store.getSnapshot().state.settings.claudeEnvVars || {},
-  getClaudeConfigDir: (worktreePath: string) => {
-    const snap = store.getSnapshot().state
-    const wt = snap.worktrees.list.find((w) => w.path === worktreePath)
-    if (!wt) return ''
-    return resolveClaudeConfigDir(snap.repoLocal.byRepo[wt.repoRoot])
-  },
+  getClaudeConfigDir: (worktreePath: string) =>
+    claudeConfigDirForWorktree(worktreePath),
   getControlServer: () => getControlServerInfo(),
   isHarnessMcpEnabled: () =>
     store.getSnapshot().state.settings.harnessMcpEnabled !== false,
@@ -2287,12 +2295,14 @@ function registerIpcHandlers(): void {
 
   transport.onRequest('agent:sessionFileExists', (_ctx, cwd: string, sessionId: string, agentKind?: string): boolean => {
     const kind = toAgentKind(agentKind)
-    return getAgent(kind).sessionFileExists(cwd, sessionId)
+    const configDir = kind === 'claude' ? claudeConfigDirForWorktree(cwd) : undefined
+    return getAgent(kind).sessionFileExists(cwd, sessionId, configDir)
   })
 
   transport.onRequest('agent:latestSessionId', (_ctx, cwd: string, agentKind?: string): string | null => {
     const kind = toAgentKind(agentKind)
-    return getAgent(kind).latestSessionId(cwd)
+    const configDir = kind === 'claude' ? claudeConfigDirForWorktree(cwd) : undefined
+    return getAgent(kind).latestSessionId(cwd, configDir)
   })
 
   transport.onRequest(
@@ -2349,7 +2359,8 @@ function registerIpcHandlers(): void {
         }
       }
 
-      return agent.buildSpawnArgs({ ...opts, command, model, systemPrompt, tuiFullscreen, harnessControl })
+      const configDir = kind === 'claude' ? claudeConfigDirForWorktree(opts.cwd) : undefined
+      return agent.buildSpawnArgs({ ...opts, command, model, systemPrompt, tuiFullscreen, harnessControl, configDir })
     }
   )
 
