@@ -33,7 +33,6 @@ import { PanesFSM, stripTransientTabFields } from './panes-fsm'
 import { ActivityDeriver } from './activity-deriver'
 import { AutoSleepMonitor } from './auto-sleep-monitor'
 import { WorktreeWatcher } from './worktree-watcher'
-import { BranchSyncWatcher } from './branch-sync-watcher'
 import { SnoozeTimer } from './snooze-timer'
 import { getWeeklyStats } from './weekly-stats'
 import type { TerminalTab, PaneNode, PaneLeaf } from '../shared/state/terminals'
@@ -619,11 +618,8 @@ ptyManager.setSendSignal((channel, ...args) => transport.sendSignal(channel, ...
 ptyManager.setPerfMonitor(perfMonitor)
 perfMonitor.start(store, () => ptyManager.getActivePtyCount())
 
-// Watches each subscribed worktree's .git/ for index/HEAD/MERGE_HEAD changes
-// so the renderer's Changed Files panel can refresh on real events instead
-// of polling every 3s. Reference-counted: one fs.watch handle per worktree
-// regardless of how many clients are subscribed.
-const worktreeWatcher = new WorktreeWatcher()
+// Per-client changed-files subscriptions, layered on the WorktreeWatcher
+// (constructed below — it needs worktreesFSM for its branch-sync callback).
 const worktreeWatchSubs = new Map<string, Map<string, () => void>>()
 
 function unsubscribeAllForClient(clientId: string): void {
@@ -862,20 +858,22 @@ const worktreeDeletionFSM = new WorktreeDeletionFSM(store, {
   worktreesFSM
 })
 
-// Event-driven branch-name sync. Watches each worktree's gitdir HEAD so a
+// The WorktreeWatcher serves both the Changed Files panel (ref-counted
+// subscribe() above/below) and event-driven branch-name sync off one fs.watch
+// handle per worktree. The branch half watches each worktree's gitdir HEAD so a
 // branch switch / rename / detached-HEAD / rebase step in a terminal re-reads
 // the branch immediately, instead of waiting for the next create/delete/manual
 // refresh (which is how "rebasing 2/22" used to get stuck forever). refreshList
 // is deduped via applyList, so a no-op fs event won't churn the store.
-const branchSyncWatcher = new BranchSyncWatcher(() => {
+const worktreeWatcher = new WorktreeWatcher(() => {
   void worktreesFSM.refreshList()
 })
-// Keep the watch set in lockstep with the worktree list. Only reacts to
-// listChanged (infrequent); sync() is a cheap set-diff that opens/closes
-// watchers and never dispatches, so there's no feedback loop.
+// Keep the branch-sync watch set in lockstep with the worktree list. Only
+// reacts to listChanged (infrequent); sync() is a cheap set-diff that
+// opens/closes watchers and never dispatches, so there's no feedback loop.
 store.subscribe((event) => {
   if (event.type !== 'worktrees/listChanged') return
-  branchSyncWatcher.sync(store.getSnapshot().state.worktrees.list)
+  worktreeWatcher.sync(store.getSnapshot().state.worktrees.list)
 })
 
 const activityDeriver = new ActivityDeriver(store)
@@ -3914,7 +3912,7 @@ if (desktopShellMod && desktopEarly) {
       // Close local tunnel ends — the remote `harness-server` is left
       // running (intentional; see plans/remote-main.md §4).
       sshTunnelManager.closeAll()
-      branchSyncWatcher.shutdown()
+      worktreeWatcher.shutdown()
     },
     setWarnBeforeQuitting
   })
@@ -3935,7 +3933,7 @@ if (desktopShellMod && desktopEarly) {
     ptyManager.killAll('SIGKILL')
     jsonClaudeManager.killAll()
     approvalBridge.stopAll()
-    branchSyncWatcher.shutdown()
+    worktreeWatcher.shutdown()
     browserManager.destroyAll()
     sshTunnelManager.closeAll()
     sealAllActive()
