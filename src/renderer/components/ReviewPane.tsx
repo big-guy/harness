@@ -639,6 +639,16 @@ export function ReviewPane({
       {/* Top controls bar */}
       <div className="shrink-0 border-b border-border bg-panel">
         <div className="h-10 flex items-center gap-3 px-3">
+          <Tooltip label="Keyboard shortcuts (?)">
+            <button
+              onClick={() => setShowShortcuts((v) => !v)}
+              aria-label="Keyboard shortcuts"
+              className="flex items-center shrink-0 px-1.5 py-1 rounded border border-border text-faint hover:text-fg cursor-pointer transition-colors"
+            >
+              <Keyboard className="icon-xs" />
+            </button>
+          </Tooltip>
+
           <Tooltip label={pr ? 'PR description' : 'No pull request for this worktree'}>
             <button
               onClick={() => setShowPrDescription((v) => !v)}
@@ -650,16 +660,6 @@ export function ReviewPane({
               }`}
             >
               <GitPullRequest className="icon-xs" />
-            </button>
-          </Tooltip>
-
-          <Tooltip label="Keyboard shortcuts (?)">
-            <button
-              onClick={() => setShowShortcuts((v) => !v)}
-              aria-label="Keyboard shortcuts"
-              className="flex items-center shrink-0 px-1.5 py-1 rounded border border-border text-faint hover:text-fg cursor-pointer transition-colors"
-            >
-              <Keyboard className="icon-xs" />
             </button>
           </Tooltip>
 
