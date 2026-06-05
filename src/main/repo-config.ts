@@ -4,6 +4,7 @@ import { isAbsolute, join } from 'path'
 import { log } from './debug'
 import { DEFAULT_HIDDEN_RIGHT_PANELS, type RepoConfig } from '../shared/state/repo-configs'
 import type { RepoLocalConfig } from '../shared/state/repo-local'
+import { sanitizeRunnerList } from '../shared/state/runners'
 
 export type { RepoConfig }
 
@@ -26,6 +27,13 @@ export function loadRepoConfig(repoRoot: string): RepoConfig {
   try {
     const parsed = JSON.parse(readFileSync(path, 'utf-8')) as RepoConfig
     const clean = parsed && typeof parsed === 'object' ? parsed : {}
+    // Normalize hand-edited user runners so a malformed entry can't reach the
+    // Toolbox launch path. Drop the key entirely when nothing valid remains.
+    if ('runners' in clean) {
+      const runners = sanitizeRunnerList(clean.runners)
+      if (runners.length > 0) clean.runners = runners
+      else delete clean.runners
+    }
     cache.set(repoRoot, clean)
     return clean
   } catch (err) {
@@ -59,6 +67,8 @@ export function saveRepoConfig(repoRoot: string, next: RepoConfig): RepoConfig {
   if (Array.isArray(next.rightPanelOrder) && next.rightPanelOrder.length > 0) {
     cleaned.rightPanelOrder = [...next.rightPanelOrder]
   }
+  const runners = sanitizeRunnerList(next.runners)
+  if (runners.length > 0) cleaned.runners = runners
 
   const hasAny = Object.keys(cleaned).some((k) => k !== 'version')
   const path = configPath(repoRoot)

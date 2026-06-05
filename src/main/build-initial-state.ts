@@ -22,6 +22,7 @@ import {
   type BadgeShape,
   type RepoLocalConfig
 } from '../shared/state/repo-local'
+import { sanitizeRunnerList, type RunnerItem } from '../shared/state/runners'
 import {
   initialSettings,
   DEFAULT_LIGHT_THEME,
@@ -86,6 +87,7 @@ export function buildInitialAppState(
     announcements: initialAnnouncements,
     scratchpad: { byWorktreePath: flattenScratchpadNotes(config.scratchpadNotes) },
     sshBootstrap: initialSshBootstrap,
+    runners: { byWorktree: sanitizeRunners(config.runners) },
     settings: {
       ...initialSettings,
       themeMode:
@@ -191,6 +193,24 @@ function sanitizePerRepoLocal(
       }
     }
     if (Object.keys(cleaned).length > 0) out[repoRoot] = cleaned
+  }
+  return out
+}
+
+/** Drop malformed entries when seeding the per-worktree Runners slice from
+ *  disk. The on-disk shape is `{ [worktreePath]: RunnerItem[] }`; each runner
+ *  needs a non-empty name + command (description optional, coerced to '').
+ *  A legacy top-level array (the pre-per-worktree shape) is ignored. The
+ *  reducer re-sorts on load, so order here doesn't matter. */
+function sanitizeRunners(
+  raw: Record<string, RunnerItem[]> | undefined
+): Record<string, RunnerItem[]> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const out: Record<string, RunnerItem[]> = {}
+  for (const [worktreePath, list] of Object.entries(raw)) {
+    if (!worktreePath || !Array.isArray(list)) continue
+    const items = sanitizeRunnerList(list)
+    if (items.length > 0) out[worktreePath] = items
   }
   return out
 }

@@ -22,6 +22,7 @@ import {
 import type { CostsState } from '../shared/state/costs'
 import type { SnoozeEntry } from '../shared/state/snooze'
 import type { RepoLocalConfig } from '../shared/state/repo-local'
+import type { RunnerItem } from '../shared/state/runners'
 
 export type { PersistedPane, PersistedPaneNode, PersistedTab }
 
@@ -296,6 +297,11 @@ export interface Config {
   // never get committed across collaborators. See RepoLocalConfig for
   // the supported fields.
   perRepoLocal?: Record<string, RepoLocalConfig>
+  // Runners registered via the register_runner MCP tool — named shell
+  // commands a human can launch from the Toolbox dropdown. Scoped per
+  // worktree (keyed by absolute worktree path). Persisted so they survive
+  // restart.
+  runners?: Record<string, RunnerItem[]>
 }
 
 export const DEFAULT_WORKTREE_BASE: 'remote' | 'local' = 'remote'

@@ -30,6 +30,7 @@ Default screenshot format is JPEG quality 70 (context-efficient). Ask for `forma
 ## Tools at a glance
 
 - `create_browser_tab` — open a new tab in this worktree (optionally navigating to a URL)
+- `close_browser_tab` — close a tab when you're done with it
 - `list_browser_tabs`, `get_tab_url`, `get_tab_dom`, `get_tab_console_logs` — inspect
 - `navigate_tab`, `back_tab`, `forward_tab`, `reload_tab` — drive
 - `get_tab_clickables`, `click_tab`, `type_tab`, `scroll_tab`, `show_cursor` — interact

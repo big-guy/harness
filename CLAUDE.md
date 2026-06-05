@@ -707,15 +707,19 @@ matching the `actions/setup-node` step in the workflow.
 
 ## Common commands
 
-| Command | What it does |
-|---|---|
-| `npm run dev` | Launch in dev mode (electron-vite) |
-| `npm run log` | Tail the debug log file |
-| `npm run log:clear` | Clear the debug log |
-| `npm run log:perf` | Tail the perf trace log (append-only across sessions) |
-| `npm run log:perf:clear` | Clear the perf trace log (use before a fresh repro) |
-| `npm run build` | Build all three (main, preload, renderer) to `out/` |
-| `npm run pack` | Build + package without distribution (no signing) |
-| `npm run dist:mac` | Full signed + notarized macOS build |
-| `npm run rebuild:dev` | Rebuild node-pty for dev Electron |
-| `npm run release <ver>` | Full end-to-end release |
+| Command                  | What it does                                          | Toolbox runner |
+|--------------------------|-------------------------------------------------------|----------------|
+| `npm run dev`            | Launch in dev mode (electron-vite)                    | Yes            |
+| `npm run dev:headless`   | Start headless                                        | Yes            |
+| `npm run log`            | Tail the debug log file                               | No             |
+| `npm run log:clear`      | Clear the debug log                                   | No             |
+| `npm run log:perf`       | Tail the perf trace log (append-only across sessions) | No             |
+| `npm run log:perf:clear` | Clear the perf trace log (use before a fresh repro)   | No             |
+| `npm run build`          | Build all three (main, preload, renderer) to `out/`   | No             |
+| `npm run rebuild:dev`    | Rebuild node-pty for dev Electron                     | Yes            |
+| `npm run pack`           | Build + package without distribution (no signing)     | Yes            |
+| `npm run dist:mac`       | Full signed + notarized macOS build                   | No             |
+| `npm run release <ver>`  | Full end-to-end release                               | No             |
+
+Add toolbox runners to Harness when the user needs them. 
+If other specific commands become important while working on a task, suggest adding them to Harness as a new toolbox runner. 

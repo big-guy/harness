@@ -27,6 +27,7 @@ export interface BrowserQueries {
   forwardTab: (tabId: string) => void
   reloadTab: (tabId: string) => void
   createTab: (worktreePath: string, url: string) => { id: string; url: string }
+  closeTab: (tabId: string) => void
   clickTab: (
     tabId: string,
     x: number,
@@ -76,6 +77,19 @@ export interface ShellQueries {
   killShell: (shellId: string) => void
 }
 
+export interface RunnerQueries {
+  /** Register (upsert by name) a runner for a specific worktree. Surfaced in
+   *  that worktree's Toolbox dropdown for a human to launch. */
+  registerRunner: (opts: {
+    worktreePath: string
+    name: string
+    description: string
+    command: string
+    icon?: string
+    cardinality?: number
+  }) => { name: string }
+}
+
 /** Scope derived from the caller's terminal id on every request. The
  * source of truth — env vars injected into the MCP bridge can go stale
  * (teleport sessions, deleted worktrees), so each tool call re-resolves. */
@@ -120,6 +134,7 @@ export interface ControlServerDeps {
   getBrowserPerms: () => BrowserPerms
   browser: BrowserQueries
   shell: ShellQueries
+  runner: RunnerQueries
 }
 
 const FULL_CONTROL_BROWSER_PATHS = new Set([
@@ -198,6 +213,44 @@ async function handleRequest(
   // helps agents understand the overall harness state.
   if (req.method === 'GET' && path === '/repos') {
     return sendJson(res, 200, { repoRoots: deps.getRepoRoots() })
+  }
+
+  // register_runner is scoped to the caller's worktree: the runner lands in
+  // that worktree's Toolbox dropdown. Resolve scope from the terminal id and
+  // require a worktree (same model as create_shell). Upsert by name.
+  if (req.method === 'POST' && path === '/runners') {
+    const { scope, terminalId } = resolveScope(req, deps)
+    if (!terminalId) {
+      return sendJson(res, 400, { error: 'X-Harness-Terminal-Id header required' })
+    }
+    if (!scope) {
+      return sendJson(res, 404, {
+        error: 'caller terminal is not associated with a worktree'
+      })
+    }
+    const body = await readJson(req)
+    const name = typeof body.name === 'string' ? body.name.trim() : ''
+    const description = typeof body.description === 'string' ? body.description.trim() : ''
+    const command = typeof body.command === 'string' ? body.command.trim() : ''
+    const icon = typeof body.icon === 'string' ? body.icon.trim() : ''
+    const cardinality =
+      typeof body.cardinality === 'number' &&
+      Number.isInteger(body.cardinality) &&
+      body.cardinality >= 1
+        ? body.cardinality
+        : undefined
+    if (!name || !command) {
+      return sendJson(res, 400, { error: 'name and command are required' })
+    }
+    const result = deps.runner.registerRunner({
+      worktreePath: scope.worktreePath,
+      name,
+      description,
+      command,
+      icon: icon || undefined,
+      cardinality
+    })
+    return sendJson(res, 200, result)
   }
 
   // Worktree management tools are workspace-wide for every caller — a
@@ -429,6 +482,10 @@ async function handleRequest(
     }
     if (req.method === 'POST' && path === '/browser/reload') {
       deps.browser.reloadTab(tabId)
+      return sendJson(res, 200, { ok: true })
+    }
+    if (req.method === 'POST' && path === '/browser/close') {
+      deps.browser.closeTab(tabId)
       return sendJson(res, 200, { ok: true })
     }
     if (req.method === 'POST' && path === '/browser/click') {

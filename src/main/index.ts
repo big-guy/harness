@@ -610,6 +610,20 @@ store.subscribe((event) => {
   }
 })
 
+// Persist registered runners so they survive restart. Per-worktree map,
+// written whole on each runners/* mutation (the data is tiny).
+store.subscribe((event) => {
+  if (event.type.startsWith('runners/')) {
+    const byWorktree = store.getSnapshot().state.runners.byWorktree
+    if (Object.keys(byWorktree).length === 0) {
+      delete config.runners
+    } else {
+      config.runners = byWorktree
+    }
+    saveConfig(config)
+  }
+})
+
 // When a session ID is discovered from a hook event (e.g. Codex assigns
 // its own session ID), persist panes immediately so the ID survives a quit.
 store.subscribe((event) => {
@@ -2501,6 +2515,29 @@ function registerIpcHandlers(): void {
     }
   )
   transport.onRequest(
+    'panes:openRunner',
+    (
+      _ctx,
+      wtPath: string,
+      idPrefix: string,
+      label: string,
+      command: string,
+      nearPaneId?: string,
+      cardinality?: number
+    ) => {
+      panesFSM.openRunnerTab(wtPath, idPrefix, label, command, nearPaneId, cardinality)
+      return true
+    }
+  )
+  transport.onRequest('panes:restartRunner', (_ctx, wtPath: string, idPrefix: string) => {
+    panesFSM.restartRunnerTab(wtPath, idPrefix)
+    return true
+  })
+  transport.onRequest('runners:remove', (_ctx, wtPath: string, name: string) => {
+    store.dispatch({ type: 'runners/removed', payload: { worktreePath: wtPath, name } })
+    return true
+  })
+  transport.onRequest(
     'panes:splitPane',
     (_ctx, wtPath: string, fromPaneId: string, direction?: 'horizontal' | 'vertical') => {
       return panesFSM.splitPane(wtPath, fromPaneId, direction || 'horizontal')
@@ -3950,6 +3987,10 @@ async function runBoot(): Promise<void> {
         })
         return { id, url: finalUrl }
       },
+      closeTab: (tabId) => {
+        const wtPath = browserManager.getWorktreePath(tabId)
+        if (wtPath) panesFSM.closeTab(wtPath, tabId)
+      },
       clickTab: (tabId, x, y, options) => browserManager.clickTab(tabId, x, y, options),
       typeTab: (tabId, text, key) => browserManager.typeTab(tabId, text, key),
       scrollTab: (tabId, dx, dy) => browserManager.scrollTab(tabId, dx, dy),
@@ -4056,6 +4097,24 @@ async function runBoot(): Promise<void> {
         } else {
           ptyManager.kill(shellId)
         }
+      }
+    },
+    runner: {
+      registerRunner: ({ worktreePath, name, description, command, icon, cardinality }) => {
+        store.dispatch({
+          type: 'runners/registered',
+          payload: {
+            worktreePath,
+            item: {
+              name,
+              description,
+              command,
+              ...(icon ? { icon } : {}),
+              ...(cardinality != null ? { cardinality } : {})
+            }
+          }
+        })
+        return { name }
       }
     },
     runWorktreeSetup: (ctx) => worktreesFSM.runWorktreeSetup(ctx),

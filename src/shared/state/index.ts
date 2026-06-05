@@ -109,6 +109,12 @@ import {
   type RepoLocalState
 } from './repo-local'
 import { initialConfigHealth, type ConfigHealthState } from './config-health'
+import {
+  initialRunners,
+  runnersReducer,
+  type RunnersEvent,
+  type RunnersState
+} from './runners'
 
 export type { SettingsState, SettingsEvent }
 export type { UpdaterState, UpdaterEvent, UpdaterStatus } from './updater'
@@ -203,6 +209,7 @@ export {
   DEFAULT_CLAUDE_ACCOUNT_BADGE
 } from './repo-local'
 export type { ConfigHealthState, ConfigLoadError } from './config-health'
+export type { RunnersState, RunnersEvent, RunnerItem } from './runners'
 
 export interface AppState {
   settings: SettingsState
@@ -222,6 +229,7 @@ export interface AppState {
   sshBootstrap: SshBootstrapState
   repoLocal: RepoLocalState
   configHealth: ConfigHealthState
+  runners: RunnersState
 }
 
 export type StateEvent =
@@ -241,6 +249,7 @@ export type StateEvent =
   | ScratchpadEvent
   | SshBootstrapEvent
   | RepoLocalEvent
+  | RunnersEvent
 
 export const initialState: AppState = {
   settings: initialSettings,
@@ -259,7 +268,8 @@ export const initialState: AppState = {
   scratchpad: initialScratchpad,
   sshBootstrap: initialSshBootstrap,
   repoLocal: initialRepoLocal,
-  configHealth: initialConfigHealth
+  configHealth: initialConfigHealth,
+  runners: initialRunners
 }
 
 export function rootReducer(state: AppState, event: StateEvent): AppState {
@@ -344,6 +354,12 @@ export function rootReducer(state: AppState, event: StateEvent): AppState {
       repoLocal: repoLocalReducer(state.repoLocal, event as RepoLocalEvent)
     }
   }
+  if (event.type.startsWith('runners/')) {
+    return {
+      ...state,
+      runners: runnersReducer(state.runners, event as RunnersEvent)
+    }
+  }
   // configHealth has no events — it's seeded at construction only (see
   // config-health.ts), so there's no reducer branch. The field flows through
   // unchanged via the `...state` spreads above.
@@ -394,7 +410,8 @@ export function mergeWireSnapshot(state: WireSnapshotState): AppState {
     scratchpad: { ...initialState.scratchpad, ...state.scratchpad },
     sshBootstrap: { ...initialState.sshBootstrap, ...state.sshBootstrap },
     repoLocal: { ...initialState.repoLocal, ...state.repoLocal },
-    configHealth: { ...initialState.configHealth, ...state.configHealth }
+    configHealth: { ...initialState.configHealth, ...state.configHealth },
+    runners: { ...initialState.runners, ...state.runners }
   }
 }
 
