@@ -62,7 +62,12 @@ import {
   type PersistedPaneNode,
   type QuestStep
 } from './persistence'
-import { loadRepoConfig, saveRepoConfig, type RepoConfig } from './repo-config'
+import {
+  loadRepoConfig,
+  saveRepoConfig,
+  resolveClaudeConfigDir,
+  type RepoConfig
+} from './repo-config'
 import { createNewProject, type GitignorePreset } from './repo-create'
 import { resolveRepoPath } from './repo-resolve'
 import { registerRepoRoot } from './repo-roots'
@@ -70,6 +75,7 @@ import type { AddRepoResult } from '../shared/repo-pick'
 import { isWorktreeMerged } from '../shared/state/prs'
 import { MAX_WAKE } from '../shared/state/snooze'
 import { hasScratchpadNote } from '../shared/state/scratchpad'
+import type { RepoLocalConfig } from '../shared/state/repo-local'
 import {
   DEFAULT_LIGHT_THEME,
   DEFAULT_DARK_THEME,
@@ -204,6 +210,18 @@ function resolveCallerScope(terminalId: string) {
     repoRoot: wt.repoRoot,
     isMain: wt.isMain
   }
+}
+
+/** Resolve a worktree path to its repo's per-repo CLAUDE_CONFIG_DIR
+ *  override (absolute, ~-expanded), or '' for the default ~/.claude.
+ *  Single source of truth for the json-claude manager and the
+ *  agent:* IPC handlers so resume-detection and the spawned env agree
+ *  on which Claude home is in effect. */
+function claudeConfigDirForWorktree(worktreePath: string): string {
+  const snap = store.getSnapshot().state
+  const wt = snap.worktrees.list.find((w) => w.path === worktreePath)
+  if (!wt) return ''
+  return resolveClaudeConfigDir(snap.repoLocal.byRepo[wt.repoRoot])
 }
 
 /** Find the worktree that owns a given shell tab id. Only matches tabs whose
@@ -349,6 +367,8 @@ const jsonClaudeManager = new JsonClaudeManager(store, {
   closeApprovalSession: (sessionId) => approvalBridge.stopSession(sessionId),
   getClaudeEnvVars: () =>
     store.getSnapshot().state.settings.claudeEnvVars || {},
+  getClaudeConfigDir: (worktreePath: string) =>
+    claudeConfigDirForWorktree(worktreePath),
   getControlServer: () => getControlServerInfo(),
   isHarnessMcpEnabled: () =>
     store.getSnapshot().state.settings.harnessMcpEnabled !== false,
@@ -539,8 +559,17 @@ transport.onRequest(
   }
 )
 
-transport.onRequest('claude:getAuthStatus', async () => {
-  return getClaudeAuthStatus()
+transport.onRequest('claude:getAuthStatus', async (_ctx, repoRoot?: string) => {
+  // When the caller passes a repoRoot, honor that repo's claudeConfigDir
+  // override so the auth display reflects the account Claude sessions
+  // in that repo will actually use.
+  let configDir: string | undefined
+  if (repoRoot) {
+    const local = store.getSnapshot().state.repoLocal.byRepo[repoRoot]
+    const dir = resolveClaudeConfigDir(local)
+    if (dir) configDir = dir
+  }
+  return getClaudeAuthStatus({ configDir })
 })
 
 // Auto-persist the costs slice to config.json on each change. Debounced
@@ -1369,9 +1398,16 @@ function registerIpcHandlers(): void {
     if (config.panes && config.panes[repoRoot]) {
       delete config.panes[repoRoot]
     }
+    // GC the per-user-per-repo local config too. Orphan entries are
+    // harmless but the file accretes over many add/remove cycles.
+    if (config.perRepoLocal && config.perRepoLocal[repoRoot]) {
+      delete config.perRepoLocal[repoRoot]
+      if (Object.keys(config.perRepoLocal).length === 0) delete config.perRepoLocal
+    }
     saveConfig(config)
     worktreesFSM.dispatchRepos([...config.repoRoots])
     store.dispatch({ type: 'repoConfigs/removed', payload: repoRoot })
+    store.dispatch({ type: 'repoLocal/removed', payload: repoRoot })
     void worktreesFSM.refreshList()
     return true
   })
@@ -1754,6 +1790,41 @@ function registerIpcHandlers(): void {
     saveConfig(config)
     store.dispatch({ type: 'settings/codexEnvVarsChanged', payload: config.codexEnvVars || {} })
     return true
+  })
+
+  transport.onRequest('repoLocal:set', (_ctx, repoRoot: string, patch: Record<string, unknown>) => {
+    if (!repoRoot) return null
+    const all: Record<string, RepoLocalConfig> = { ...(config.perRepoLocal ?? {}) }
+    const current: RepoLocalConfig = all[repoRoot] ?? {}
+    const next: Record<string, unknown> = { ...current }
+    for (const [k, v] of Object.entries(patch || {})) {
+      // Treat null/undefined/empty-string as "remove this key" so the
+      // Settings UI's "Clear" buttons land cleanly without sending a
+      // separate delete IPC.
+      if (v === null || v === undefined || v === '') {
+        delete next[k]
+      } else {
+        next[k] = v
+      }
+    }
+    const cleaned = next as RepoLocalConfig
+    if (Object.keys(cleaned).length === 0) {
+      delete all[repoRoot]
+    } else {
+      all[repoRoot] = cleaned
+    }
+    if (Object.keys(all).length === 0) {
+      delete config.perRepoLocal
+    } else {
+      config.perRepoLocal = all
+    }
+    saveConfig(config)
+    if (Object.keys(cleaned).length > 0) {
+      store.dispatch({ type: 'repoLocal/changed', payload: { repoRoot, config: cleaned } })
+    } else {
+      store.dispatch({ type: 'repoLocal/removed', payload: repoRoot })
+    }
+    return cleaned
   })
 
   transport.onRequest('repoConfig:set', (_ctx, repoRoot: string, next: Record<string, unknown>) => {
@@ -2457,12 +2528,14 @@ function registerIpcHandlers(): void {
 
   transport.onRequest('agent:sessionFileExists', (_ctx, cwd: string, sessionId: string, agentKind?: string): boolean => {
     const kind = toAgentKind(agentKind)
-    return getAgent(kind).sessionFileExists(cwd, sessionId)
+    const configDir = kind === 'claude' ? claudeConfigDirForWorktree(cwd) : undefined
+    return getAgent(kind).sessionFileExists(cwd, sessionId, configDir)
   })
 
   transport.onRequest('agent:latestSessionId', (_ctx, cwd: string, agentKind?: string): string | null => {
     const kind = toAgentKind(agentKind)
-    return getAgent(kind).latestSessionId(cwd)
+    const configDir = kind === 'claude' ? claudeConfigDirForWorktree(cwd) : undefined
+    return getAgent(kind).latestSessionId(cwd, configDir)
   })
 
   transport.onRequest(
@@ -2519,7 +2592,8 @@ function registerIpcHandlers(): void {
         }
       }
 
-      return agent.buildSpawnArgs({ ...opts, command, model, systemPrompt, tuiFullscreen, harnessControl })
+      const configDir = kind === 'claude' ? claudeConfigDirForWorktree(opts.cwd) : undefined
+      return agent.buildSpawnArgs({ ...opts, command, model, systemPrompt, tuiFullscreen, harnessControl, configDir })
     }
   )
 
@@ -2752,6 +2826,17 @@ function registerIpcHandlers(): void {
       const userEnv = agentKind === 'claude' ? config.claudeEnvVars
         : agentKind === 'codex' ? config.codexEnvVars
         : undefined
+      // Per-repo Claude home directory override. Resolved from the
+      // worktree's repo (via panes → worktree lookup) and applied to
+      // xterm Claude tabs. Both bundled and PATH claude pick up
+      // CLAUDE_CONFIG_DIR for auth/projects/plugins resolution.
+      let claudeHomeEnv: Record<string, string> | undefined
+      if (agentKind === 'claude') {
+        const scope = resolveCallerScope(id)
+        const local = scope ? store.getSnapshot().state.repoLocal.byRepo[scope.repoRoot] : null
+        const dir = resolveClaudeConfigDir(local)
+        if (dir) claudeHomeEnv = { CLAUDE_CONFIG_DIR: dir }
+      }
       // Both Claude and Codex agent tabs load the same bundled Harness
       // plugin (Claude via --plugin-dir, Codex via its plugin
       // marketplace). The plugin's .mcp.json interpolates these env
@@ -2770,8 +2855,8 @@ function registerIpcHandlers(): void {
           })
         }
       }
-      const extraEnv = userEnv || controlEnv
-        ? { ...(userEnv || {}), ...(controlEnv || {}) }
+      const extraEnv = userEnv || controlEnv || claudeHomeEnv
+        ? { ...(userEnv || {}), ...(controlEnv || {}), ...(claudeHomeEnv || {}) }
         : undefined
       const existed = ptyManager.hasTerminal(id)
       ptyManager.create(id, cwd, cmd, args, extraEnv, !isAgent, cols, rows)

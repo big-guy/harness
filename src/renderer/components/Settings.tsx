@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } fr
 import { ArrowLeft, Check, X, Eye, EyeOff, Star, RefreshCw, Download, RotateCw, GitPullRequest, DownloadCloud, Keyboard, RotateCcw, Terminal as TerminalIcon, Palette, BookOpen, Code2, GitBranch, Plus, Trash2, Moon, LifeBuoy, Bug, Lightbulb, FlaskConical, Copy, CopyCheck, ExternalLink, CalendarDays, FileText, FolderOpen, Search, ChevronDown, ChevronRight, AlertTriangle, SlidersHorizontal } from 'lucide-react'
 import { openReportIssue } from './ReportIssueScreen'
 import { HARNESS_ISSUES_URL, HARNESS_RELEASES_URL, harnessReleaseNotesUrl } from '../../shared/constants'
-import { useSettings, useUpdater, useRepoConfigs, useHooks } from '../store'
+import { useSettings, useUpdater, useRepoConfigs, useRepoLocal, useHooks } from '../store'
 import { useBackend } from '../backend'
 import type { UpdaterStatus, MergeStrategy, RepoConfig, WorktreeDetail } from '../types'
 import { DEFAULT_HOTKEYS, ACTION_LABELS, ACTION_CATEGORIES, bindingToString, eventToBinding, formatBindingGlyphs, resolveHotkeys, type Action, type HotkeyBinding } from '../hotkeys'
@@ -14,6 +14,15 @@ import { BUILT_IN_THEMES_BY_MODE, type ThemeOption } from '../themes'
 import { SEMANTIC_KEYS } from '../theme-apply'
 import type { CustomTheme, UiScale } from '../../shared/state/settings'
 import { SCALES, scaleSpec } from '../../shared/state/settings'
+import {
+  BADGE_COLORS,
+  BADGE_SHAPES,
+  DEFAULT_CLAUDE_ACCOUNT_BADGE,
+  type BadgeColor,
+  type BadgeShape,
+  type ClaudeAccountBadge as ClaudeAccountBadgeValue
+} from '../../shared/state/repo-local'
+import { ClaudeAccountBadge } from './ClaudeAccountBadge'
 import { QRCodeSVG } from 'qrcode.react'
 
 interface SettingsProps {
@@ -32,6 +41,11 @@ type SubSectionId =
   | 'agent-general'
   | 'agent-claude'
   | 'agent-codex'
+  | 'worktrees-repositories'
+  | 'worktrees-details'
+  | 'worktrees-snooze'
+  | 'worktrees-share'
+  | 'worktrees-pr-review'
   | 'hotkeys-navigation'
   | 'hotkeys-backends'
   | 'hotkeys-worktree-mgmt'
@@ -69,7 +83,13 @@ const SECTIONS: Section[] = [
     { id: 'agent-claude', label: 'Claude' },
     { id: 'agent-codex', label: 'Codex' }
   ]},
-  { id: 'worktrees', label: 'Worktrees', icon: GitBranch },
+  { id: 'worktrees', label: 'Worktrees', icon: GitBranch, children: [
+    { id: 'worktrees-repositories', label: 'Repositories' },
+    { id: 'worktrees-details', label: 'Worktree detail' },
+    { id: 'worktrees-snooze', label: 'Snoozing' },
+    { id: 'worktrees-share', label: 'Permissions' },
+    { id: 'worktrees-pr-review', label: 'PR review prompt' }
+  ]},
   { id: 'editor', label: 'Editor', icon: Code2 },
   { id: 'github', label: 'GitHub', icon: GitPullRequest },
   { id: 'hotkeys', label: 'Hotkeys', icon: Keyboard, children: [
@@ -152,6 +172,11 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
     'agent-general': null,
     'agent-claude': null,
     'agent-codex': null,
+    'worktrees-repositories': null,
+    'worktrees-details': null,
+    'worktrees-snooze': null,
+    'worktrees-share': null,
+    'worktrees-pr-review': null,
     'hotkeys-navigation': null,
     'hotkeys-backends': null,
     'hotkeys-worktree-mgmt': null,
@@ -409,6 +434,9 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
   useEffect(() => { setPrReviewPromptDraft(prReviewPrompt) }, [prReviewPrompt])
   const [prReviewPromptSaveResult, setPrReviewPromptSaveResult] = useState<{ ok: boolean; message: string } | null>(null)
 
+  const [claudeConfigDirDraft, setClaudeConfigDirDraft] = useState<string>('')
+  const [claudeConfigDirSaveResult, setClaudeConfigDirSaveResult] = useState<{ ok: boolean; message: string } | null>(null)
+
   const [defaultTerminalFontFamily, setDefaultTerminalFontFamily] = useState<string>('')
   const [availableEditors, setAvailableEditors] = useState<{ id: string; name: string }[]>([])
   const [scriptsSaveResult, setScriptsSaveResult] = useState<{ ok: boolean; message: string } | null>(null)
@@ -418,6 +446,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
   // repo-scoped .harness.json at that repoRoot. The configs map itself
   // lives in the main-process store.
   const repoConfigs = useRepoConfigs()
+  const repoLocal = useRepoLocal()
   const repoList = useMemo(() => Object.keys(repoConfigs), [repoConfigs])
   const [scopeRepoRoot, setScopeRepoRoot] = useState<string | null>(null)
 
@@ -898,6 +927,60 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
     setPrReviewPromptSaveResult({ ok: true, message: 'Reset to default' })
     setTimeout(() => setPrReviewPromptSaveResult(null), 2000)
   }, [])
+
+  const scopedRepoLocal = scopeRepoRoot ? repoLocal[scopeRepoRoot] ?? null : null
+  const scopedClaudeConfigDir = scopedRepoLocal?.claudeConfigDir ?? ''
+  useEffect(() => {
+    setClaudeConfigDirDraft(scopedClaudeConfigDir)
+  }, [scopeRepoRoot, scopedClaudeConfigDir])
+
+  const handleSaveClaudeConfigDir = useCallback(async () => {
+    if (!scopeRepoRoot) return
+    const trimmed = claudeConfigDirDraft.trim()
+    const patch: Record<string, unknown> = { claudeConfigDir: trimmed || null }
+    // Auto-seed the badge on first save so the toolbar/Usage indicators
+    // have something to render. The picker can change it afterwards.
+    if (trimmed && !scopedRepoLocal?.claudeAccountBadge) {
+      patch.claudeAccountBadge = { ...DEFAULT_CLAUDE_ACCOUNT_BADGE }
+    }
+    // Clearing the dir wipes the badge too — it's only meaningful when
+    // an override is active.
+    if (!trimmed) {
+      patch.claudeAccountBadge = null
+    }
+    await backend.setRepoLocal(scopeRepoRoot, patch)
+    setClaudeConfigDirSaveResult({ ok: true, message: 'Saved — applies to new Claude sessions' })
+    setTimeout(() => setClaudeConfigDirSaveResult(null), 3000)
+  }, [scopeRepoRoot, claudeConfigDirDraft, scopedRepoLocal])
+
+  const handleClearClaudeConfigDir = useCallback(async () => {
+    if (!scopeRepoRoot) return
+    await backend.setRepoLocal(scopeRepoRoot, { claudeConfigDir: null, claudeAccountBadge: null })
+    setClaudeConfigDirDraft('')
+    setClaudeConfigDirSaveResult({ ok: true, message: 'Cleared' })
+    setTimeout(() => setClaudeConfigDirSaveResult(null), 2000)
+  }, [scopeRepoRoot])
+
+  const scopedBadge: ClaudeAccountBadgeValue =
+    scopedRepoLocal?.claudeAccountBadge ?? DEFAULT_CLAUDE_ACCOUNT_BADGE
+  const handleSetBadgeColor = useCallback(
+    async (color: BadgeColor) => {
+      if (!scopeRepoRoot) return
+      await backend.setRepoLocal(scopeRepoRoot, {
+        claudeAccountBadge: { ...scopedBadge, color }
+      })
+    },
+    [scopeRepoRoot, scopedBadge]
+  )
+  const handleSetBadgeShape = useCallback(
+    async (shape: BadgeShape) => {
+      if (!scopeRepoRoot) return
+      await backend.setRepoLocal(scopeRepoRoot, {
+        claudeAccountBadge: { ...scopedBadge, shape }
+      })
+    },
+    [scopeRepoRoot, scopedBadge]
+  )
 
   const effectiveClaudeCommand = claudeCommandDraft.trim() || defaultClaudeCommand
   const modelPart = claudeModel && !effectiveClaudeCommand.includes('--model') ? ` --model ${claudeModel}` : ''
@@ -2345,11 +2428,16 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                   </div>
                   <p className="text-xs text-faint mt-1.5">
                     {scopeRepoRoot
-                      ? <>Editing <code className="bg-panel-raised px-1 rounded">.harness.json</code> in <span className="font-mono">{repoBasename(scopeRepoRoot)}</span>. Unset fields inherit from global. You can commit this file to share settings with teammates.</>
-                      : 'Editing global settings. Individual repos can override these values via their .harness.json file.'}
+                      ? <>Editing settings for <span className="font-mono text-fg-bright">{repoBasename(scopeRepoRoot)}</span>. Most fields land in the repo's <code className="bg-panel-raised px-1 rounded">.harness.json</code> (committable, team-shared). Claude home directory is stored per-user in your local Harness config and is never committed.</>
+                      : 'Editing global settings. Individual repos can override these values per-scope.'}
                   </p>
                 </div>
               )}
+              <div
+                ref={(el) => { subSectionRefs.current['worktrees-repositories'] = el }}
+                id="worktrees-repositories"
+                className={`border-l-2 pl-4 ml-1 ${scopeRepoRoot ? 'border-accent/40' : 'border-border'}`}
+              >
               {scopeRepoRoot === null && (
               <div className="space-y-2">
                 {(
@@ -2552,7 +2640,8 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
 
               {scopeRepoRoot === null && (
                 <>
-                  <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Worktree details</h3>
+                  <div ref={(el) => { subSectionRefs.current['worktrees-details'] = el }} id="worktrees-details" />
+                  <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Worktree detail</h3>
                   <p className="text-xs text-dim mb-3">
                     What to show next to each worktree row in the sidebar. The
                     detail hides on hover; row action buttons appear in its place.
@@ -2654,7 +2743,8 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
 
               {scopeRepoRoot === null && (
                 <>
-                  <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Default snooze duration</h3>
+                  <div ref={(el) => { subSectionRefs.current['worktrees-snooze'] = el }} id="worktrees-snooze" />
+                  <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Snoozing</h3>
                   <p className="text-xs text-dim mb-3">
                     How many days a worktree snoozes by default. ⌥-click the
                     snooze button to pick a specific date or Never.
@@ -2674,7 +2764,8 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                     <span className="text-xs text-dim">days</span>
                   </div>
 
-                  <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Share Claude Code permissions</h3>
+                  <div ref={(el) => { subSectionRefs.current['worktrees-share'] = el }} id="worktrees-share" />
+                  <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">Permissions</h3>
                   <p className="text-xs text-dim mb-3">
                     Symlink each worktree's{' '}
                     <code className="bg-panel-raised px-1 rounded text-xs">.claude/settings.local.json</code>{' '}
@@ -2694,6 +2785,7 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
                     </span>
                   </label>
 
+                  <div ref={(el) => { subSectionRefs.current['worktrees-pr-review'] = el }} id="worktrees-pr-review" />
                   <h3 className="text-sm font-semibold text-fg-bright mt-6 mb-1">PR review prompt</h3>
                   <p className="text-xs text-dim mb-3">
                     Default kickoff prompt sent to Claude when you open a PR as a worktree (or when the MCP{' '}
@@ -2732,13 +2824,107 @@ export function Settings({ onClose, onOpenGuide, onOpenMyWeek, initialSection }:
               )}
 
               {scopeRepoRoot !== null && (
-                <div className="mt-6 pt-5 border-t border-border">
-                  <label className="block text-sm text-fg-bright mb-1">Right-panel visibility</label>
-                  <p className="text-xs text-dim">
-                    Toggle individual panels from the right-column toolbar in the main window.
-                  </p>
-                </div>
+                <>
+                  <div className="mt-6">
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="text-sm font-semibold text-fg-bright">Claude home directory</h3>
+                      {scopedClaudeConfigDir && (
+                        <button
+                          onClick={handleClearClaudeConfigDir}
+                          className="text-xs text-dim hover:text-fg underline cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-dim mb-3">
+                      Override the Claude home directory used for worktrees in this
+                      repo. Harness exports{' '}
+                      <code className="bg-panel-raised px-1 rounded text-xs">CLAUDE_CONFIG_DIR</code>{' '}
+                      on every Claude session it spawns, so auth, projects, plugins, and
+                      history all resolve from there instead of{' '}
+                      <code className="bg-panel-raised px-1 rounded text-xs">~/.claude</code>.
+                      Useful when you want this repo on a separate Claude account from your
+                      personal one. Leave blank to use the default. Applies to new Claude
+                      sessions only.
+                    </p>
+                    <input
+                      type="text"
+                      value={claudeConfigDirDraft}
+                      onChange={(e) => setClaudeConfigDirDraft(e.target.value)}
+                      placeholder="~/.claude (default)"
+                      spellCheck={false}
+                      className="w-full bg-panel border border-border-strong rounded px-3 py-2 text-sm text-fg-bright placeholder-faint outline-none focus:border-fg font-mono"
+                    />
+                    <div className="flex items-center gap-2 mt-3">
+                      <button
+                        onClick={handleSaveClaudeConfigDir}
+                        className="px-3 py-1.5 bg-surface hover:bg-surface-hover rounded text-sm text-fg-bright transition-colors cursor-pointer"
+                      >
+                        Save
+                      </button>
+                      {claudeConfigDirSaveResult && (
+                        <span className={`text-xs flex items-center gap-1.5 ${claudeConfigDirSaveResult.ok ? 'text-success' : 'text-danger'}`}>
+                          {claudeConfigDirSaveResult.ok ? <Check className="icon-xs" /> : <X className="icon-xs" />}
+                          {claudeConfigDirSaveResult.message}
+                        </span>
+                      )}
+                    </div>
+
+                    {scopedClaudeConfigDir && (
+                      <div className="mt-5">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-xs text-faint uppercase tracking-wide">Account badge</span>
+                          <ClaudeAccountBadge badge={scopedBadge} sizeClass="w-3 h-3" />
+                        </div>
+                        <p className="text-xs text-dim mb-3">
+                          Shown next to the Cost-pane shortcut in the right-column rail and
+                          in the Usage panel header, so you can tell at a glance which
+                          Claude account this worktree is using.
+                        </p>
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {BADGE_COLORS.map((color) => {
+                            const isActive = scopedBadge.color === color
+                            return (
+                              <button
+                                key={color}
+                                onClick={() => { void handleSetBadgeColor(color) }}
+                                className={`rounded p-1.5 transition-colors cursor-pointer border ${
+                                  isActive ? 'border-fg' : 'border-border hover:border-border-strong'
+                                }`}
+                                aria-label={`Badge color ${color}`}
+                                title={color}
+                              >
+                                <ClaudeAccountBadge badge={{ color, shape: scopedBadge.shape }} sizeClass="w-3 h-3" />
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {BADGE_SHAPES.map((shape) => {
+                            const isActive = scopedBadge.shape === shape
+                            return (
+                              <button
+                                key={shape}
+                                onClick={() => { void handleSetBadgeShape(shape) }}
+                                className={`rounded p-1.5 transition-colors cursor-pointer border ${
+                                  isActive ? 'border-fg' : 'border-border hover:border-border-strong'
+                                }`}
+                                aria-label={`Badge shape ${shape}`}
+                                title={shape}
+                              >
+                                <ClaudeAccountBadge badge={{ color: scopedBadge.color, shape }} sizeClass="w-3 h-3" />
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                </>
               )}
+              </div>
             </section>
 
             {/* Editor section */}

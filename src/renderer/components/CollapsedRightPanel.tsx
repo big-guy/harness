@@ -13,6 +13,7 @@ import {
   Pencil,
   GitCommitHorizontal,
   NotebookPen,
+  Calculator,
   RefreshCw,
   CircleX
 } from 'lucide-react'
@@ -31,6 +32,7 @@ import type {
   MergePRResult,
   MergeStrategy
 } from '../types'
+import type { ClaudeAuthInfo } from '../../shared/cost-summary'
 
 interface ChangedFilesData {
   working: ChangedFile[]
@@ -173,6 +175,51 @@ export function CollapsedRightPanel({
       hiddenRightPanels: { ...currentHidden, scratchpad: false }
     })
   }, [expandSection, worktree, repoConfigs, backend])
+
+  const onOpenCost = useCallback(() => {
+    // Force the Cost RightPanel to mount uncollapsed when the sidebar
+    // expands. RightPanel reads its collapsed state from localStorage on
+    // mount, so writing here lands before the panel renders.
+    try {
+      localStorage.setItem('right-panel-collapsed:cost', '0')
+    } catch {
+      /* ignore */
+    }
+    onExpand()
+    if (!worktree) return
+    const repoRoot = worktree.repoRoot
+    const currentConfig = repoConfigs[repoRoot] ?? null
+    const currentHidden = effectiveHiddenRightPanels(currentConfig)
+    if (!currentHidden.cost) return
+    void backend.setRepoConfig(repoRoot, {
+      hiddenRightPanels: { ...currentHidden, cost: false }
+    })
+  }, [onExpand, worktree, repoConfigs, backend])
+
+  // Active Claude account — shown in the Cost button's tooltip. Refetched
+  // when the worktree (and therefore the effective claudeConfigDir) changes
+  // so different repos can surface different accounts.
+  const [auth, setAuth] = useState<ClaudeAuthInfo | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    void backend
+      .getClaudeAuthStatus(worktree?.repoRoot)
+      .then((info) => {
+        if (!cancelled) setAuth(info)
+      })
+      .catch(() => {
+        if (!cancelled) setAuth(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [backend, worktree?.repoRoot])
+  const accountLabel = auth?.loggedIn
+    ? auth.email || auth.organizationName || auth.accountUuid || 'signed in'
+    : auth
+      ? 'not signed in'
+      : null
+  const costTooltip = accountLabel ? `Usage · ${accountLabel}` : 'Open Usage panel'
 
   const handleRefreshAll = useCallback(() => {
     refreshChangedFiles()
@@ -476,6 +523,19 @@ export function CollapsedRightPanel({
             aria-label="Open Scratchpad"
           >
             <NotebookPen className="icon-sm" />
+          </button>
+        </Tooltip>
+
+        <div className="h-px w-6 bg-border my-1" />
+
+        <Tooltip label={costTooltip} side="left">
+          <button
+            onClick={onOpenCost}
+            disabled={!worktree}
+            className="text-dim hover:text-fg hover:bg-surface rounded p-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-dim"
+            aria-label="Open Usage panel"
+          >
+            <Calculator className="icon-sm" />
           </button>
         </Tooltip>
       </div>

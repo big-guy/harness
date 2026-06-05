@@ -1,7 +1,9 @@
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'fs'
-import { join } from 'path'
+import { homedir } from 'os'
+import { isAbsolute, join } from 'path'
 import { log } from './debug'
 import { DEFAULT_HIDDEN_RIGHT_PANELS, type RepoConfig } from '../shared/state/repo-configs'
+import type { RepoLocalConfig } from '../shared/state/repo-local'
 
 export type { RepoConfig }
 
@@ -73,6 +75,28 @@ export function saveRepoConfig(repoRoot: string, next: RepoConfig): RepoConfig {
     log('repo-config', `failed to save ${path}: ${(err as Error).message}`)
     return cache.get(repoRoot) || {}
   }
+}
+
+/** Resolve a RepoLocalConfig's `claudeConfigDir` to an absolute
+ *  filesystem path, expanding a leading `~` (the only shell syntax we
+ *  support — values come from a Settings text input, not a shell).
+ *  Returns an empty string when unset. The caller passes the
+ *  RepoLocalConfig in directly so this helper doesn't reach into
+ *  global store state. */
+export function resolveClaudeConfigDir(local: RepoLocalConfig | undefined | null): string {
+  const raw = local?.claudeConfigDir?.trim()
+  if (!raw) return ''
+  return expandHomeTilde(raw)
+}
+
+function expandHomeTilde(p: string): string {
+  if (p === '~') return homedir()
+  if (p.startsWith('~/')) return join(homedir(), p.slice(2))
+  if (isAbsolute(p)) return p
+  // Treat any other relative-ish value as relative to home so the user
+  // gets a usable absolute path (we never want to spawn Claude with
+  // CWD-relative CLAUDE_CONFIG_DIR, since the cwd is the worktree).
+  return join(homedir(), p)
 }
 
 export function invalidateRepoConfigCache(repoRoot?: string): void {

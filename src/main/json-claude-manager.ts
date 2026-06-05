@@ -10,11 +10,16 @@
 // ApprovalBridge for the socket side of that).
 //
 // Memory isolation: Claude Code's auto-memory subsystem writes to
-// ~/.claude/projects/<cwd-encoded>/memory/ by default. Running this as a
-// child process would pollute the user's personal memory dir with
-// conversations they didn't have in their "real" Claude Code sessions.
-// We redirect that by setting CLAUDE_CONFIG_DIR to a per-session temp
-// dir so all project-dir-derived reads and writes land there instead.
+// ~/.claude/projects/<cwd-encoded>/memory/ by default. We disable that
+// in json-mode by passing CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 so json
+// sessions don't pollute the user's personal memory dir for whichever
+// project their worktree belongs to. The session jsonl still persists
+// under ~/.claude/projects/<project>/ (needed for --resume), it just
+// lands without a sibling memory/ dir.
+//
+// Claude home override: when the user sets a `claudeConfigDir` in
+// Settings, we forward it as CLAUDE_CONFIG_DIR so the spawn reads
+// auth + projects + plugins from there instead of ~/.claude.
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
 import { randomUUID } from 'crypto'
@@ -103,6 +108,10 @@ export interface JsonClaudeManagerOptions {
   getApprovalSocketPath: (sessionId: string) => string
   closeApprovalSession: (sessionId: string) => void
   getClaudeEnvVars: () => Record<string, string>
+  /** Per-repo override for Claude's home dir, resolved from the spawn's
+   *  worktree to its repo's .harness.json. Empty string = default
+   *  (~/.claude). When non-empty, forwarded as CLAUDE_CONFIG_DIR. */
+  getClaudeConfigDir: (worktreePath: string) => string
   /** Looked up from main when building the env vars the bundled plugin's
    *  .mcp.json interpolates. Returning null means the harness-control
    *  bridge isn't injected (settings flag off, or control server not
@@ -180,10 +189,14 @@ export function bundledClaudeBinPath(): string {
 }
 
 
-function transcriptPathFor(sessionId: string, worktreePath: string): string {
+function transcriptPathFor(
+  sessionId: string,
+  worktreePath: string,
+  configDir?: string
+): string {
+  const base = configDir && configDir.trim() ? configDir.trim() : join(homedir(), '.claude')
   return join(
-    homedir(),
-    '.claude',
+    base,
     'projects',
     worktreePath.replace(/[^a-zA-Z0-9]/g, '-'),
     `${sessionId}.jsonl`
@@ -251,7 +264,11 @@ export class JsonClaudeManager {
     sessionId: string,
     worktreePath: string
   ): JsonClaudeChatEntry[] {
-    const transcriptPath = transcriptPathFor(sessionId, worktreePath)
+    const transcriptPath = transcriptPathFor(
+      sessionId,
+      worktreePath,
+      this.opts.getClaudeConfigDir(worktreePath)
+    )
     if (!existsSync(transcriptPath)) return []
 
     let counter = 0
@@ -447,7 +464,9 @@ export class JsonClaudeManager {
 
     const useSystemClaude = this.opts.getUseSystemClaude()
     const claudeCommand = this.opts.getClaudeCommand() || 'claude'
-    const existingSession = existsSync(transcriptPathFor(sessionId, worktreePath))
+    const existingSession = existsSync(
+      transcriptPathFor(sessionId, worktreePath, this.opts.getClaudeConfigDir(worktreePath))
+    )
     const resumeOrSet = existingSession
       ? ['--resume', sessionId]
       : ['--session-id', sessionId]
@@ -494,6 +513,7 @@ export class JsonClaudeManager {
     )
 
     const envVars = this.opts.getClaudeEnvVars() || {}
+    const claudeConfigDir = this.opts.getClaudeConfigDir(worktreePath) || ''
     // Build env for the subprocess. We start from process.env, scrub
     // env vars that the user-scope Harness hooks key off of so the
     // subprocess's hook firings don't masquerade as the parent agent
@@ -507,6 +527,7 @@ export class JsonClaudeManager {
     const spawnEnv = {
       ...childEnv,
       ...envVars,
+      ...(claudeConfigDir ? { CLAUDE_CONFIG_DIR: claudeConfigDir } : {}),
       // Memory isolation: the auto-memory subsystem writes into
       // ~/.claude/projects/<project>/memory/ by default, which
       // means json-claude sessions would scribble into the user's
@@ -932,7 +953,11 @@ export class JsonClaudeManager {
     worktreePath: string,
     apiMessageId: string
   ): { ok: boolean; reason?: string } {
-    const transcriptPath = transcriptPathFor(sessionId, worktreePath)
+    const transcriptPath = transcriptPathFor(
+      sessionId,
+      worktreePath,
+      this.opts.getClaudeConfigDir(worktreePath)
+    )
     if (!existsSync(transcriptPath)) {
       // No on-disk session yet — caller still re-seeds the (empty) slice.
       return { ok: true }
@@ -1054,6 +1079,7 @@ export class JsonClaudeManager {
         '--verbose'
       ]
       const envVars = this.opts.getClaudeEnvVars() || {}
+      const claudeConfigDir = this.opts.getClaudeConfigDir(cwd) || ''
       const childEnv: Record<string, string> = {}
       for (const [k, v] of Object.entries(process.env)) {
         if (typeof v === 'string') childEnv[k] = v
@@ -1063,6 +1089,7 @@ export class JsonClaudeManager {
       const spawnEnv = {
         ...childEnv,
         ...envVars,
+        ...(claudeConfigDir ? { CLAUDE_CONFIG_DIR: claudeConfigDir } : {}),
         CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1'
       }
       log('json-claude', `probe spawn cwd=${cwd} bundled=${!useSystemClaude}`)

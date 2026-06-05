@@ -279,6 +279,8 @@ export function buildBackend(
     setHarnessSystemPromptMain: (prompt: string) =>
       req('config:setHarnessSystemPromptMain', prompt),
     setPrReviewPrompt: (prompt: string) => req('config:setPrReviewPrompt', prompt),
+    setRepoLocal: (repoRoot: string, patch: Record<string, unknown>) =>
+      req('repoLocal:set', repoRoot, patch),
     onWorktreesExternalCreate: (
       callback: (payload: { repoRoot: string; worktree: unknown; initialPrompt?: string }) => void
     ) =>
@@ -294,7 +296,7 @@ export function buildBackend(
     openThemesFolder: () => reqLocal('config:openThemesFolder'),
     setCostsInterest: (expanded: boolean) => req('costs:setInterest', expanded),
     getAllSessionCosts: (sinceMs?: number) => req('costs:getAllSessions', sinceMs),
-    getClaudeAuthStatus: () => req('claude:getAuthStatus'),
+    getClaudeAuthStatus: (repoRoot?: string) => req('claude:getAuthStatus', repoRoot),
     getAvailableThemes: () => req('config:getAvailableThemes'),
     setTerminalFontFamily: (fontFamily: string) =>
       req('config:setTerminalFontFamily', fontFamily),

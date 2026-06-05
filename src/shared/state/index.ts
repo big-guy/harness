@@ -102,6 +102,12 @@ import {
   type SshBootstrapEvent,
   type SshBootstrapState
 } from './ssh-bootstrap'
+import {
+  initialRepoLocal,
+  repoLocalReducer,
+  type RepoLocalEvent,
+  type RepoLocalState
+} from './repo-local'
 
 export type { SettingsState, SettingsEvent }
 export type { UpdaterState, UpdaterEvent, UpdaterStatus } from './updater'
@@ -182,6 +188,19 @@ export type {
   BootstrapProgress,
   BootstrapError
 } from './ssh-bootstrap'
+export type {
+  RepoLocalState,
+  RepoLocalEvent,
+  RepoLocalConfig,
+  ClaudeAccountBadge,
+  BadgeColor,
+  BadgeShape
+} from './repo-local'
+export {
+  BADGE_COLORS,
+  BADGE_SHAPES,
+  DEFAULT_CLAUDE_ACCOUNT_BADGE
+} from './repo-local'
 
 export interface AppState {
   settings: SettingsState
@@ -199,6 +218,7 @@ export interface AppState {
   announcements: AnnouncementsState
   scratchpad: ScratchpadState
   sshBootstrap: SshBootstrapState
+  repoLocal: RepoLocalState
 }
 
 export type StateEvent =
@@ -217,6 +237,7 @@ export type StateEvent =
   | AnnouncementsEvent
   | ScratchpadEvent
   | SshBootstrapEvent
+  | RepoLocalEvent
 
 export const initialState: AppState = {
   settings: initialSettings,
@@ -233,7 +254,8 @@ export const initialState: AppState = {
   snooze: initialSnooze,
   announcements: initialAnnouncements,
   scratchpad: initialScratchpad,
-  sshBootstrap: initialSshBootstrap
+  sshBootstrap: initialSshBootstrap,
+  repoLocal: initialRepoLocal
 }
 
 export function rootReducer(state: AppState, event: StateEvent): AppState {
@@ -312,6 +334,12 @@ export function rootReducer(state: AppState, event: StateEvent): AppState {
       sshBootstrap: sshBootstrapReducer(state.sshBootstrap, event as SshBootstrapEvent)
     }
   }
+  if (event.type.startsWith('repoLocal/')) {
+    return {
+      ...state,
+      repoLocal: repoLocalReducer(state.repoLocal, event as RepoLocalEvent)
+    }
+  }
   return state
 }
 
@@ -357,7 +385,8 @@ export function mergeWireSnapshot(state: WireSnapshotState): AppState {
     snooze: { ...initialState.snooze, ...state.snooze },
     announcements: { ...initialState.announcements, ...state.announcements },
     scratchpad: { ...initialState.scratchpad, ...state.scratchpad },
-    sshBootstrap: { ...initialState.sshBootstrap, ...state.sshBootstrap }
+    sshBootstrap: { ...initialState.sshBootstrap, ...state.sshBootstrap },
+    repoLocal: { ...initialState.repoLocal, ...state.repoLocal }
   }
 }
 

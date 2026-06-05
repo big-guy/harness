@@ -81,6 +81,7 @@ describe('JsonClaudeManager', () => {
       getApprovalSocketPath: (sid) => `/tmp/sock-${sid}`,
       closeApprovalSession: vi.fn(),
       getClaudeEnvVars: () => ({}),
+      getClaudeConfigDir: (_worktreePath: string) => '',
       getControlServer: () => null,
       isHarnessMcpEnabled: () => false,
       getCallerScope: () => null,

@@ -14,6 +14,14 @@ import { initialAnnouncements } from '../shared/state/announcements'
 import { initialScratchpad } from '../shared/state/scratchpad'
 import { initialSshBootstrap } from '../shared/state/ssh-bootstrap'
 import {
+  initialRepoLocal,
+  BADGE_COLORS,
+  BADGE_SHAPES,
+  type BadgeColor,
+  type BadgeShape,
+  type RepoLocalConfig
+} from '../shared/state/repo-local'
+import {
   initialSettings,
   DEFAULT_LIGHT_THEME,
   DEFAULT_DARK_THEME,
@@ -69,6 +77,10 @@ export function buildInitialAppState(
     browser: initialBrowser,
     jsonClaude: initialJsonClaude,
     snooze: config.snooze ? { byPath: { ...config.snooze } } : initialSnooze,
+    repoLocal: {
+      ...initialRepoLocal,
+      byRepo: sanitizePerRepoLocal(config.perRepoLocal)
+    },
     announcements: initialAnnouncements,
     scratchpad: { byWorktreePath: flattenScratchpadNotes(config.scratchpadNotes) },
     sshBootstrap: initialSshBootstrap,
@@ -147,4 +159,35 @@ export function buildInitialAppState(
       announcementsMuted: config.announcementsMuted === true
     }
   }
+}
+
+/** Strip empty entries and ignore non-object values when seeding the
+ *  RepoLocal slice. The map is keyed by repoRoot — we don't filter
+ *  against the live repo list here because that would block the user
+ *  from setting values for a temporarily-unmounted repo (e.g. while a
+ *  disk isn't attached). GC of truly-orphaned entries happens when a
+ *  repo is removed via `repo:remove`. */
+function sanitizePerRepoLocal(
+  raw: Record<string, RepoLocalConfig> | undefined
+): Record<string, RepoLocalConfig> {
+  if (!raw || typeof raw !== 'object') return {}
+  const out: Record<string, RepoLocalConfig> = {}
+  for (const [repoRoot, cfg] of Object.entries(raw)) {
+    if (!repoRoot || !cfg || typeof cfg !== 'object') continue
+    const cleaned: RepoLocalConfig = {}
+    if (typeof cfg.claudeConfigDir === 'string' && cfg.claudeConfigDir.trim()) {
+      cleaned.claudeConfigDir = cfg.claudeConfigDir.trim()
+    }
+    if (cfg.claudeAccountBadge && typeof cfg.claudeAccountBadge === 'object') {
+      const { color, shape } = cfg.claudeAccountBadge
+      if (
+        BADGE_COLORS.includes(color as BadgeColor) &&
+        BADGE_SHAPES.includes(shape as BadgeShape)
+      ) {
+        cleaned.claudeAccountBadge = { color: color as BadgeColor, shape: shape as BadgeShape }
+      }
+    }
+    if (Object.keys(cleaned).length > 0) out[repoRoot] = cleaned
+  }
+  return out
 }

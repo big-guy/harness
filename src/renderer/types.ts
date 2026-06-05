@@ -347,6 +347,7 @@ export interface ElectronAPI {
   setHarnessSystemPrompt(prompt: string): Promise<boolean>
   setHarnessSystemPromptMain(prompt: string): Promise<boolean>
   setPrReviewPrompt(prompt: string): Promise<boolean>
+  setRepoLocal(repoRoot: string, patch: Record<string, unknown>): Promise<unknown>
   onWorktreesExternalCreate(
     callback: (payload: { repoRoot: string; worktree: Worktree; initialPrompt?: string }) => void
   ): () => void
@@ -371,7 +372,7 @@ export interface ElectronAPI {
   openThemesFolder(): Promise<{ ok: true; path: string } | { ok: false; path: string; message: string }>
   setCostsInterest(expanded: boolean): Promise<boolean>
   getAllSessionCosts(sinceMs?: number): Promise<SessionCostSummary[]>
-  getClaudeAuthStatus(): Promise<ClaudeAuthInfo>
+  getClaudeAuthStatus(repoRoot?: string): Promise<ClaudeAuthInfo>
   getAvailableThemes(): Promise<readonly string[]>
   setTerminalFontFamily(fontFamily: string): Promise<boolean>
   getDefaultTerminalFontFamily(): Promise<string>

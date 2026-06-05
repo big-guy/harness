@@ -12,6 +12,8 @@ import { SnoozeCalendar } from './SnoozeCalendar'
 import { repoNameColor } from './RepoIcon'
 import { BackendChipStrip } from './BackendChipStrip'
 import { useBackend } from '../backend'
+import { useRepoLocal } from '../store'
+import { ClaudeAccountBadge } from './ClaudeAccountBadge'
 
 interface SidebarProps {
   worktrees: Worktree[]
@@ -251,6 +253,8 @@ export function Sidebar({
     return repoRoot.split('/').pop() || repoRoot
   }, [])
 
+  const repoLocal = useRepoLocal()
+
   return (
     <div
       className="shrink-0 bg-panel flex flex-col h-full"
@@ -450,6 +454,12 @@ export function Sidebar({
                     ? <ChevronRight className="icon-xs shrink-0" />
                     : <ChevronDown className="icon-xs shrink-0" />}
                   <span className={`truncate ${repoNameColor(repoName)}`}>{repoName}</span>
+                  {repoRoot !== '__unified__' && repoLocal[repoRoot]?.claudeConfigDir && repoLocal[repoRoot]?.claudeAccountBadge && (
+                    <ClaudeAccountBadge
+                      badge={repoLocal[repoRoot]!.claudeAccountBadge!}
+                      sizeClass="w-2 h-2"
+                    />
+                  )}
                   <span className="ml-auto relative flex items-center">
                     <span className="text-faint normal-case group-hover:opacity-0 transition-opacity">
                       {repoWorktreeCount}

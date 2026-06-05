@@ -37,6 +37,7 @@ import type { Store } from './store'
 import type { StateEvent } from '../shared/state'
 import { onStopEvent, type StopEvent } from './hooks'
 import { type SessionUsage } from '../shared/state/costs'
+import { resolveClaudeConfigDir } from './repo-config'
 import {
   newFoldState,
   resetFoldState,
@@ -161,12 +162,20 @@ export class CostTracker {
    *  doesn't wipe an existing hydrated entry. The next reparse picks
    *  things up. */
   private parseAndDispatchJsonMode(sessionId: string): void {
-    const session =
-      this.store.getSnapshot().state.jsonClaude.sessions[sessionId]
+    const snap = this.store.getSnapshot().state
+    const session = snap.jsonClaude.sessions[sessionId]
     if (!session) return
+    // Honor the worktree's per-repo CLAUDE_CONFIG_DIR so a custom-home
+    // session's transcript is read from <configDir>/projects/… instead
+    // of ~/.claude/projects/… (where it doesn't exist).
+    const wt = snap.worktrees.list.find((w) => w.path === session.worktreePath)
+    const configDir = wt
+      ? resolveClaudeConfigDir(snap.repoLocal.byRepo[wt.repoRoot])
+      : ''
     const transcriptPath = jsonClaudeTranscriptPath(
       session.worktreePath,
-      sessionId
+      sessionId,
+      configDir
     )
     try {
       const entry = this.parseIncremental(sessionId, transcriptPath)
@@ -244,10 +253,14 @@ export class CostTracker {
   }
 }
 
-function jsonClaudeTranscriptPath(worktreePath: string, sessionId: string): string {
+function jsonClaudeTranscriptPath(
+  worktreePath: string,
+  sessionId: string,
+  configDir?: string
+): string {
+  const base = configDir && configDir.trim() ? configDir.trim() : join(homedir(), '.claude')
   return join(
-    homedir(),
-    '.claude',
+    base,
     'projects',
     worktreePath.replace(/[^a-zA-Z0-9]/g, '-'),
     `${sessionId}.jsonl`

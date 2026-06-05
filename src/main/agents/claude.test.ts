@@ -68,6 +68,46 @@ describe('buildSpawnArgs', () => {
     expect(result).toContain('--plugin-dir')
     expect(result).toContain('resources/plugins/harness-status')
   })
+
+  // Resume detection must probe the worktree's resolved Claude home, not
+  // a hardcoded ~/.claude. Otherwise a custom-home session misdetects as
+  // fresh on restore and Claude rejects --session-id for the existing id.
+  const enc = (cwd: string) => cwd.replace(/[^a-zA-Z0-9]/g, '-')
+  const sessionId = 'sess-123'
+
+  it('resumes when the transcript exists under the default ~/.claude home', () => {
+    const path = join(homedir(), '.claude', 'projects', enc(base.cwd), `${sessionId}.jsonl`)
+    fsState.files.set(path, '{}')
+    const result = buildSpawnArgs({ ...base, sessionId })
+    expect(result).toContain(`--resume ${sessionId}`)
+    expect(result).not.toContain('--session-id')
+  })
+
+  it('resumes when the transcript lives under a custom configDir', () => {
+    const configDir = '/custom/claude-home'
+    const path = join(configDir, 'projects', enc(base.cwd), `${sessionId}.jsonl`)
+    fsState.files.set(path, '{}')
+    const result = buildSpawnArgs({ ...base, sessionId, configDir })
+    expect(result).toContain(`--resume ${sessionId}`)
+    expect(result).not.toContain('--session-id')
+  })
+
+  it('does NOT resume a custom-home session when configDir is omitted (the bug)', () => {
+    const configDir = '/custom/claude-home'
+    const path = join(configDir, 'projects', enc(base.cwd), `${sessionId}.jsonl`)
+    fsState.files.set(path, '{}')
+    // Without configDir, probe falls back to ~/.claude, misses the file,
+    // and routes to --session-id — which is exactly the restore failure.
+    const result = buildSpawnArgs({ ...base, sessionId })
+    expect(result).toContain(`--session-id ${sessionId}`)
+    expect(result).not.toContain('--resume')
+  })
+
+  it('uses --session-id when no transcript exists in the custom configDir', () => {
+    const result = buildSpawnArgs({ ...base, sessionId, configDir: '/custom/claude-home' })
+    expect(result).toContain(`--session-id ${sessionId}`)
+    expect(result).not.toContain('--resume')
+  })
 })
 
 describe('stripGlobalHooks (legacy migration)', () => {
