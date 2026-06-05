@@ -23,6 +23,7 @@ import type { CostsState } from '../shared/state/costs'
 import type { SnoozeEntry } from '../shared/state/snooze'
 import type { RepoLocalConfig } from '../shared/state/repo-local'
 import type { RunnerItem } from '../shared/state/runners'
+import type { PreventSleepMode } from '../shared/state/settings'
 
 export type { PersistedPane, PersistedPaneNode, PersistedTab }
 
@@ -302,6 +303,10 @@ export interface Config {
   // worktree (keyed by absolute worktree path). Persisted so they survive
   // restart.
   runners?: Record<string, RunnerItem[]>
+  // Wake-lock mode: hold a power-save blocker 'off' | while any agent
+  // session is processing | always. Default 'off'. The transient "+1h" timer
+  // (preventSleepUntil) is session-only and deliberately NOT persisted here.
+  preventSleepMode?: PreventSleepMode
 }
 
 export const DEFAULT_WORKTREE_BASE: 'remote' | 'local' = 'remote'
