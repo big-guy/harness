@@ -763,6 +763,19 @@ button, [role="button"], a[href], [onclick] {
   }
 }
 
+/* Brief flash when the crosshair reveals the open file in the file tree. */
+.review-tree-flash {
+  animation: review-tree-flash 1.4s ease-out;
+}
+@keyframes review-tree-flash {
+  0% {
+    background-color: color-mix(in srgb, var(--color-warning, #d29922) 45%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
 /* iOS/Safari auto-promotes ambiguous codepoints like U+23FA (⏺, which
  * Claude Code uses for tool-call markers) to color emoji via the system
  * Apple Color Emoji fallback, which is why those markers look like emoji

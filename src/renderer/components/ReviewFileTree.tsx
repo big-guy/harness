@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from 'react'
-import { ChevronRight, Folder, FolderOpen, FileText } from 'lucide-react'
+import type { RefObject } from 'react'
+import { ChevronRight, Folder, FolderOpen, FileText, Crosshair } from 'lucide-react'
 import type { ChangedFile } from '../types'
 
 export interface ReviewComment {
@@ -190,6 +191,10 @@ export function ReviewFileTree({
   active
 }: ReviewFileTreeProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
+  const selectedRowRef = useRef<HTMLDivElement>(null)
+  const pendingRevealRef = useRef(false)
+  const [revealNonce, setRevealNonce] = useState(0)
+  const [flashing, setFlashing] = useState(false)
   const [filter, setFilter] = useState('')
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase()
@@ -267,6 +272,34 @@ export function ReviewFileTree({
     [selectedFile, fileCommentLines, onRevealLine]
   )
 
+  // Crosshair: scroll the currently open file's row into view and flash it.
+  // Clears the filter and expands any collapsed ancestor dirs first so the row
+  // is actually rendered, then the effect below does the scroll once it is.
+  const revealSelected = useCallback(() => {
+    if (!selectedFile) return
+    pendingRevealRef.current = true
+    if (filter.trim()) setFilter('')
+    const parts = selectedFile.split('/')
+    for (let i = 1; i < parts.length; i++) {
+      const dir = parts.slice(0, i).join('/')
+      if (collapsedDirs.has(dir)) onToggleDir(dir)
+    }
+    setRevealNonce((n) => n + 1)
+  }, [selectedFile, filter, collapsedDirs, onToggleDir])
+
+  // Re-runs when the filter/collapse changes make the row appear, so a file
+  // hidden under a collapsed folder still scrolls into view once expanded.
+  useEffect(() => {
+    if (!pendingRevealRef.current) return
+    const el = selectedRowRef.current
+    if (!el) return
+    pendingRevealRef.current = false
+    el.scrollIntoView({ block: 'center' })
+    setFlashing(true)
+    const t = setTimeout(() => setFlashing(false), 1400)
+    return () => clearTimeout(t)
+  }, [revealNonce, selectedFile, collapsedDirs, filter])
+
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
       if (!active) return
@@ -329,14 +362,23 @@ export function ReviewFileTree({
 
   return (
     <div ref={containerRef} className="flex flex-col h-full text-xs select-none">
-      <div className="shrink-0 p-2 border-b border-border">
+      <div className="shrink-0 flex items-center gap-1 p-2 border-b border-border">
         <input
           type="text"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter files..."
-          className="w-full bg-panel-raised border border-border rounded px-2 py-1 text-xs text-fg placeholder:text-faint focus:outline-none focus:border-border-strong"
+          className="flex-1 min-w-0 bg-panel-raised border border-border rounded px-2 py-1 text-xs text-fg placeholder:text-faint focus:outline-none focus:border-border-strong"
         />
+        <button
+          type="button"
+          onClick={revealSelected}
+          disabled={!selectedFile}
+          title="Reveal open file"
+          className="shrink-0 flex items-center justify-center p-1 rounded text-faint hover:text-fg hover:bg-panel-raised disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-faint"
+        >
+          <Crosshair className="icon-sm" />
+        </button>
       </div>
       <div className="flex-1 overflow-auto min-h-0">
         {filtering && navigableFiles.length === 0 && (
@@ -347,6 +389,8 @@ export function ReviewFileTree({
           depth={0}
           collapsedDirs={effectiveCollapsed}
           selectedFile={selectedFile}
+          selectedRowRef={selectedRowRef}
+          flashing={flashing}
           reviewedFiles={reviewedFiles}
           commentCountByFile={commentCountByFile}
           onSelectFile={onSelectFile}
@@ -363,6 +407,8 @@ interface TreeBranchProps {
   depth: number
   collapsedDirs: Set<string>
   selectedFile: string | null
+  selectedRowRef: RefObject<HTMLDivElement | null>
+  flashing: boolean
   reviewedFiles: Set<string>
   commentCountByFile: Map<string, number>
   onSelectFile: (path: string) => void
@@ -375,6 +421,8 @@ function TreeBranch({
   depth,
   collapsedDirs,
   selectedFile,
+  selectedRowRef,
+  flashing,
   reviewedFiles,
   commentCountByFile,
   onSelectFile,
@@ -392,6 +440,8 @@ function TreeBranch({
               name={child.name}
               depth={depth}
               selected={child.path === selectedFile}
+              rowRef={child.path === selectedFile ? selectedRowRef : undefined}
+              flash={child.path === selectedFile && flashing}
               reviewed={reviewedFiles.has(child.path)}
               commentCount={commentCountByFile.get(child.path) ?? 0}
               onSelect={() => onSelectFile(child.path)}
@@ -415,6 +465,8 @@ function TreeBranch({
                 depth={depth + 1}
                 collapsedDirs={collapsedDirs}
                 selectedFile={selectedFile}
+                selectedRowRef={selectedRowRef}
+                flashing={flashing}
                 reviewedFiles={reviewedFiles}
                 commentCountByFile={commentCountByFile}
                 onSelectFile={onSelectFile}
@@ -464,6 +516,8 @@ function FileRow({
   name,
   depth,
   selected,
+  rowRef,
+  flash,
   reviewed,
   commentCount,
   onSelect
@@ -472,6 +526,8 @@ function FileRow({
   name: string
   depth: number
   selected: boolean
+  rowRef?: RefObject<HTMLDivElement | null>
+  flash?: boolean
   reviewed: boolean
   commentCount: number
   onSelect: () => void
@@ -479,12 +535,13 @@ function FileRow({
 }): JSX.Element {
   return (
     <div
+      ref={rowRef}
       onClick={onSelect}
       className={`flex w-max min-w-full items-center gap-1.5 py-0.5 pr-2 cursor-pointer transition-colors ${
         selected
           ? 'bg-accent/15 border-l-2 border-accent'
           : 'border-l-2 border-transparent hover:bg-panel-raised'
-      } ${reviewed ? 'opacity-50' : ''}`}
+      } ${reviewed ? 'opacity-50' : ''} ${flash ? 'review-tree-flash' : ''}`}
       style={{ paddingLeft: 8 + depth * 12 + 10 }}
     >
       <FileText className="icon-xs shrink-0 text-faint" />
