@@ -31,6 +31,16 @@ export interface WorktreeDirtyStatus {
   scratchpad: boolean
 }
 
+/** Identifies the machine running a backend (the server for a remote/web
+ *  client). `platform`/`release`/`arch` mirror `uname -s`/`-r`/`-m`. */
+export interface BackendInfo {
+  hostname: string
+  platform: string
+  release: string
+  arch: string
+  version: string
+}
+
 export interface FsEntry {
   name: string
   isDir: boolean
@@ -476,6 +486,9 @@ export interface ElectronAPI {
   setHarnessStarred(starred: boolean): Promise<{ ok: boolean; error?: string }>
 
   getVersion(): Promise<string>
+  /** Identifies the machine running the active backend (the server, for a
+   *  remote/web client — not the viewer). See `system:getBackendInfo`. */
+  getBackendInfo(): Promise<BackendInfo>
   readRecentLog(maxLines?: number): Promise<string>
   checkForUpdates(): Promise<{ ok: boolean; available?: boolean; version?: string; releaseDate?: string; error?: string }>
   quitAndInstall(): Promise<boolean>
