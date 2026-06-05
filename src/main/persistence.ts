@@ -175,6 +175,9 @@ export interface Config {
   // to the main worktree's copy, and the boot migration doesn't convert
   // existing regular files. Default is enabled (undefined/true).
   shareClaudeSettings?: boolean
+  // When false, the background `git fetch --all` poller is disabled for all
+  // repos. Default is enabled (undefined/true).
+  autoFetchEnabled?: boolean
   // User's choice for installing Codex status hooks at user scope
   // (~/.codex/hooks.json). Claude no longer asks — its hooks ship as a
   // bundled plugin loaded via --plugin-dir, so nothing is written to
