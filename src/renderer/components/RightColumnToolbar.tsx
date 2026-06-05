@@ -137,11 +137,11 @@ export function RightColumnToolbar({
           </div>
         )}
         </div>
-        <Tooltip label="Collapse sidebar" action="toggleRightColumn">
+        <Tooltip label="Collapse right sidebar" action="toggleRightColumn">
           <button
             onClick={onCollapse}
             className="text-dim hover:text-fg hover:bg-surface rounded p-0.5 transition-colors cursor-pointer"
-            aria-label="Collapse right column"
+            aria-label="Collapse right sidebar"
           >
             <PanelRightClose className="icon-xs" />
           </button>

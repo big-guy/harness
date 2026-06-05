@@ -308,11 +308,11 @@ export function CollapsedRightPanel({
       style={{ width: WIDTH }}
     >
       <div className="no-drag flex flex-col items-center gap-1 py-3">
-        <Tooltip label="Expand sidebar" action="toggleRightColumn" side="left">
+        <Tooltip label="Expand right sidebar" action="toggleRightColumn" side="left">
           <button
             onClick={onExpand}
             className="text-dim hover:text-fg hover:bg-surface rounded p-1.5 transition-colors cursor-pointer"
-            aria-label="Expand right column"
+            aria-label="Expand right sidebar"
           >
             <PanelRightOpen className="icon-sm" />
           </button>
