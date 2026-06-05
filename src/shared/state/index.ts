@@ -108,6 +108,7 @@ import {
   type RepoLocalEvent,
   type RepoLocalState
 } from './repo-local'
+import { initialConfigHealth, type ConfigHealthState } from './config-health'
 
 export type { SettingsState, SettingsEvent }
 export type { UpdaterState, UpdaterEvent, UpdaterStatus } from './updater'
@@ -201,6 +202,7 @@ export {
   BADGE_SHAPES,
   DEFAULT_CLAUDE_ACCOUNT_BADGE
 } from './repo-local'
+export type { ConfigHealthState, ConfigLoadError } from './config-health'
 
 export interface AppState {
   settings: SettingsState
@@ -219,6 +221,7 @@ export interface AppState {
   scratchpad: ScratchpadState
   sshBootstrap: SshBootstrapState
   repoLocal: RepoLocalState
+  configHealth: ConfigHealthState
 }
 
 export type StateEvent =
@@ -255,7 +258,8 @@ export const initialState: AppState = {
   announcements: initialAnnouncements,
   scratchpad: initialScratchpad,
   sshBootstrap: initialSshBootstrap,
-  repoLocal: initialRepoLocal
+  repoLocal: initialRepoLocal,
+  configHealth: initialConfigHealth
 }
 
 export function rootReducer(state: AppState, event: StateEvent): AppState {
@@ -340,6 +344,9 @@ export function rootReducer(state: AppState, event: StateEvent): AppState {
       repoLocal: repoLocalReducer(state.repoLocal, event as RepoLocalEvent)
     }
   }
+  // configHealth has no events — it's seeded at construction only (see
+  // config-health.ts), so there's no reducer branch. The field flows through
+  // unchanged via the `...state` spreads above.
   return state
 }
 
@@ -386,7 +393,8 @@ export function mergeWireSnapshot(state: WireSnapshotState): AppState {
     announcements: { ...initialState.announcements, ...state.announcements },
     scratchpad: { ...initialState.scratchpad, ...state.scratchpad },
     sshBootstrap: { ...initialState.sshBootstrap, ...state.sshBootstrap },
-    repoLocal: { ...initialState.repoLocal, ...state.repoLocal }
+    repoLocal: { ...initialState.repoLocal, ...state.repoLocal },
+    configHealth: { ...initialState.configHealth, ...state.configHealth }
   }
 }
 
