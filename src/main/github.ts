@@ -725,18 +725,23 @@ ${PR_FRAGMENT}`
   return buildPRStatus(pr, branchName, null, firstReleaseTag, hasMilestones)
 }
 
-/** Submit an APPROVE review on a PR with no comment body. Mirrors
- *  GitHub's "Approve without comment" — an empty body is fine when the
- *  `event` is APPROVE. */
-export async function approvePR(
+/** Submit a top-level PR review with an event (APPROVE / REQUEST_CHANGES /
+ *  COMMENT) and an optional body. APPROVE allows an empty body; GitHub
+ *  requires a non-empty body for REQUEST_CHANGES and COMMENT — the UI gates
+ *  that before calling. */
+export async function submitPRReview(
   repoRoot: string,
-  prNumber: number
+  prNumber: number,
+  event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT',
+  body: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const ctx = await getRepoContext(repoRoot)
   if (!ctx) return { ok: false, error: 'No GitHub origin remote detected' }
   const token = getCachedToken()
   if (!token) return { ok: false, error: 'No GitHub token configured' }
   const { owner, repo } = ctx.upstream
+  const payload: { event: string; body?: string } = { event }
+  if (body.trim()) payload.body = body
   try {
     const res = await trackedFetch(
       `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/reviews`,
@@ -749,7 +754,7 @@ export async function approvePR(
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ event: 'APPROVE' })
+        body: JSON.stringify(payload)
       }
     )
     if (res.status === 200 || res.status === 201) return { ok: true }
@@ -764,16 +769,24 @@ export async function approvePR(
       return { ok: false, error: 'Unauthorized — check that your token has repo scope' }
     }
     if (res.status === 422) {
-      // Most common 422 here is "Can not approve your own pull request",
-      // which the UI should filter out before calling. Surface GitHub's
-      // message so unexpected cases aren't silent.
-      return { ok: false, error: apiMessage || 'PR cannot be approved' }
+      // Common 422s: "Can not approve your own pull request", or a missing
+      // body for REQUEST_CHANGES/COMMENT. Surface GitHub's message verbatim.
+      return { ok: false, error: apiMessage || 'Review cannot be submitted' }
     }
     return { ok: false, error: apiMessage || `${res.status} ${res.statusText}` }
   } catch (err) {
-    log('github', `approvePR fetch failed for ${owner}/${repo}#${prNumber}`, formatErr(err))
+    log('github', `submitPRReview fetch failed for ${owner}/${repo}#${prNumber}`, formatErr(err))
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
+}
+
+/** Submit an APPROVE review with no comment body — GitHub's "Approve without
+ *  comment". Thin wrapper over {@link submitPRReview}. */
+export async function approvePR(
+  repoRoot: string,
+  prNumber: number
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return submitPRReview(repoRoot, prNumber, 'APPROVE', '')
 }
 
 /** Check whether the authenticated user has starred the repo. */

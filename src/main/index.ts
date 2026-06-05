@@ -54,7 +54,7 @@ import { getWeeklyStats } from './weekly-stats'
 import type { TerminalTab, PaneNode, PaneLeaf } from '../shared/state/terminals'
 import { getLeaves, mapLeaves } from '../shared/state/terminals'
 import { listWorktrees, listBranches, continueWorktree, isWorktreeDirty, defaultWorktreeDir, getChangedFiles, getFileDiff, getBranchCommits, getCommitDiff, getCommitMeta, getCommitChangedFiles, getCommitFileDiffSides, getCommitRangeChangedFiles, getCommitRangeFileDiffSides, getMainWorktreeStatus, prepareMainForMerge, mergeWorktreeLocally, getBranchSha, previewMergeConflicts, getBranchDiffStats, listAllFiles, listRecentCommitShas, readWorktreeFile, readWorktreeFileBinary, writeWorktreeFile, getFileDiffSides, getCurrentBranch, symlinkClaudeSettings, type MergeStrategy } from './worktree'
-import { listOpenPRs, testToken, starRepo, unstarRepo, isRepoStarred, mergePR, approvePR, getRepoInfo, getRepoContext, syncPRReview, listIssueTemplates, createIssue, createIssueComment, closeInboxItem, type GitHubMergeMethod, type MergePRResult } from './github'
+import { listOpenPRs, testToken, starRepo, unstarRepo, isRepoStarred, mergePR, approvePR, submitPRReview, getRepoInfo, getRepoContext, syncPRReview, listIssueTemplates, createIssue, createIssueComment, closeInboxItem, type GitHubMergeMethod, type MergePRResult } from './github'
 import type { ReviewSyncInput, ReviewSyncResult } from '../shared/github-types'
 import { AVAILABLE_EDITORS, DEFAULT_EDITOR_ID, openInEditor } from './editor'
 import { setSecret, getSecret, hasSecret, deleteSecret } from './secrets'
@@ -2021,6 +2021,31 @@ function registerIpcHandlers(): void {
         return { ok: false, error: 'No pull request found for this worktree' }
       }
       const result = await approvePR(worktreePath, prNumber)
+      if (result.ok) {
+        void prPoller.refreshOne(worktreePath)
+      }
+      return result
+    }
+  )
+
+  transport.onRequest(
+    'pr:submitReview',
+    async (
+      _ctx,
+      worktreePath: string,
+      event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT',
+      body: string
+    ): Promise<{ ok: true } | { ok: false; error: string }> => {
+      const cached = store.getSnapshot().state.prs.byPath[worktreePath]
+      let prNumber = cached?.number
+      if (typeof prNumber !== 'number') {
+        await prPoller.refreshOne(worktreePath)
+        prNumber = store.getSnapshot().state.prs.byPath[worktreePath]?.number
+      }
+      if (typeof prNumber !== 'number') {
+        return { ok: false, error: 'No pull request found for this worktree' }
+      }
+      const result = await submitPRReview(worktreePath, prNumber, event, body)
       if (result.ok) {
         void prPoller.refreshOne(worktreePath)
       }

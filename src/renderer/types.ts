@@ -319,6 +319,11 @@ export interface ElectronAPI {
   approvePR(
     worktreePath: string
   ): Promise<{ ok: true } | { ok: false; error: string }>
+  submitPRReview(
+    worktreePath: string,
+    event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT',
+    body: string
+  ): Promise<{ ok: true } | { ok: false; error: string }>
 
   reviewSync(worktreePath: string, input: ReviewSyncInput): Promise<ReviewSyncResult>
   getWeeklyStats(): Promise<WeeklyStats>

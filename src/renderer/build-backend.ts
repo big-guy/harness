@@ -249,6 +249,11 @@ export function buildBackend(
     reviewSync: (worktreePath: string, input: ReviewSyncInput) =>
       req('review:sync', worktreePath, input),
     approvePR: (worktreePath: string) => req('pr:approve', worktreePath),
+    submitPRReview: (
+      worktreePath: string,
+      event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT',
+      body: string
+    ) => req('pr:submitReview', worktreePath, event, body),
 
     getWeeklyStats: () => req('stats:getWeekly'),
 
