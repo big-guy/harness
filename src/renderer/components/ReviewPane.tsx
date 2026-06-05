@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Send, Clipboard, MessageSquare, GitCommitHorizontal, ArrowUp, ChevronDown, ChevronUp, Pilcrow, X, Keyboard, CloudSync, Loader2, WrapText, GitPullRequest, Menu, Search, ListTree } from 'lucide-react'
+import { Send, Clipboard, MessageSquare, GitCommitHorizontal, ArrowUp, ChevronDown, ChevronUp, Pilcrow, X, Keyboard, CloudSync, Loader2, WrapText, GitPullRequest, Menu, Search, ListTree, CheckCheck, GitBranch, Milestone } from 'lucide-react'
 import type { ChangedFile, BranchCommit } from '../types'
 import type { PRReview } from '../../shared/state/prs'
 import type { ReviewComment } from './ReviewFileTree'
@@ -316,6 +316,26 @@ export function ReviewPane({
     const text = formatComments()
     if (text) navigator.clipboard.writeText(text)
   }, [formatComments])
+
+  // One-click "Approve" (CheckCheck button) — only offered once every file is
+  // reviewed. Errors surface in the button's tooltip.
+  const [approving, setApproving] = useState(false)
+  const [approveError, setApproveError] = useState<string | null>(null)
+  const handleApprove = useCallback(async () => {
+    if (approving) return
+    setApproving(true)
+    setApproveError(null)
+    const res = await backend.approvePR(worktreePath)
+    setApproving(false)
+    if (!res.ok) setApproveError(res.error)
+  }, [approving, backend, worktreePath])
+
+  // "Submit…" menu — APPROVE / REQUEST_CHANGES / COMMENT with a top-level body.
+  const handleSubmitReview = useCallback(
+    (event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT', body: string) =>
+      backend.submitPRReview(worktreePath, event, body),
+    [backend, worktreePath]
+  )
 
   // Push local comments + viewed state to the PR and pull the canonical
   // comment set back. Replaces the local comment list with the reconciled
@@ -655,11 +675,12 @@ export function ReviewPane({
               disabled={!pr}
               aria-pressed={showPrDescription}
               aria-label="Show PR description"
-              className={`flex items-center shrink-0 px-1.5 py-1 rounded border transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-default ${
+              className={`flex items-center gap-1 shrink-0 px-1.5 py-1 rounded border text-xs transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-default ${
                 showPrDescription ? 'border-accent text-accent' : 'border-border text-faint hover:text-fg'
               }`}
             >
               <GitPullRequest className="icon-xs" />
+              {pr && <span className="font-mono tabular-nums">#{pr.number}</span>}
             </button>
           </Tooltip>
 
@@ -705,6 +726,37 @@ export function ReviewPane({
             <span className={`tabular-nums ${allReviewed ? 'text-success font-medium' : 'text-faint'}`}>
               {reviewedFiles.size}/{files.length} reviewed
             </span>
+
+            {pr && (
+              <>
+                <div className="flex items-center gap-1.5">
+                  <Tooltip
+                    label={
+                      approveError
+                        ? approveError
+                        : allReviewed
+                          ? 'Approve PR'
+                          : 'Review all files to enable approve'
+                    }
+                  >
+                    <button
+                      onClick={handleApprove}
+                      disabled={!allReviewed || approving}
+                      aria-label="Approve PR"
+                      className="flex items-center shrink-0 px-1.5 py-1 rounded border border-border text-faint hover:text-success hover:border-success transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-default disabled:hover:text-faint disabled:hover:border-border"
+                    >
+                      {approving ? (
+                        <Loader2 className="icon-xs animate-spin" />
+                      ) : (
+                        <CheckCheck className="icon-xs" />
+                      )}
+                    </button>
+                  </Tooltip>
+                  <SubmitReviewMenu onSubmit={handleSubmitReview} />
+                </div>
+                <div className="w-px h-5 bg-border shrink-0" />
+              </>
+            )}
 
             <div className="flex items-center gap-1.5">
               <Tooltip label="Send all comments to the active agent terminal">
@@ -818,7 +870,9 @@ export function ReviewPane({
               number={pr.number}
               body={pr.body}
               url={pr.url}
-              onClose={() => setShowPrDescription(false)}
+              author={pr.author}
+              baseBranch={pr.baseBranch}
+              milestone={pr.milestone}
               fill={fileTreeCollapsed}
             />
           )}
@@ -1359,6 +1413,118 @@ function CommentDropdown({
   )
 }
 
+type PrReviewEvent = 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT'
+
+const REVIEW_EVENT_OPTIONS: { value: PrReviewEvent; label: string }[] = [
+  { value: 'APPROVE', label: 'Approve' },
+  { value: 'REQUEST_CHANGES', label: 'Request changes' },
+  { value: 'COMMENT', label: 'Comment' }
+]
+
+/** "Submit…" dropdown: pick a review event, optionally write a top-level
+ *  comment, and submit it to the PR (separate from the per-line draft
+ *  comments synced via the Sync button). */
+function SubmitReviewMenu({
+  onSubmit
+}: {
+  onSubmit: (event: PrReviewEvent, body: string) => Promise<{ ok: true } | { ok: false; error: string }>
+}): JSX.Element {
+  const [open, setOpen] = useState(false)
+  const [event, setEvent] = useState<PrReviewEvent>('APPROVE')
+  const [body, setBody] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const wrapRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent): void => {
+      if (wrapRef.current && e.target instanceof Node && wrapRef.current.contains(e.target)) return
+      setOpen(false)
+    }
+    window.addEventListener('mousedown', close)
+    return () => window.removeEventListener('mousedown', close)
+  }, [open])
+
+  // GitHub requires a body for REQUEST_CHANGES and COMMENT; APPROVE may be empty.
+  const needsBody = event !== 'APPROVE'
+  const canSubmit = !submitting && (!needsBody || body.trim().length > 0)
+
+  const submit = async (): Promise<void> => {
+    if (!canSubmit) return
+    setSubmitting(true)
+    setError(null)
+    const res = await onSubmit(event, body.trim())
+    setSubmitting(false)
+    if (res.ok) {
+      setOpen(false)
+      setBody('')
+    } else {
+      setError(res.error)
+    }
+  }
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 shrink-0 px-2 py-1 rounded border border-border text-xs text-faint hover:text-fg transition-colors cursor-pointer"
+      >
+        Submit…
+        <ChevronDown className="icon-2xs" />
+      </button>
+      {open && (
+        <div
+          className="absolute z-50 top-full right-0 mt-1 w-80 bg-panel-raised border border-border-strong rounded shadow-lg p-3 flex flex-col gap-2.5"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className="flex flex-col gap-1.5">
+            {REVIEW_EVENT_OPTIONS.map((opt) => (
+              <label
+                key={opt.value}
+                className="flex items-center gap-2 text-xs text-fg cursor-pointer"
+              >
+                <input
+                  type="radio"
+                  name="review-event"
+                  checked={event === opt.value}
+                  onChange={() => setEvent(opt.value)}
+                  className="accent-accent"
+                />
+                {opt.label}
+              </label>
+            ))}
+          </div>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder={needsBody ? 'Leave a comment (required)…' : 'Leave a comment (optional)…'}
+            rows={4}
+            className="w-full resize-none bg-panel border border-border rounded px-2 py-1.5 text-xs text-fg placeholder:text-faint focus:outline-none focus:border-border-strong"
+          />
+          {error && <span className="text-danger text-xs">{error}</span>}
+          <div className="flex items-center justify-end gap-2">
+            <button
+              onClick={() => setOpen(false)}
+              className="px-2 py-1 rounded text-xs text-faint hover:text-fg cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => void submit()}
+              disabled={!canSubmit}
+              className="flex items-center gap-1 px-2.5 py-1 rounded bg-accent text-app text-xs font-medium hover:bg-accent/80 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-default"
+            >
+              {submitting && <Loader2 className="icon-xs animate-spin" />}
+              Submit
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const REVIEW_SHORTCUTS: [string, string][] = [
   ['j / ↓', 'Next file'],
   ['k / ↑', 'Previous file'],
@@ -1429,14 +1595,18 @@ function PrDescriptionPane({
   number,
   body,
   url,
-  onClose,
+  author,
+  baseBranch,
+  milestone,
   fill
 }: {
   title: string
   number: number
   body: string
   url: string
-  onClose: () => void
+  author: { login: string; avatarUrl: string } | null
+  baseBranch: string
+  milestone?: { title: string; url: string; state: 'open' | 'closed' } | null
   /** Fill the column (file browser collapsed) vs. dock under the file tree. */
   fill?: boolean
 }): JSX.Element {
@@ -1446,23 +1616,45 @@ function PrDescriptionPane({
         fill ? 'flex-1' : 'shrink-0 max-h-[45%] border-t border-border'
       }`}
     >
-      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border shrink-0">
-        <GitPullRequest className="icon-xs text-faint shrink-0" />
+      <div className="flex flex-col gap-1.5 px-2 py-1.5 border-b border-border shrink-0">
         <a
           href={url}
           target="_blank"
           rel="noreferrer"
-          className="text-xs font-medium text-fg hover:underline truncate"
+          className="flex items-start gap-1.5 text-xs font-medium text-fg hover:underline"
         >
-          {title} <span className="text-faint">#{number}</span>
+          <GitPullRequest className="icon-xs text-faint shrink-0 mt-0.5" />
+          <span className="break-words min-w-0">
+            {title} <span className="text-faint">#{number}</span>
+          </span>
         </a>
-        <button
-          onClick={onClose}
-          aria-label="Hide PR description"
-          className="ml-auto shrink-0 text-faint hover:text-fg cursor-pointer"
-        >
-          <X className="icon-xs" />
-        </button>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-faint">
+          {author && (
+            <span className="flex items-center gap-1 min-w-0">
+              <img
+                src={author.avatarUrl}
+                alt=""
+                className="w-4 h-4 rounded-full shrink-0"
+              />
+              <span className="text-dim truncate">{author.login}</span>
+            </span>
+          )}
+          <span className="flex items-center gap-1 min-w-0">
+            <GitBranch className="icon-2xs shrink-0" />
+            <span className="font-mono truncate">{baseBranch}</span>
+          </span>
+          {milestone && (
+            <a
+              href={milestone.url}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1 min-w-0 hover:text-fg"
+            >
+              <Milestone className="icon-2xs shrink-0" />
+              <span className="truncate">{milestone.title}</span>
+            </a>
+          )}
+        </div>
       </div>
       <div className="markdown overflow-y-auto px-3 py-2 text-xs">
         {body.trim() ? (
