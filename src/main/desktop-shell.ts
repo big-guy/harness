@@ -371,7 +371,6 @@ export function startDesktopShell(deps: DesktopShellStartDeps): DesktopShellStar
         submenu: [
           {
             label: 'New Project…',
-            accelerator: 'CmdOrCtrl+N',
             click: () => transport.sendSignal('menu:newProject')
           },
           {
@@ -418,7 +417,13 @@ export function startDesktopShell(deps: DesktopShellStartDeps): DesktopShellStar
         label: 'View',
         submenu: [
           { role: 'reload' },
-          { role: 'forceReload' },
+          // Custom (not role: 'forceReload') so it carries NO accelerator — the
+          // role's default ⌘⇧R is reserved for the renderer's Refresh Worktrees
+          // hotkey. Still reloads when clicked.
+          {
+            label: 'Force Reload',
+            click: () => BrowserWindow.getFocusedWindow()?.webContents.reloadIgnoringCache()
+          },
           { role: 'toggleDevTools' },
           { type: 'separator' },
           {
