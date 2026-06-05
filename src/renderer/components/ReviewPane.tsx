@@ -706,13 +706,6 @@ export function ReviewPane({
               {reviewedFiles.size}/{files.length} reviewed
             </span>
 
-            {(totalAdditions > 0 || totalDeletions > 0) && (
-              <span className="font-mono tabular-nums shrink-0">
-                {totalAdditions > 0 && <span className="text-success">+{totalAdditions}</span>}
-                {totalDeletions > 0 && <span className="text-danger ml-1">−{totalDeletions}</span>}
-              </span>
-            )}
-
             <div className="flex items-center gap-1.5">
               <Tooltip label="Send all comments to the active agent terminal">
                 <button
@@ -795,6 +788,8 @@ export function ReviewPane({
                   onCommitClick={handleCommitClick}
                   fromCommit={fromCommit}
                   toCommit={toCommit}
+                  totalAdditions={totalAdditions}
+                  totalDeletions={totalDeletions}
                 />
               </div>
               <div className="flex-1 min-h-0 overflow-hidden">
@@ -983,6 +978,8 @@ interface CommitSelectorProps {
   toCommit?: string
   onSelectAll: () => void
   onCommitClick: (idx: number, shift: boolean) => void
+  totalAdditions: number
+  totalDeletions: number
 }
 
 function CommitSelector({
@@ -992,7 +989,9 @@ function CommitSelector({
   fromCommit,
   toCommit,
   onSelectAll,
-  onCommitClick
+  onCommitClick,
+  totalAdditions,
+  totalDeletions
 }: CommitSelectorProps): JSX.Element {
   const [open, setOpen] = useState(false)
   const wrapperRef = useRef<HTMLDivElement | null>(null)
@@ -1027,14 +1026,22 @@ function CommitSelector({
 
   return (
     <div ref={wrapperRef} className="relative w-full">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-1.5 px-2 py-1 rounded border border-border text-xs text-fg hover:bg-panel-raised transition-colors cursor-pointer"
-      >
-        <GitCommitHorizontal className="icon-xs text-faint shrink-0" />
-        <span className="font-mono flex-1 min-w-0 truncate text-left">{buttonLabel}</span>
-        <ChevronDown className="icon-2xs text-faint shrink-0" />
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="flex flex-1 min-w-0 items-center gap-1.5 px-2 py-1 rounded border border-border text-xs text-fg hover:bg-panel-raised transition-colors cursor-pointer"
+        >
+          <GitCommitHorizontal className="icon-xs text-faint shrink-0" />
+          <span className="font-mono flex-1 min-w-0 truncate text-left">{buttonLabel}</span>
+          <ChevronDown className="icon-2xs text-faint shrink-0" />
+        </button>
+        {(totalAdditions > 0 || totalDeletions > 0) && (
+          <span className="font-mono tabular-nums text-xs shrink-0">
+            {totalAdditions > 0 && <span className="text-success">+{totalAdditions}</span>}
+            {totalDeletions > 0 && <span className="text-danger ml-1">−{totalDeletions}</span>}
+          </span>
+        )}
+      </div>
       {open && (
         <div
           className="absolute z-50 top-full left-0 mt-1 w-80 max-h-[24rem] overflow-y-auto bg-panel-raised border border-border-strong rounded shadow-lg py-1"
