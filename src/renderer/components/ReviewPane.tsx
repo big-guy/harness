@@ -776,41 +776,47 @@ export function ReviewPane({
       </div>
 
       <div className="flex flex-1 min-h-0">
-        {/* File tree column — commit selector scopes the file list below it */}
-        {!fileTreeCollapsed && (
+        {/* Left column — file tree (commit selector + file list) and/or the
+            docked PR description. Stays mounted while either is showing, so
+            the PR description survives collapsing the file browser. */}
+        {(!fileTreeCollapsed || (showPrDescription && pr)) && (
         <div
           className="shrink-0 flex flex-col min-h-0"
           style={{ width: fileTreeWidth }}
         >
-          <div className="shrink-0 p-2 border-b border-border">
-            <CommitSelector
-              commits={commits}
-              isWholeBranch={isWholeBranch}
-              selectionIndices={selectionIndices}
-              onSelectAll={handleSelectAllCommits}
-              onCommitClick={handleCommitClick}
-              fromCommit={fromCommit}
-              toCommit={toCommit}
-            />
-          </div>
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <ReviewFileTree
-              files={files}
-              selectedFile={selectedFile}
-              reviewedFiles={reviewedFiles}
-              comments={comments}
-              collapsedDirs={collapsedDirs}
-              onSelectFile={setSelectedFile}
-              onToggleReviewed={handleToggleReviewed}
-              onToggleDir={handleToggleDir}
-              onSetSideBySide={setSideBySide}
-              onShowShortcuts={() => setShowShortcuts((v) => !v)}
-              onRevealLine={(filePath, line) =>
-                setRevealTarget({ filePath, line, nonce: ++revealNonceRef.current })
-              }
-              active={active}
-            />
-          </div>
+          {!fileTreeCollapsed && (
+            <>
+              <div className="shrink-0 p-2 border-b border-border">
+                <CommitSelector
+                  commits={commits}
+                  isWholeBranch={isWholeBranch}
+                  selectionIndices={selectionIndices}
+                  onSelectAll={handleSelectAllCommits}
+                  onCommitClick={handleCommitClick}
+                  fromCommit={fromCommit}
+                  toCommit={toCommit}
+                />
+              </div>
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <ReviewFileTree
+                  files={files}
+                  selectedFile={selectedFile}
+                  reviewedFiles={reviewedFiles}
+                  comments={comments}
+                  collapsedDirs={collapsedDirs}
+                  onSelectFile={setSelectedFile}
+                  onToggleReviewed={handleToggleReviewed}
+                  onToggleDir={handleToggleDir}
+                  onSetSideBySide={setSideBySide}
+                  onShowShortcuts={() => setShowShortcuts((v) => !v)}
+                  onRevealLine={(filePath, line) =>
+                    setRevealTarget({ filePath, line, nonce: ++revealNonceRef.current })
+                  }
+                  active={active}
+                />
+              </div>
+            </>
+          )}
           {showPrDescription && pr && (
             <PrDescriptionPane
               title={pr.title}
@@ -818,12 +824,15 @@ export function ReviewPane({
               body={pr.body}
               url={pr.url}
               onClose={() => setShowPrDescription(false)}
+              fill={fileTreeCollapsed}
             />
           )}
         </div>
         )}
 
-        {!fileTreeCollapsed && <ResizeHandle onDelta={handleFileTreeResize} />}
+        {(!fileTreeCollapsed || (showPrDescription && pr)) && (
+          <ResizeHandle onDelta={handleFileTreeResize} />
+        )}
 
         {/* Diff pane — the selected file's diff, one Monaco editor at a time. */}
         <div className="flex-1 min-w-0">
@@ -1413,16 +1422,23 @@ function PrDescriptionPane({
   number,
   body,
   url,
-  onClose
+  onClose,
+  fill
 }: {
   title: string
   number: number
   body: string
   url: string
   onClose: () => void
+  /** Fill the column (file browser collapsed) vs. dock under the file tree. */
+  fill?: boolean
 }): JSX.Element {
   return (
-    <div className="shrink-0 flex flex-col min-h-0 max-h-[45%] border-t border-border">
+    <div
+      className={`flex flex-col min-h-0 ${
+        fill ? 'flex-1' : 'shrink-0 max-h-[45%] border-t border-border'
+      }`}
+    >
       <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border shrink-0">
         <GitPullRequest className="icon-xs text-faint shrink-0" />
         <a
