@@ -270,6 +270,9 @@ interface XTerminalProps {
   visible: boolean
   sessionName?: string
   sessionId?: string
+  /** Agent tabs only: one-shot "fork from this session" source id. Passed to
+   *  buildSpawnArgs on first spawn (Claude --fork-session / Codex fork). */
+  forkFromSessionId?: string
   initialPrompt?: string
   teleportSessionId?: string
   modelOverride?: string
@@ -298,7 +301,7 @@ interface XTerminalProps {
   onSwitchToChat?: () => void
 }
 
-export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionName, sessionId, initialPrompt, teleportSessionId, modelOverride, shellCommand, shellCwd, backgroundVar, preamble, hideRestoreNotice, onRestartAgent, onSwitchToChat }: XTerminalProps): JSX.Element {
+export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionName, sessionId, forkFromSessionId, initialPrompt, teleportSessionId, modelOverride, shellCommand, shellCwd, backgroundVar, preamble, hideRestoreNotice, onRestartAgent, onSwitchToChat }: XTerminalProps): JSX.Element {
   // Lazy font-cache init — fires once on first XTerminal mount. See
   // initFontCache() comment for why this is lazy rather than at module
   // top.
@@ -605,6 +608,7 @@ export function XTerminal({ terminalId, cwd, type, agentKind, visible, sessionNa
         terminalId,
         cwd,
         sessionId,
+        forkFromSessionId,
         initialPrompt,
         teleportSessionId,
         sessionName,
