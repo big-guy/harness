@@ -612,6 +612,19 @@ export function ReviewDiffPane({
   const editorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null)
   const decorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null)
   const viewZonesRef = useRef<ViewZoneEntry[]>([])
+  // Latest comment callbacks held in refs so the view-zone sync effect doesn't
+  // list them as deps. The parent passes some as inline arrows (fresh identity
+  // every render), so without this a background re-render (PR poll, file
+  // watcher, sync) would re-run the effect, tear down the view zones, and
+  // remount InlineCommentInput — wiping the draft the user is typing.
+  const onAddCommentRef = useRef(onAddComment)
+  const onDeleteCommentRef = useRef(onDeleteComment)
+  const onAddReplyRef = useRef(onAddReply)
+  const onResolveThreadRef = useRef(onResolveThread)
+  onAddCommentRef.current = onAddComment
+  onDeleteCommentRef.current = onDeleteComment
+  onAddReplyRef.current = onAddReply
+  onResolveThreadRef.current = onResolveThread
   // Last diff line the mouse was over, for the `c` shortcut. null ⇒ not
   // over any line ⇒ file-level comment (line 0).
   const hoveredLineRef = useRef<number | null>(null)
@@ -808,10 +821,10 @@ export function ReviewDiffPane({
           root.render(
             <CommentThread
               thread={item.thread}
-              onDelete={(id) => onDeleteComment(id)}
+              onDelete={(id) => onDeleteCommentRef.current(id)}
               forceExpanded={expandAll}
-              onAddReply={onAddReply}
-              onResolveThread={onResolveThread}
+              onAddReply={(root, body) => onAddReplyRef.current(root, body)}
+              onResolveThread={(threadId) => onResolveThreadRef.current(threadId)}
               pendingResolve={pendingResolve}
             />
           )
@@ -821,7 +834,7 @@ export function ReviewDiffPane({
               lineNumber={item.lineNumber}
               startLine={commentStartLine}
               onSubmit={(body) => {
-                onAddComment(item.lineNumber, body, commentStartLine ?? undefined)
+                onAddCommentRef.current(item.lineNumber, body, commentStartLine ?? undefined)
                 setCommentLine(null)
                 setCommentStartLine(null)
               }}
@@ -853,7 +866,7 @@ export function ReviewDiffPane({
     })
 
     viewZonesRef.current = newZones
-  }, [comments, commentLine, commentStartLine, editorNonce, expandAll, clearViewZones, flushZoneLayout, onAddComment, onDeleteComment, onAddReply, onResolveThread, pendingResolve])
+  }, [comments, commentLine, commentStartLine, editorNonce, expandAll, clearViewZones, flushZoneLayout, pendingResolve])
 
   // Clean up view zones on unmount
   useEffect(() => {

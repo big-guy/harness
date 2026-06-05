@@ -55,6 +55,8 @@ export function ReviewPane({
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set())
   const [fileTreeWidth, setFileTreeWidth] = useState<number>(240)
   const [fileTreeCollapsed, setFileTreeCollapsed] = useState(false)
+  // Bumped by the `a` shortcut to open + focus the comment-list dropdown.
+  const [commentMenuNonce, setCommentMenuNonce] = useState(0)
   // Hoisted above ReviewDiffPane so the choice persists as the reviewer
   // clicks through files in the same review session.
   const [wordWrap, setWordWrap] = useState(false)
@@ -177,6 +179,20 @@ export function ReviewPane({
   useEffect(() => {
     if (fileRequest) setSelectedFile(fileRequest.filePath)
   }, [fileRequest?.nonce, fileRequest?.filePath])
+
+  // When this review tab becomes active, pull keyboard focus into its root so
+  // tab-scoped hotkeys (e.g. the Quake terminal on Ctrl+`) fire immediately —
+  // without this, focus sits on <body> until the user clicks into the Monaco
+  // editor, and the Quake check (`activeElement` inside [data-tab-content])
+  // fails. Skip if focus already landed somewhere inside the tab.
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!active) return
+    const root = rootRef.current
+    if (!root) return
+    if (root.contains(document.activeElement)) return
+    root.focus({ preventScroll: true })
+  }, [active])
 
   const { totalAdditions, totalDeletions } = useMemo(() => {
     let add = 0
@@ -489,6 +505,36 @@ export function ReviewPane({
     return () => window.removeEventListener('keydown', onKey, true)
   }, [active])
 
+  // Pane-level single-key shortcuts. Handled here (not in ReviewFileTree)
+  // because `f` must work while the tree is collapsed/unmounted, and `a`
+  // drives the comment dropdown that lives in this component's toolbar.
+  useEffect(() => {
+    if (!active) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const el = e.target as HTMLElement | null
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return
+      if (e.key === 'f') {
+        e.preventDefault()
+        setFileTreeCollapsed((v) => !v)
+      } else if (e.key === 'g') {
+        e.preventDefault()
+        if (pr) setShowPrDescription((v) => !v)
+      } else if (e.key === 'a') {
+        e.preventDefault()
+        setCommentMenuNonce((n) => n + 1)
+      } else if (e.key === 'q') {
+        e.preventDefault()
+        setShowWhitespace((v) => !v)
+      } else if (e.key === 'w') {
+        e.preventDefault()
+        setWordWrap((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [active, !!pr])
+
   // Run the search (debounced). Fetches + caches each file's modified content
   // on first use, then matches case-insensitively across every file.
   useEffect(() => {
@@ -541,17 +587,8 @@ export function ReviewPane({
   const progress = files.length > 0 ? reviewedFiles.size / files.length : 0
 
   return (
-    <div className="relative flex flex-col h-full w-full bg-bg">
+    <div ref={rootRef} tabIndex={-1} className="relative flex flex-col h-full w-full bg-bg outline-none">
       {showShortcuts && <ReviewShortcutsPopup onClose={() => setShowShortcuts(false)} />}
-      {showPrDescription && pr && (
-        <PrDescriptionPanel
-          title={pr.title}
-          number={pr.number}
-          body={pr.body}
-          url={pr.url}
-          onClose={() => setShowPrDescription(false)}
-        />
-      )}
       {findOpen && (
         <div className="absolute top-1 right-3 z-[60] flex items-center gap-2 rounded border border-border-strong bg-panel-raised shadow-lg px-2 py-1.5 text-xs">
           <Search className="icon-xs text-faint shrink-0" />
@@ -602,6 +639,16 @@ export function ReviewPane({
       {/* Top controls bar */}
       <div className="shrink-0 border-b border-border bg-panel">
         <div className="h-10 flex items-center gap-3 px-3">
+          <Tooltip label="Keyboard shortcuts (?)">
+            <button
+              onClick={() => setShowShortcuts((v) => !v)}
+              aria-label="Keyboard shortcuts"
+              className="flex items-center shrink-0 px-1.5 py-1 rounded border border-border text-faint hover:text-fg cursor-pointer transition-colors"
+            >
+              <Keyboard className="icon-xs" />
+            </button>
+          </Tooltip>
+
           <Tooltip label={pr ? 'PR description' : 'No pull request for this worktree'}>
             <button
               onClick={() => setShowPrDescription((v) => !v)}
@@ -616,18 +663,9 @@ export function ReviewPane({
             </button>
           </Tooltip>
 
-          <Tooltip label="Keyboard shortcuts (?)">
-            <button
-              onClick={() => setShowShortcuts((v) => !v)}
-              aria-label="Keyboard shortcuts"
-              className="flex items-center shrink-0 px-1.5 py-1 rounded border border-border text-faint hover:text-fg cursor-pointer transition-colors"
-            >
-              <Keyboard className="icon-xs" />
-            </button>
-          </Tooltip>
-
           <CommentDropdown
             comments={comments}
+            openNonce={commentMenuNonce}
             onCopy={handleCopyComments}
             onSelect={(c) => {
               setSelectedFile(c.filePath)
@@ -738,45 +776,63 @@ export function ReviewPane({
       </div>
 
       <div className="flex flex-1 min-h-0">
-        {/* File tree column — commit selector scopes the file list below it */}
-        {!fileTreeCollapsed && (
+        {/* Left column — file tree (commit selector + file list) and/or the
+            docked PR description. Stays mounted while either is showing, so
+            the PR description survives collapsing the file browser. */}
+        {(!fileTreeCollapsed || (showPrDescription && pr)) && (
         <div
           className="shrink-0 flex flex-col min-h-0"
           style={{ width: fileTreeWidth }}
         >
-          <div className="shrink-0 p-2 border-b border-border">
-            <CommitSelector
-              commits={commits}
-              isWholeBranch={isWholeBranch}
-              selectionIndices={selectionIndices}
-              onSelectAll={handleSelectAllCommits}
-              onCommitClick={handleCommitClick}
-              fromCommit={fromCommit}
-              toCommit={toCommit}
+          {!fileTreeCollapsed && (
+            <>
+              <div className="shrink-0 p-2 border-b border-border">
+                <CommitSelector
+                  commits={commits}
+                  isWholeBranch={isWholeBranch}
+                  selectionIndices={selectionIndices}
+                  onSelectAll={handleSelectAllCommits}
+                  onCommitClick={handleCommitClick}
+                  fromCommit={fromCommit}
+                  toCommit={toCommit}
+                />
+              </div>
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <ReviewFileTree
+                  files={files}
+                  selectedFile={selectedFile}
+                  reviewedFiles={reviewedFiles}
+                  comments={comments}
+                  collapsedDirs={collapsedDirs}
+                  onSelectFile={setSelectedFile}
+                  onToggleReviewed={handleToggleReviewed}
+                  onToggleDir={handleToggleDir}
+                  onSetSideBySide={setSideBySide}
+                  onShowShortcuts={() => setShowShortcuts((v) => !v)}
+                  onRevealLine={(filePath, line) =>
+                    setRevealTarget({ filePath, line, nonce: ++revealNonceRef.current })
+                  }
+                  active={active}
+                />
+              </div>
+            </>
+          )}
+          {showPrDescription && pr && (
+            <PrDescriptionPane
+              title={pr.title}
+              number={pr.number}
+              body={pr.body}
+              url={pr.url}
+              onClose={() => setShowPrDescription(false)}
+              fill={fileTreeCollapsed}
             />
-          </div>
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <ReviewFileTree
-              files={files}
-              selectedFile={selectedFile}
-              reviewedFiles={reviewedFiles}
-              comments={comments}
-              collapsedDirs={collapsedDirs}
-              onSelectFile={setSelectedFile}
-              onToggleReviewed={handleToggleReviewed}
-              onToggleDir={handleToggleDir}
-              onSetSideBySide={setSideBySide}
-              onShowShortcuts={() => setShowShortcuts((v) => !v)}
-              onRevealLine={(filePath, line) =>
-                setRevealTarget({ filePath, line, nonce: ++revealNonceRef.current })
-              }
-              active={active}
-            />
-          </div>
+          )}
         </div>
         )}
 
-        {!fileTreeCollapsed && <ResizeHandle onDelta={handleFileTreeResize} />}
+        {(!fileTreeCollapsed || (showPrDescription && pr)) && (
+          <ResizeHandle onDelta={handleFileTreeResize} />
+        )}
 
         {/* Diff pane — the selected file's diff, one Monaco editor at a time. */}
         <div className="flex-1 min-w-0">
@@ -1150,14 +1206,49 @@ function ReviewerStatus({ reviews }: { reviews: PRReview[] }): JSX.Element | nul
 function CommentDropdown({
   comments,
   onSelect,
-  onCopy
+  onCopy,
+  openNonce
 }: {
   comments: ReviewComment[]
   onSelect: (c: ReviewComment) => void
   onCopy: () => void
+  /** Bumped by the parent's `a` shortcut to open + focus the list. */
+  openNonce?: number
 }): JSX.Element {
   const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(0)
   const wrapRef = useRef<HTMLDivElement | null>(null)
+  const listRef = useRef<HTMLDivElement | null>(null)
+  const activeItemRef = useRef<HTMLButtonElement | null>(null)
+
+  const sorted = useMemo(
+    () =>
+      [...comments].sort(
+        (a, b) => a.filePath.localeCompare(b.filePath) || a.lineNumber - b.lineNumber
+      ),
+    [comments]
+  )
+
+  // Open via the parent `a` shortcut.
+  useEffect(() => {
+    if (!openNonce) return
+    if (sorted.length === 0) return
+    setOpen(true)
+    setActiveIndex(0)
+  }, [openNonce])
+
+  // Focus the list whenever it opens so arrow-key nav has a home, and keep
+  // the active index in range as comments come and go.
+  useEffect(() => {
+    if (!open) return
+    setActiveIndex((i) => Math.min(Math.max(i, 0), Math.max(sorted.length - 1, 0)))
+    requestAnimationFrame(() => listRef.current?.focus({ preventScroll: true }))
+  }, [open])
+
+  // Keep the highlighted row scrolled into view.
+  useEffect(() => {
+    if (open) activeItemRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [open, activeIndex])
 
   useEffect(() => {
     if (!open) return
@@ -1169,9 +1260,36 @@ function CommentDropdown({
     return () => window.removeEventListener('mousedown', close)
   }, [open])
 
-  const sorted = [...comments].sort(
-    (a, b) => a.filePath.localeCompare(b.filePath) || a.lineNumber - b.lineNumber
-  )
+  // Arrow/space/enter navigation. Capture phase so it beats the file-nav
+  // window listener (which also acts on Arrow keys).
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        e.stopPropagation()
+        setActiveIndex((i) => Math.min(i + 1, sorted.length - 1))
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        e.stopPropagation()
+        setActiveIndex((i) => Math.max(i - 1, 0))
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        e.stopPropagation()
+        const c = sorted[activeIndex]
+        if (c) {
+          onSelect(c)
+          setOpen(false)
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        setOpen(false)
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [open, sorted, activeIndex, onSelect])
 
   return (
     <div ref={wrapRef} className="relative">
@@ -1186,7 +1304,9 @@ function CommentDropdown({
       </button>
       {open && comments.length > 0 && (
         <div
-          className="absolute z-50 top-full left-0 mt-1 w-[28rem] max-h-[20rem] overflow-y-auto bg-panel-raised border border-border-strong rounded shadow-lg py-1"
+          ref={listRef}
+          tabIndex={-1}
+          className="absolute z-50 top-full left-0 mt-1 w-[28rem] max-h-[20rem] overflow-y-auto bg-panel-raised border border-border-strong rounded shadow-lg py-1 outline-none"
           onMouseDown={(e) => e.stopPropagation()}
         >
           <button
@@ -1199,16 +1319,21 @@ function CommentDropdown({
             <Clipboard className="icon-xs" />
             Copy all comments to clipboard
           </button>
-          {sorted.map((c) => {
+          {sorted.map((c, i) => {
             const name = c.filePath.split('/').pop() || c.filePath
+            const isActive = i === activeIndex
             return (
               <button
                 key={c.id}
+                ref={isActive ? activeItemRef : undefined}
+                onMouseMove={() => setActiveIndex(i)}
                 onClick={() => {
                   onSelect(c)
                   setOpen(false)
                 }}
-                className="w-full text-left px-3 py-1.5 hover:bg-panel transition-colors cursor-pointer"
+                className={`w-full text-left px-3 py-1.5 transition-colors cursor-pointer ${
+                  isActive ? 'bg-panel' : 'hover:bg-panel'
+                }`}
               >
                 <div className="flex items-center gap-2 text-xs">
                   <span className="font-mono text-fg truncate">{name}</span>
@@ -1230,11 +1355,16 @@ function CommentDropdown({
 const REVIEW_SHORTCUTS: [string, string][] = [
   ['j / ↓', 'Next file'],
   ['k / ↑', 'Previous file'],
-  ['⇧J / ⇧↓', 'Next unreviewed file'],
-  ['⇧K / ⇧↑', 'Previous unreviewed file'],
+  ['n', 'Next unreviewed file'],
+  ['m', 'Previous unreviewed file'],
   ['] / [', 'Next / previous comment in file'],
+  ['a', 'Comment list (↑/↓ then Enter)'],
   ['r', 'Mark file viewed / unviewed'],
+  ['f', 'Hide / show file browser'],
+  ['g', 'Show / hide PR description'],
   ['s / d', 'Side-by-side / unified diff'],
+  ['w', 'Toggle word wrap'],
+  ['q', 'Toggle whitespace'],
   ['c', 'Comment on hovered line (or file)'],
   ['?', 'Toggle this help']
 ]
@@ -1285,66 +1415,56 @@ function ReviewShortcutsPopup({ onClose }: { onClose: () => void }): JSX.Element
   )
 }
 
-function PrDescriptionPanel({
+/** PR description docked at the bottom of the file-browser column. Toggled by
+ *  the "PR description" toolbar button (or the `g` shortcut); off by default. */
+function PrDescriptionPane({
   title,
   number,
   body,
   url,
-  onClose
+  onClose,
+  fill
 }: {
   title: string
   number: number
   body: string
   url: string
   onClose: () => void
+  /** Fill the column (file browser collapsed) vs. dock under the file tree. */
+  fill?: boolean
 }): JSX.Element {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
   return (
     <div
-      className="absolute inset-0 z-50 flex items-center justify-center bg-black/40"
-      onClick={onClose}
+      className={`flex flex-col min-h-0 ${
+        fill ? 'flex-1' : 'shrink-0 max-h-[45%] border-t border-border'
+      }`}
     >
-      <div
-        className="w-[42rem] max-w-[90%] max-h-[80%] flex flex-col rounded-lg border border-border-strong bg-panel-raised shadow-lg"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
-          <GitPullRequest className="icon-sm text-faint shrink-0" />
-          <a
-            href={url}
-            target="_blank"
-            rel="noreferrer"
-            className="text-base font-medium text-fg hover:underline truncate"
-          >
-            {title} <span className="text-faint">#{number}</span>
-          </a>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="ml-auto shrink-0 text-faint hover:text-fg cursor-pointer"
-          >
-            <X className="icon-base" />
-          </button>
-        </div>
-        <div className="markdown overflow-y-auto px-4 py-3 text-sm">
-          {body.trim() ? (
-            <ReactMarkdown remarkPlugins={REVIEW_MD_PLUGINS} rehypePlugins={REVIEW_REHYPE_PLUGINS}>
-              {body}
-            </ReactMarkdown>
-          ) : (
-            <span className="text-faint italic">No description provided.</span>
-          )}
-        </div>
+      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border shrink-0">
+        <GitPullRequest className="icon-xs text-faint shrink-0" />
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs font-medium text-fg hover:underline truncate"
+        >
+          {title} <span className="text-faint">#{number}</span>
+        </a>
+        <button
+          onClick={onClose}
+          aria-label="Hide PR description"
+          className="ml-auto shrink-0 text-faint hover:text-fg cursor-pointer"
+        >
+          <X className="icon-xs" />
+        </button>
+      </div>
+      <div className="markdown overflow-y-auto px-3 py-2 text-xs">
+        {body.trim() ? (
+          <ReactMarkdown remarkPlugins={REVIEW_MD_PLUGINS} rehypePlugins={REVIEW_REHYPE_PLUGINS}>
+            {body}
+          </ReactMarkdown>
+        ) : (
+          <span className="text-faint italic">No description provided.</span>
+        )}
       </div>
     </div>
   )
