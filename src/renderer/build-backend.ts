@@ -40,6 +40,7 @@ import type {
 } from '../shared/transport/transport'
 import type { ElectronAPI } from './types'
 import type { PreventSleepMode } from '../shared/state/settings'
+import type { ReviewSyncInput } from '../shared/github-types'
 
 export type { ElectronOnlyHelpers }
 
@@ -223,6 +224,8 @@ export function buildBackend(
     listRepoPRs: (repoRoot: string) => req('prs:listOpen', repoRoot),
     mergePR: (worktreePath: string, method: 'merge' | 'squash' | 'rebase') =>
       req('pr:merge', worktreePath, method),
+    reviewSync: (worktreePath: string, input: ReviewSyncInput) =>
+      req('review:sync', worktreePath, input),
     approvePR: (worktreePath: string) => req('pr:approve', worktreePath),
 
     getWeeklyStats: () => req('stats:getWeekly'),
@@ -297,6 +300,8 @@ export function buildBackend(
     setThemeMode: (mode: 'light' | 'dark' | 'system') => req('config:setThemeMode', mode),
     setThemeLight: (theme: string) => req('config:setThemeLight', theme),
     setThemeDark: (theme: string) => req('config:setThemeDark', theme),
+    setReviewDiffMode: (mode: 'match' | 'light' | 'dark') =>
+      req('config:setReviewDiffMode', mode),
     setLastEffectiveAppBg: (hex: string) => sig('config:setLastEffectiveAppBg', hex),
     reloadCustomThemes: () => req('config:reloadCustomThemes'),
     openThemesFolder: () => reqLocal('config:openThemesFolder'),

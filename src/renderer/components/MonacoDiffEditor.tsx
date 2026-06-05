@@ -7,6 +7,11 @@ interface MonacoDiffEditorProps {
   modified: string
   filePath?: string
   readOnly?: boolean
+  /** Side-by-side (true) vs inline/unified (false, default) rendering. */
+  renderSideBySide?: boolean
+  /** Hide whitespace-only changes (Monaco default true). Set false to
+   *  surface trailing/leading whitespace diffs. */
+  ignoreTrimWhitespace?: boolean
   fontFamily?: string
   fontSize?: number
   wordWrap?: boolean
@@ -16,6 +21,11 @@ interface MonacoDiffEditorProps {
   onEditorMount?: (editor: monaco.editor.IStandaloneDiffEditor) => void
   glyphClassName?: string
   glyphHoverMessage?: string
+  /** When set, the editor grows to fit its content (no internal vertical
+   *  scroll) and reports its content height via onContentHeight, so it can be
+   *  embedded in an outer scroll container (the stacked all-files review). */
+  autoHeight?: boolean
+  onContentHeight?: (height: number) => void
 }
 
 export function MonacoDiffEditor({
@@ -23,6 +33,8 @@ export function MonacoDiffEditor({
   modified,
   filePath,
   readOnly = true,
+  renderSideBySide = false,
+  ignoreTrimWhitespace = true,
   fontFamily,
   fontSize,
   wordWrap = false,
@@ -31,7 +43,9 @@ export function MonacoDiffEditor({
   onReferenceLine,
   onEditorMount,
   glyphClassName = 'ref-line-glyph',
-  glyphHoverMessage = 'Reference this line in Claude'
+  glyphHoverMessage = 'Reference this line in Claude',
+  autoHeight = false,
+  onContentHeight
 }: MonacoDiffEditorProps): JSX.Element {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const editorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null)
@@ -41,12 +55,16 @@ export function MonacoDiffEditor({
   const onMountRef = useRef(onEditorMount)
   const glyphClassRef = useRef(glyphClassName)
   const glyphHoverRef = useRef(glyphHoverMessage)
+  const onContentHeightRef = useRef(onContentHeight)
+  const renderSideBySideRef = useRef(renderSideBySide)
   onChangeRef.current = onModifiedChange
   onSaveRef.current = onSave
   onRefRef.current = onReferenceLine
   onMountRef.current = onEditorMount
   glyphClassRef.current = glyphClassName
   glyphHoverRef.current = glyphHoverMessage
+  onContentHeightRef.current = onContentHeight
+  renderSideBySideRef.current = renderSideBySide
 
   useEffect(() => {
     if (!hostRef.current) return
@@ -56,7 +74,13 @@ export function MonacoDiffEditor({
 
     const editor = monaco.editor.createDiffEditor(hostRef.current, {
       theme: 'harness',
-      renderSideBySide: false,
+      renderSideBySide,
+      // Without this, Monaco silently falls back to the inline view when the
+      // editor is narrower than renderSideBySideInlineBreakpoint (~900px) —
+      // so "Split" looks identical to "Unified" in a narrow pane. Force it
+      // to honor renderSideBySide at any width.
+      useInlineViewWhenSpaceIsLimited: false,
+      ignoreTrimWhitespace,
       readOnly,
       originalEditable: false,
       automaticLayout: true,
@@ -65,6 +89,10 @@ export function MonacoDiffEditor({
       fontSize: fontSize || 13,
       wordWrap: wordWrap ? 'on' : 'off',
       minimap: { enabled: false },
+      // No minimap and no diff overview ruler (the colored change-strip on
+      // the right edge) — keeps the stacked review clean.
+      renderOverviewRuler: false,
+      overviewRulerLanes: 0,
       scrollBeyondLastLine: false,
       renderLineHighlight: 'line',
       smoothScrolling: true,
@@ -78,13 +106,68 @@ export function MonacoDiffEditor({
       scrollbar: {
         verticalScrollbarSize: 10,
         horizontalScrollbarSize: 10,
-        useShadows: false
+        useShadows: false,
+        // Auto-height mode: the editor grows to exactly its content height and
+        // the OUTER container scrolls. Hide the inner vertical scrollbar, but
+        // keep mouse-wheel handling ON — with no vertical scroll room and
+        // alwaysConsumeMouseWheel off, vertical wheel bubbles up to the stacked
+        // container while HORIZONTAL wheel still scrolls long lines here.
+        ...(autoHeight
+          ? { vertical: 'hidden' as const, alwaysConsumeMouseWheel: false }
+          : {})
       }
     })
     editor.setModel({ original: originalModel, modified: modifiedModel })
     editorRef.current = editor
 
     onMountRef.current?.(editor)
+
+    // Auto-height: report the diff's content height (the taller side in
+    // side-by-side, else the modified editor — which in inline mode already
+    // includes deleted-line and comment view zones) so the host can size to
+    // fit and the outer container owns the scroll.
+    let heightSubs: monaco.IDisposable[] = []
+    let revealTimer = 0
+    if (autoHeight) {
+      // Mount hidden and fade in once the diff has actually computed —
+      // otherwise the fresh editor briefly paints the full modified text
+      // un-tokenized and before hideUnchangedRegions collapses it, a visible
+      // flash on (re)expand. Set synchronously so the first paint is hidden.
+      const host = hostRef.current
+      if (host) {
+        host.style.opacity = '0'
+        host.style.transition = 'opacity 100ms ease'
+      }
+      let revealed = false
+      const reveal = (): void => {
+        if (revealed) return
+        revealed = true
+        // One more frame so tokenization for the visible range lands too.
+        requestAnimationFrame(() => {
+          if (hostRef.current) hostRef.current.style.opacity = '1'
+        })
+      }
+      const reportHeight = (): void => {
+        const mod = editor.getModifiedEditor()
+        const orig = editor.getOriginalEditor()
+        const h = renderSideBySideRef.current
+          ? Math.max(orig.getContentHeight(), mod.getContentHeight())
+          : mod.getContentHeight()
+        onContentHeightRef.current?.(h)
+      }
+      heightSubs = [
+        editor.getModifiedEditor().onDidContentSizeChange(reportHeight),
+        editor.getOriginalEditor().onDidContentSizeChange(reportHeight),
+        editor.onDidUpdateDiff(() => {
+          reportHeight()
+          reveal()
+        })
+      ]
+      reportHeight()
+      // Fallback: reveal even if onDidUpdateDiff never fires (identical
+      // content, error, binary) so the editor can't get stuck invisible.
+      revealTimer = window.setTimeout(reveal, 300)
+    }
 
     const changeSub = editor
       .getModifiedEditor()
@@ -136,6 +219,8 @@ export function MonacoDiffEditor({
       moveSub.dispose()
       leaveSub.dispose()
       downSub.dispose()
+      for (const s of heightSubs) s.dispose()
+      if (revealTimer) clearTimeout(revealTimer)
       glyphCollection.clear()
       // Dispose the editor before the models it holds. Disposing models
       // first fires "TextModel got disposed before DiffEditorWidget model
@@ -177,6 +262,14 @@ export function MonacoDiffEditor({
   useEffect(() => {
     editorRef.current?.updateOptions({ readOnly })
   }, [readOnly])
+
+  useEffect(() => {
+    editorRef.current?.updateOptions({ renderSideBySide })
+  }, [renderSideBySide])
+
+  useEffect(() => {
+    editorRef.current?.updateOptions({ ignoreTrimWhitespace })
+  }, [ignoreTrimWhitespace])
 
   useEffect(() => {
     editorRef.current?.updateOptions({

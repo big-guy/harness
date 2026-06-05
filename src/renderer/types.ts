@@ -146,8 +146,8 @@ export type { PerfMetrics, PerfSample }
 import type { CheckStatus, PRReview, PRStatus } from '../shared/state/prs'
 export type { CheckStatus, PRReview, PRStatus }
 
-import type { PRSummary, PRMetadata } from '../shared/github-types'
-export type { PRSummary, PRMetadata }
+import type { PRSummary, PRMetadata, ReviewSyncInput, ReviewSyncResult, ReviewSyncComment } from '../shared/github-types'
+export type { PRSummary, PRMetadata, ReviewSyncInput, ReviewSyncResult, ReviewSyncComment }
 
 import type { BrowserState, BrowserTabState } from '../shared/state/browser'
 export type { BrowserState, BrowserTabState }
@@ -284,6 +284,7 @@ export interface ElectronAPI {
     worktreePath: string
   ): Promise<{ ok: true } | { ok: false; error: string }>
 
+  reviewSync(worktreePath: string, input: ReviewSyncInput): Promise<ReviewSyncResult>
   getWeeklyStats(): Promise<WeeklyStats>
   getBranchCommits(worktreePath: string): Promise<BranchCommit[]>
   getCommitDiff(worktreePath: string, hash: string): Promise<CommitDiff | null>
@@ -379,6 +380,7 @@ export interface ElectronAPI {
   setThemeMode(mode: 'light' | 'dark' | 'system'): Promise<boolean>
   setThemeLight(theme: string): Promise<boolean>
   setThemeDark(theme: string): Promise<boolean>
+  setReviewDiffMode(mode: 'match' | 'light' | 'dark'): Promise<boolean>
   setLastEffectiveAppBg(hex: string): void
   /** Rescan `<userData>/themes/*.json` and update the slice. Returns
    *  the new theme count. */
