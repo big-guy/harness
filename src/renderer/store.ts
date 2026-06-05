@@ -580,6 +580,18 @@ export function usePrs() {
   return useAppState((s) => s.prs)
 }
 
+export function useInbox() {
+  return useAppState((s) => s.inbox)
+}
+
+export function useInboxSnooze() {
+  return useAppState((s) => s.inboxSnooze)
+}
+
+export function useSchedules() {
+  return useAppState((s) => s.schedules)
+}
+
 export function useOnboarding() {
   return useAppState((s) => s.onboarding)
 }

@@ -47,6 +47,7 @@ export type Action =
   | 'uiScaleReset'
   | 'cycleWorktreeDetail'
   | 'cyclePreventSleep'
+  | 'toggleInbox'
 
 export interface Modifiers {
   cmd?: boolean
@@ -119,6 +120,7 @@ export const DEFAULT_HOTKEYS: Record<Action, HotkeyBinding> = {
   uiScaleReset: { key: '=', modifiers: { cmd: true } },
   cycleWorktreeDetail: { key: 'i', modifiers: { cmd: true } },
   cyclePreventSleep: { key: 'u', modifiers: { cmd: true, shift: true } },
+  toggleInbox: { key: 'i', modifiers: { cmd: true, shift: true } },
 }
 
 /** Actions triggered by a gesture (e.g. double-tap Shift) rather than a
@@ -259,7 +261,8 @@ export const ACTION_LABELS: Record<Action, string> = {
   uiScaleDown: 'Decrease UI size',
   uiScaleReset: 'Reset UI size',
   cycleWorktreeDetail: 'Cycle worktree detail (sidebar)',
-  cyclePreventSleep: 'Cycle prevent-sleep mode'
+  cyclePreventSleep: 'Cycle prevent-sleep mode',
+  toggleInbox: 'Toggle workflow'
 }
 
 export type CategoryId =
@@ -327,7 +330,7 @@ export const ACTION_CATEGORIES: HotkeyCategory[] = [
   {
     id: 'overlays',
     label: 'App overlays',
-    actions: ['openSettings', 'openReview', 'togglePerfMonitor', 'toggleQuakeTerminal']
+    actions: ['openSettings', 'openReview', 'toggleInbox', 'togglePerfMonitor', 'toggleQuakeTerminal']
   },
   {
     id: 'external',

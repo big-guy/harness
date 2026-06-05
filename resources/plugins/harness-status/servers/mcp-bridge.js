@@ -461,6 +461,71 @@ const TOOLS = [
       },
       required: ['name', 'description', 'command']
     }
+  },
+  {
+    name: 'add_inbox_item',
+    description:
+      "Add a new item to Harness's Inbox by opening a GitHub issue — the same action as the Inbox's \"Add item\" button. Requires a title; body is optional Markdown. owner/repo default to the calling worktree's GitHub origin (or the single open repo) when omitted, but you can target any repo your token can access by passing owner+repo explicitly. The issue appears in the Inbox on the next poll if it matches one of the configured inbox queries (e.g. assigned to you / a watched label).",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: {
+          type: 'string',
+          description: 'Issue title (required).'
+        },
+        body: {
+          type: 'string',
+          description: 'Issue description in Markdown. Optional.'
+        },
+        owner: {
+          type: 'string',
+          description:
+            "GitHub owner (org or user). Optional — defaults to the calling worktree's origin, or the single open repo."
+        },
+        repo: {
+          type: 'string',
+          description:
+            "GitHub repository name. Optional — defaults to the calling worktree's origin, or the single open repo."
+        }
+      },
+      required: ['title']
+    }
+  },
+  {
+    name: 'get_inbox_list',
+    description:
+      "Return the items of one of Harness's configured Inbox lists (the saved GitHub search queries shown as tabs in the Inbox). Pass the query's name or id. Optionally pass a filter — a whitespace-separated set of terms that are AND-matched (case-insensitive) against each item's owner/repo#number, title, author, labels, state, and kind. Returns { query, total, matched, items[] } where each item includes a `key` (e.g. \"pr:owner/repo#42\") you can reuse elsewhere. On an unknown query the error lists the available query names.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Name or id of the configured inbox query (the Inbox tab label).'
+        },
+        filter: {
+          type: 'string',
+          description:
+            'Optional. Whitespace-separated terms AND-matched (case-insensitive) against each item (owner/repo#number, title, author, labels, state, kind).'
+        }
+      },
+      required: ['query']
+    }
+  },
+  {
+    name: 'complete_scheduled_work',
+    description:
+      "Signal that the SCHEDULED task you were started for is complete. Call this ONLY when you are running as a Harness scheduled run (a worktree Harness created from a Schedule and kicked off automatically) and you have finished the work. Pass a concise `summary` of what you did and the outcome — Harness records it and then DELETES this worktree, so make the summary self-contained (it's the only record that survives). Do NOT call this in an ordinary interactive session; it has no effect when the worktree isn't backed by a schedule.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        summary: {
+          type: 'string',
+          description:
+            'A concise, self-contained summary of what was done and the outcome. This is retained after the worktree is deleted; include anything a human would need to know.'
+        }
+      },
+      required: ['summary']
+    }
   }
 ]
 
@@ -748,6 +813,44 @@ async function handleToolCall(name, args) {
       cardinality
     })
     return 'Registered runner "' + r.name + '" → ' + command
+  }
+  if (name === 'add_inbox_item') {
+    const title = args && typeof args.title === 'string' ? args.title.trim() : ''
+    if (!title) throw new Error('title is required')
+    const r = await callControl('POST', '/inbox/items', {
+      title,
+      body: args && typeof args.body === 'string' ? args.body : '',
+      owner: args && typeof args.owner === 'string' ? args.owner : '',
+      repo: args && typeof args.repo === 'string' ? args.repo : ''
+    })
+    if (!r || r.ok === false) throw new Error((r && r.error) || 'failed to create issue')
+    return 'Added inbox item ' + r.owner + '/' + r.repo + '#' + r.number + ' → ' + r.htmlUrl
+  }
+  if (name === 'get_inbox_list') {
+    const query = args && typeof args.query === 'string' ? args.query.trim() : ''
+    if (!query) throw new Error('query (inbox query name or id) is required')
+    const q = new URLSearchParams({ query })
+    if (args && typeof args.filter === 'string' && args.filter.trim()) {
+      q.set('filter', args.filter)
+    }
+    const r = await callControl('GET', '/inbox/items?' + q.toString())
+    if (!r || r.ok === false) {
+      const avail =
+        r && Array.isArray(r.available) && r.available.length
+          ? ' Available queries: ' + r.available.map((a) => a.name).join(', ') + '.'
+          : ''
+      throw new Error(((r && r.error) || 'inbox query not found') + avail)
+    }
+    return JSON.stringify(r, null, 2)
+  }
+  if (name === 'complete_scheduled_work') {
+    const summary = args && typeof args.summary === 'string' ? args.summary.trim() : ''
+    if (!summary) throw new Error('summary is required')
+    const r = await callControl('POST', '/schedules/complete', { summary })
+    if (!r || r.ok === false) {
+      throw new Error((r && r.error) || 'this worktree is not backed by a schedule')
+    }
+    return 'Scheduled work "' + (r.title || 'task') + '" marked complete; worktree will be removed.'
   }
   throw new Error('unknown tool: ' + name)
 }

@@ -1,0 +1,984 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import {
+  ArrowLeft,
+  RefreshCw,
+  Loader2,
+  GitPullRequest,
+  CircleDot,
+  CircleCheck,
+  CircleX,
+  AlertCircle,
+  ExternalLink,
+  Settings as SettingsIcon,
+  Search,
+  Plus,
+  Wrench,
+  HardHat,
+  ClipboardCheck,
+  Check,
+  Clock,
+  BellRing,
+  Inbox as InboxIcon,
+  CalendarClock
+} from 'lucide-react'
+import { useInbox, useInboxSnooze, useSettings, useWorktrees } from '../store'
+import { getBackend, useBackend } from '../backend'
+import { inboxSnoozeKey } from '../../shared/state/inbox-snooze'
+import { formatWakeAt } from '../../shared/state/snooze'
+import { AddInboxItemModal } from './AddInboxItemModal'
+import { SnoozeCalendar } from './SnoozeCalendar'
+import { ScheduleTab } from './ScheduleTab'
+import { setInboxDragData } from '../inbox-drag'
+import type { InboxItem } from '../../shared/state/inbox'
+import type { Worktree } from '../types'
+
+interface InboxScreenProps {
+  onClose: () => void
+  onOpenSettings: () => void
+  /** Switch to a worktree (pending id for in-flight creations, or a real
+   *  worktree path for existing checkouts). The screen calls this after
+   *  the user successfully kicks off a "create worktree" action. */
+  onSelectWorktree: (idOrPath: string) => void
+}
+
+type SortKey = 'updated' | 'created' | 'comments'
+
+function formatRelative(iso: string): string {
+  const t = new Date(iso).getTime()
+  if (!Number.isFinite(t)) return ''
+  const diff = Date.now() - t
+  if (diff < 60_000) return 'just now'
+  const m = Math.floor(diff / 60_000)
+  if (m < 60) return `${m}m`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h`
+  const d = Math.floor(h / 24)
+  if (d < 30) return `${d}d`
+  const mo = Math.floor(d / 30)
+  return `${mo}mo`
+}
+
+function filterAndSort(items: InboxItem[], filter: string, sort: SortKey): InboxItem[] {
+  const needle = filter.trim().toLowerCase()
+  const filtered = needle
+    ? items.filter((it) => {
+        if (it.title.toLowerCase().includes(needle)) return true
+        if (it.author && it.author.login.toLowerCase().includes(needle)) return true
+        if (`${it.owner}/${it.repo}`.toLowerCase().includes(needle)) return true
+        if (`#${it.number}`.includes(needle)) return true
+        for (const l of it.labels) {
+          if (l.name.toLowerCase().includes(needle)) return true
+        }
+        return false
+      })
+    : items
+  const sorted = [...filtered]
+  if (sort === 'updated') {
+    sorted.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  } else if (sort === 'created') {
+    sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  } else if (sort === 'comments') {
+    sorted.sort((a, b) => b.commentCount - a.commentCount)
+  }
+  return sorted
+}
+
+function stateColor(item: InboxItem, inMergeQueue: boolean): string {
+  if (item.state === 'closed') return 'text-fg/40'
+  if (item.kind === 'pr' && inMergeQueue) return 'text-purple-400'
+  if (item.kind === 'pr') return 'text-success'
+  return 'text-accent'
+}
+
+function StateIcon({
+  item,
+  inMergeQueue
+}: {
+  item: InboxItem
+  inMergeQueue: boolean
+}): JSX.Element {
+  if (item.kind === 'pr') {
+    return <GitPullRequest className={`icon-sm ${stateColor(item, inMergeQueue)}`} />
+  }
+  if (item.state === 'closed') {
+    return <CircleX className={`icon-sm ${stateColor(item, inMergeQueue)}`} />
+  }
+  return <CircleDot className={`icon-sm ${stateColor(item, inMergeQueue)}`} />
+}
+
+/** Extract referenced issue/PR numbers from the body. Matches `#NNN` and
+ *  `GH-NNN`; dedupes; excludes the PR's own number. */
+function extractIssueRefs(body: string | null, selfNumber: number): number[] {
+  if (!body) return []
+  const re = /(?:#|\bGH-)(\d+)\b/g
+  const seen = new Set<number>()
+  let m: RegExpExecArray | null
+  while ((m = re.exec(body)) !== null) {
+    const n = parseInt(m[1], 10)
+    if (!Number.isFinite(n) || n === selfNumber) continue
+    seen.add(n)
+  }
+  return [...seen].sort((a, b) => a - b)
+}
+
+function UserBadge({
+  user
+}: {
+  user: { login: string; avatarUrl: string }
+}): JSX.Element {
+  return (
+    <span className="inline-flex items-center gap-1">
+      {user.avatarUrl && (
+        <img
+          src={user.avatarUrl}
+          alt=""
+          loading="lazy"
+          className="w-3.5 h-3.5 rounded-full shrink-0"
+        />
+      )}
+      <span>{user.login}</span>
+    </span>
+  )
+}
+
+interface ItemRowProps {
+  item: InboxItem
+  expanded: boolean
+  onToggle: () => void
+  onCreateWorktree: () => void
+  createWorktreePending: boolean
+  createWorktreeError: string | null
+  /** Existing worktree for this item, if any. When set, the action label
+   *  switches from "Review this"/"Start work" to "Open existing worktree". */
+  existingWorktree: Worktree | null
+  inMergeQueue: boolean
+  /** Called after the item is closed on GitHub so the list can refresh. */
+  onAfterClose: () => void
+  /** Whether this item is currently snoozed (renders greyed + collapsed
+   *  with a Wake control instead of Snooze). */
+  snoozed: boolean
+  /** Wake time for a snoozed item (ms), or null. */
+  wakeAt: number | null
+  /** Snooze the item — plain click uses the default duration; ⌥-click opens
+   *  the date picker (the parent reads `e.altKey`). */
+  onSnooze: (e: React.MouseEvent) => void
+  onWake: () => void
+}
+
+const lookAtPrompt = (url: string): string => `Look at this ${url}`
+const fixPrompt = (url: string): string => `Prepare a reproducer and propose a fix: ${url}`
+const investigatePrompt = (url: string): string =>
+  `Investigate this issue and propose a response: ${url}`
+
+function ItemRow({
+  item,
+  expanded,
+  onToggle,
+  onCreateWorktree,
+  createWorktreePending,
+  createWorktreeError,
+  existingWorktree,
+  inMergeQueue,
+  onAfterClose,
+  snoozed,
+  wakeAt,
+  onSnooze,
+  onWake
+}: ItemRowProps): JSX.Element {
+  const backend = useBackend()
+  const [comment, setComment] = useState('')
+  const [commenting, setCommenting] = useState(false)
+  const [commented, setCommented] = useState(false)
+  const [commentError, setCommentError] = useState<string | null>(null)
+  const [confirmClose, setConfirmClose] = useState(false)
+  const [closing, setClosing] = useState(false)
+  const [closed, setClosed] = useState(false)
+  const [closeError, setCloseError] = useState<string | null>(null)
+
+  const dragBase = {
+    kind: item.kind,
+    owner: item.owner,
+    repo: item.repo,
+    number: item.number,
+    title: item.title,
+    url: item.url
+  }
+
+  const submitComment = async (): Promise<void> => {
+    const body = comment.trim()
+    if (!body || commenting) return
+    setCommenting(true)
+    setCommentError(null)
+    const r = await backend.createInboxComment(item.owner, item.repo, item.number, body)
+    setCommenting(false)
+    if (r.ok) {
+      setComment('')
+      setCommented(true)
+    } else {
+      setCommentError(r.error)
+    }
+  }
+
+  const handleClose = async (): Promise<void> => {
+    if (!confirmClose) {
+      setConfirmClose(true)
+      return
+    }
+    setClosing(true)
+    setCloseError(null)
+    const r = await backend.closeInboxItem(item.owner, item.repo, item.number, item.kind)
+    setClosing(false)
+    if (r.ok) {
+      setClosed(true)
+      onAfterClose()
+    } else {
+      setConfirmClose(false)
+      setCloseError(r.error)
+    }
+  }
+
+  return (
+    <div className="border-b border-border">
+      <div className="flex items-stretch">
+        {/* Quad of actions on the far left, in a 2×2 grid: drag-to-act
+            handles (Fix / Investigate) on top, open-externally + snooze/wake
+            below. The drag handles are hidden while snoozed; the bottom row
+            stays full-opacity even when the row is greyed so a snoozed item
+            can always be opened on GitHub or woken. */}
+        <div className="flex flex-col items-center justify-center gap-1.5 pl-2 pr-1 shrink-0 text-faint">
+          {!snoozed && (
+            <div className="flex items-center gap-1.5">
+              <button
+                draggable
+                onClick={(e) => e.stopPropagation()}
+                onDragStart={(e) =>
+                  setInboxDragData(e, {
+                    ...dragBase,
+                    prompt: fixPrompt(item.url),
+                    worktreePrompt: fixPrompt(item.url)
+                  })
+                }
+                title="Fix this — drag onto a worktree (or “Add worktree”): prepare a reproducer and propose a fix"
+                className="hover:text-fg cursor-grab active:cursor-grabbing"
+              >
+                <Wrench className="icon-xs" />
+              </button>
+              <button
+                draggable
+                onClick={(e) => e.stopPropagation()}
+                onDragStart={(e) =>
+                  setInboxDragData(e, {
+                    ...dragBase,
+                    prompt: investigatePrompt(item.url),
+                    worktreePrompt: investigatePrompt(item.url)
+                  })
+                }
+                title="Investigate this — drag onto a worktree (or “Add worktree”): investigate this issue and propose a response"
+                className="hover:text-fg cursor-grab active:cursor-grabbing"
+              >
+                <Search className="icon-xs" />
+              </button>
+            </div>
+          )}
+          <div className="flex items-center gap-1.5">
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noreferrer"
+              draggable={false}
+              onClick={(e) => e.stopPropagation()}
+              title="Open on GitHub"
+              className="hover:text-fg"
+            >
+              <ExternalLink className="icon-xs" />
+            </a>
+            {snoozed ? (
+              <button
+                onClick={onWake}
+                title={`Snoozed${wakeAt != null ? ` · wakes ${formatWakeAt(wakeAt)}` : ''} — click to wake`}
+                className="flex items-center gap-1 hover:text-fg cursor-pointer"
+              >
+                <BellRing className="icon-xs" />
+                {wakeAt != null && <span className="text-xs">{formatWakeAt(wakeAt)}</span>}
+              </button>
+            ) : (
+              <button
+                onClick={onSnooze}
+                title="Snooze · ⌥-click to pick a date"
+                className="hover:text-fg cursor-pointer"
+              >
+                <Clock className="icon-xs" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <button
+          draggable={!snoozed}
+          onDragStart={(e) =>
+            !snoozed && setInboxDragData(e, { ...dragBase, prompt: lookAtPrompt(item.url) })
+          }
+          onClick={snoozed ? undefined : onToggle}
+          title={
+            snoozed
+              ? 'Snoozed — wake it to act on it'
+              : 'Drag onto a worktree to reference it, or onto “Add worktree” to start one'
+          }
+          className={`min-w-0 flex-1 text-left px-3 py-2 flex items-start gap-2 transition-colors ${
+            snoozed
+              ? 'opacity-40 cursor-default'
+              : 'hover:bg-panel-raised/40 cursor-pointer'
+          }`}
+        >
+          <span className="mt-0.5">
+            <StateIcon item={item} inMergeQueue={inMergeQueue} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-xs text-faint shrink-0">
+                {item.owner}/{item.repo}#{item.number}
+              </span>
+              <span className="text-sm text-fg-bright truncate">{item.title}</span>
+            </div>
+            <div className="flex items-center gap-2 mt-0.5 text-xs text-dim">
+              {item.author && <UserBadge user={item.author} />}
+              <span>updated {formatRelative(item.updatedAt)} ago</span>
+              {item.commentCount > 0 && <span>· {item.commentCount} comments</span>}
+              {item.milestone && (
+                <span className="rounded-sm bg-surface text-fg px-1 text-xs">
+                  {item.milestone.title}
+                </span>
+              )}
+              {existingWorktree && (
+                <span className="rounded-sm bg-accent/15 text-accent px-1 text-xs">
+                  in worktree
+                </span>
+              )}
+              {inMergeQueue && (
+                <span className="rounded-sm bg-purple-400/15 text-purple-400 px-1 text-xs">
+                  queued
+                </span>
+              )}
+              {item.labels.length > 0 && (
+                <span className="flex items-center gap-1 truncate">
+                  {item.labels.slice(0, 4).map((l) => (
+                    <span
+                      key={l.name}
+                      className="rounded-sm px-1 text-xs"
+                      style={{
+                        backgroundColor: `#${l.color}33`,
+                        color: `#${l.color}`
+                      }}
+                    >
+                      {l.name}
+                    </span>
+                  ))}
+                </span>
+              )}
+            </div>
+          </div>
+        </button>
+      </div>
+      {expanded && !snoozed && (
+        <div className="px-3 pb-3 pt-1 border-t border-border bg-panel-raised/30">
+          {item.kind === 'pr' && (() => {
+            const refs = extractIssueRefs(item.bodyPreview, item.number)
+            if (refs.length === 0) return null
+            return (
+              <div className="text-xs text-dim mb-2 flex items-center gap-1.5 flex-wrap">
+                <span>References:</span>
+                {refs.map((n) => (
+                  <button
+                    key={n}
+                    onClick={() =>
+                      getBackend().openExternal(
+                        `https://github.com/${item.owner}/${item.repo}/issues/${n}`
+                      )
+                    }
+                    className="rounded-sm bg-surface hover:bg-surface-hover text-fg px-1 text-xs cursor-pointer"
+                  >
+                    #{n}
+                  </button>
+                ))}
+              </div>
+            )
+          })()}
+          {item.bodyPreview ? (
+            <div className="markdown text-xs text-muted max-h-72 overflow-y-auto pr-1">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {item.bodyPreview}
+              </ReactMarkdown>
+            </div>
+          ) : (
+            <div className="text-xs text-faint italic">No description.</div>
+          )}
+          {item.assignees.length > 0 && (
+            <div className="text-xs text-dim mt-2 flex items-center gap-1.5 flex-wrap">
+              <span>Assigned to</span>
+              {item.assignees.map((a) => (
+                <UserBadge key={a.login} user={a} />
+              ))}
+            </div>
+          )}
+          <div className="mt-3 flex items-center gap-2 flex-wrap">
+            <button
+              onClick={onCreateWorktree}
+              disabled={createWorktreePending}
+              className="text-xs bg-accent text-app rounded px-2 py-1 font-semibold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
+            >
+              {createWorktreePending ? (
+                <Loader2 className="icon-xs animate-spin" />
+              ) : existingWorktree ? null : item.kind === 'pr' ? (
+                <ClipboardCheck className="icon-xs" />
+              ) : (
+                <HardHat className="icon-xs" />
+              )}
+              <span>
+                {existingWorktree
+                  ? 'Open existing worktree'
+                  : item.kind === 'pr'
+                    ? 'Review this'
+                    : 'Start work'}
+              </span>
+            </button>
+            {closed ? (
+              <span className="text-xs text-success flex items-center gap-1">
+                <Check className="icon-xs" /> Closed
+              </span>
+            ) : (
+              <button
+                onClick={() => void handleClose()}
+                disabled={closing}
+                className={`text-xs rounded px-2 py-1 cursor-pointer flex items-center gap-1.5 transition-colors disabled:opacity-50 ${
+                  confirmClose
+                    ? 'bg-danger/20 text-danger border border-danger/50'
+                    : 'text-dim hover:text-fg border border-border'
+                }`}
+              >
+                {closing && <Loader2 className="icon-xs animate-spin" />}
+                {confirmClose ? 'Confirm close' : 'Close'}
+              </button>
+            )}
+            {existingWorktree && (
+              <span className="text-xs text-faint truncate" title={existingWorktree.path}>
+                {existingWorktree.branch}
+              </span>
+            )}
+          </div>
+          {createWorktreeError && (
+            <div className="text-xs text-danger mt-1">{createWorktreeError}</div>
+          )}
+          {closeError && <div className="text-xs text-danger mt-1">{closeError}</div>}
+
+          {/* Comment composer */}
+          <div className="mt-3">
+            <textarea
+              value={comment}
+              onChange={(e) => {
+                setComment(e.target.value)
+                setCommented(false)
+                setCommentError(null)
+              }}
+              placeholder="Add a comment…"
+              rows={2}
+              className="w-full bg-panel border border-border-strong rounded px-2 py-1.5 text-xs text-fg-bright placeholder-faint outline-none focus:border-accent resize-y"
+            />
+            <div className="mt-1 flex items-center gap-2">
+              <button
+                onClick={() => void submitComment()}
+                disabled={!comment.trim() || commenting}
+                className="text-xs bg-surface hover:bg-surface-hover rounded px-2 py-1 text-fg-bright disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
+              >
+                {commenting && <Loader2 className="icon-xs animate-spin" />}
+                Comment
+              </button>
+              {commented && (
+                <span className="text-xs text-success flex items-center gap-1">
+                  <Check className="icon-xs" /> Posted
+                </span>
+              )}
+              {commentError && <span className="text-xs text-danger">{commentError}</span>}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function InboxScreen({
+  onClose,
+  onOpenSettings,
+  onSelectWorktree
+}: InboxScreenProps): JSX.Element {
+  const inbox = useInbox()
+  const inboxSnooze = useInboxSnooze()
+  const settings = useSettings()
+  const worktrees = useWorktrees()
+  const backend = useBackend()
+  const queries = settings.inboxQueries
+  const prPrefix = settings.inboxPRBranchPrefix
+  const issuePrefix = settings.inboxIssueBranchPrefix
+
+  /** Index worktrees by `<owner>/<repo>` so per-row lookup is O(1).
+   *  Same-repo worktrees with different branches all live in the same
+   *  bucket; the row scans the bucket for a match. */
+  const worktreesByOwnerRepo = useMemo(() => {
+    const map = new Map<string, Worktree[]>()
+    for (const wt of worktrees.list) {
+      const origin = worktrees.originByRoot[wt.repoRoot]
+      if (!origin) continue
+      const key = `${origin.owner.toLowerCase()}/${origin.repo.toLowerCase()}`
+      const list = map.get(key)
+      if (list) list.push(wt)
+      else map.set(key, [wt])
+    }
+    return map
+  }, [worktrees.list, worktrees.originByRoot])
+
+  const findExistingWorktree = useCallback(
+    (item: InboxItem): Worktree | null => {
+      const bucket = worktreesByOwnerRepo.get(
+        `${item.owner.toLowerCase()}/${item.repo.toLowerCase()}`
+      )
+      if (!bucket) return null
+      if (item.kind === 'pr') {
+        const wanted = `${prPrefix}${item.number}`
+        return bucket.find((w) => w.branch === wanted) ?? null
+      }
+      // Issues: branch starts with `${issuePrefix}${n}-` or equals `${issuePrefix}${n}`.
+      const wantedExact = `${issuePrefix}${item.number}`
+      const wantedPrefix = `${issuePrefix}${item.number}-`
+      return (
+        bucket.find((w) => w.branch === wantedExact || w.branch.startsWith(wantedPrefix)) ??
+        null
+      )
+    },
+    [worktreesByOwnerRepo, prPrefix, issuePrefix]
+  )
+
+  // Unique GitHub repositories (owner/repo) across the tracked repos, for
+  // the "Add item" flow. Deduped + sorted for a stable picker order.
+  const availableRepos = useMemo(() => {
+    const seen = new Map<string, { owner: string; repo: string }>()
+    for (const origin of Object.values(worktrees.originByRoot)) {
+      if (!origin?.owner || !origin?.repo) continue
+      const key = `${origin.owner.toLowerCase()}/${origin.repo.toLowerCase()}`
+      if (!seen.has(key)) seen.set(key, { owner: origin.owner, repo: origin.repo })
+    }
+    return [...seen.values()].sort((a, b) =>
+      `${a.owner}/${a.repo}`.localeCompare(`${b.owner}/${b.repo}`)
+    )
+  }, [worktrees.originByRoot])
+
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [topTab, setTopTab] = useState<'inbox' | 'schedule'>('inbox')
+  const [showAddItem, setShowAddItem] = useState(false)
+  const [snoozeCalendarFor, setSnoozeCalendarFor] = useState<{
+    key: string
+    updatedAt: string
+    anchor: { top: number; left: number; width: number; height: number }
+  } | null>(null)
+  const [activeQueryId, setActiveQueryId] = useState<string | null>(
+    queries[0]?.id ?? null
+  )
+  const [filter, setFilter] = useState('')
+  const [sort, setSort] = useState<SortKey>('updated')
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  /** itemKey → in-flight; cleared on success or surface as an error. */
+  const [creating, setCreating] = useState<Record<string, boolean>>({})
+  const [createError, setCreateError] = useState<Record<string, string>>({})
+
+  // Keep activeQueryId valid as the configured list changes.
+  useEffect(() => {
+    if (queries.length === 0) {
+      setActiveQueryId(null)
+      return
+    }
+    if (!activeQueryId || !queries.find((q) => q.id === activeQueryId)) {
+      setActiveQueryId(queries[0].id)
+    }
+  }, [queries, activeQueryId])
+
+  // Trigger a stale-refresh whenever the user opens the view.
+  useEffect(() => {
+    void backend.refreshInboxAllIfStale()
+  }, [])
+
+  // Esc closes the Add-item modal if it's open, otherwise the inbox.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      if (showAddItem) setShowAddItem(false)
+      else onClose()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [showAddItem, onClose])
+
+  // Clicking outside the inbox (e.g. on the sidebar) closes it. The Add-item
+  // modal and snooze calendar render inside this root, so clicks within them
+  // count as "inside"; when either is open we leave the dismissal to it.
+  useEffect(() => {
+    const handler = (e: MouseEvent): void => {
+      if (showAddItem || snoozeCalendarFor) return
+      const root = rootRef.current
+      if (root && !root.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showAddItem, snoozeCalendarFor, onClose])
+
+  const activeQuery = queries.find((q) => q.id === activeQueryId) || null
+  const rawItems = activeQueryId ? inbox.byQueryId[activeQueryId] || [] : []
+  const totalCount = activeQueryId ? inbox.totalCount[activeQueryId] ?? 0 : 0
+  const loading = activeQueryId ? !!inbox.loading[activeQueryId] : false
+  const error = activeQueryId ? inbox.errors[activeQueryId] : null
+
+  const sorted = useMemo(() => filterAndSort(rawItems, filter, sort), [rawItems, filter, sort])
+  const truncated = totalCount > rawItems.length
+
+  // Split into Active vs Snoozed. Snoozed items drop to a greyed section
+  // below; they wake (server-side) on wakeAt or when the item changes.
+  const snoozeByKey = inboxSnooze.byKey
+  const activeItems = useMemo(
+    () => sorted.filter((it) => !snoozeByKey[inboxSnoozeKey(it)]),
+    [sorted, snoozeByKey]
+  )
+  const snoozedItems = useMemo(
+    () => sorted.filter((it) => snoozeByKey[inboxSnoozeKey(it)]),
+    [sorted, snoozeByKey]
+  )
+
+  const handleRefresh = (): void => {
+    if (!activeQueryId) return
+    void backend.refreshInboxOne(activeQueryId)
+  }
+
+  const itemKey = (it: InboxItem): string => `${it.kind}:${it.owner}/${it.repo}#${it.number}`
+
+  const snoozeItem = (it: InboxItem, e: React.MouseEvent): void => {
+    const key = inboxSnoozeKey(it)
+    if (e.altKey) {
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      setSnoozeCalendarFor({
+        key,
+        updatedAt: it.updatedAt,
+        anchor: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
+      })
+      return
+    }
+    const days = Math.max(1, Math.floor(settings.snoozeDefaultDays ?? 7))
+    void backend.snoozeInboxItem(key, Date.now() + days * 86400000, it.updatedAt)
+  }
+
+  const wakeItem = (it: InboxItem): void => {
+    void backend.unsnoozeInboxItem(inboxSnoozeKey(it))
+  }
+
+  const handleSnoozeCalendarPick = (wakeAt: number): void => {
+    if (!snoozeCalendarFor) return
+    void backend.snoozeInboxItem(snoozeCalendarFor.key, wakeAt, snoozeCalendarFor.updatedAt)
+    setSnoozeCalendarFor(null)
+  }
+
+  const renderItemRow = (it: InboxItem, isSnoozed: boolean): JSX.Element => {
+    const key = itemKey(it)
+    const entry = snoozeByKey[key]
+    return (
+      <ItemRow
+        key={key}
+        item={it}
+        expanded={!!expanded[key]}
+        onToggle={() => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))}
+        onCreateWorktree={() => void handleRowAction(it)}
+        createWorktreePending={!!creating[key]}
+        createWorktreeError={createError[key] ?? null}
+        existingWorktree={findExistingWorktree(it)}
+        inMergeQueue={
+          it.kind === 'pr' && !!inbox.mergeQueueByKey[`pr:${it.owner}/${it.repo}#${it.number}`]
+        }
+        onAfterClose={handleRefresh}
+        snoozed={isSnoozed}
+        wakeAt={entry ? entry.wakeAt : null}
+        onSnooze={(e) => snoozeItem(it, e)}
+        onWake={() => wakeItem(it)}
+      />
+    )
+  }
+
+  const handleRowAction = async (it: InboxItem): Promise<void> => {
+    const existing = findExistingWorktree(it)
+    if (existing) {
+      onClose()
+      onSelectWorktree(existing.path)
+      return
+    }
+    return handleCreateWorktree(it)
+  }
+
+  const handleCreateWorktree = async (it: InboxItem): Promise<void> => {
+    const key = itemKey(it)
+    setCreating((prev) => ({ ...prev, [key]: true }))
+    setCreateError((prev) => {
+      const { [key]: _, ...rest } = prev
+      return rest
+    })
+    try {
+      const result = await backend.createInboxWorktree({
+        kind: it.kind,
+        owner: it.owner,
+        repo: it.repo,
+        number: it.number,
+        title: it.title
+      })
+      onClose()
+      if (result.kind === 'pending') {
+        onSelectWorktree(result.pendingId)
+      } else {
+        onSelectWorktree(result.worktreePath)
+      }
+    } catch (err) {
+      setCreateError((prev) => ({
+        ...prev,
+        [key]: err instanceof Error ? err.message : String(err)
+      }))
+    } finally {
+      setCreating((prev) => {
+        const { [key]: _, ...rest } = prev
+        return rest
+      })
+    }
+  }
+
+  return (
+    <div ref={rootRef} className="flex-1 min-w-0 flex flex-col bg-app">
+      {/* Title bar */}
+      <div className="drag-region h-10 shrink-0 flex items-center px-3 border-b border-border">
+        <button
+          onClick={onClose}
+          className="no-drag flex items-center gap-1.5 text-dim hover:text-fg text-xs cursor-pointer"
+        >
+          <ArrowLeft className="icon-xs" />
+          <span>Back</span>
+          <kbd className="text-xs text-faint bg-bg px-1.5 py-0.5 rounded border border-border font-mono">
+            ESC
+          </kbd>
+        </button>
+        <span className="ml-3 text-xs font-semibold text-fg-bright">Workflow</span>
+      </div>
+
+      {/* Top-level tabs — switch the overlay between the GitHub Inbox and the
+          Schedule of recurring/scheduled agents. */}
+      <div className="shrink-0 flex items-stretch border-b border-border bg-app">
+        {(
+          [
+            { id: 'inbox', label: 'Inbox', Icon: InboxIcon },
+            { id: 'schedule', label: 'Schedule', Icon: CalendarClock }
+          ] as const
+        ).map(({ id, label, Icon }) => {
+          const isActive = topTab === id
+          return (
+            <button
+              key={id}
+              onClick={() => setTopTab(id)}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm cursor-pointer transition-colors border-b-2 -mb-px ${
+                isActive
+                  ? 'text-fg-bright border-accent'
+                  : 'text-dim border-transparent hover:text-fg hover:bg-panel/60'
+              }`}
+            >
+              <Icon className="icon-sm" />
+              <span>{label}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {topTab === 'schedule' ? (
+        <ScheduleTab onSelectWorktree={onSelectWorktree} />
+      ) : queries.length === 0 ? (
+        <>
+          <AddItemButton onClick={() => setShowAddItem(true)} />
+          {showAddItem && (
+            <AddInboxItemModal
+              repos={availableRepos}
+              onClose={() => setShowAddItem(false)}
+              onCreated={() => void backend.refreshInboxAllIfStale()}
+            />
+          )}
+          <EmptyState onOpenSettings={onOpenSettings} />
+        </>
+      ) : (
+        <>
+          {/* Add item — opens a new GitHub issue in one of the tracked repos. */}
+          <AddItemButton onClick={() => setShowAddItem(true)} />
+
+          {showAddItem && (
+            <AddInboxItemModal
+              repos={availableRepos}
+              onClose={() => setShowAddItem(false)}
+              onCreated={() => void backend.refreshInboxAllIfStale()}
+            />
+          )}
+
+          {snoozeCalendarFor && (
+            <SnoozeCalendar
+              anchor={snoozeCalendarFor.anchor}
+              defaultDays={Math.max(1, Math.floor(settings.snoozeDefaultDays ?? 7))}
+              onPick={handleSnoozeCalendarPick}
+              onDismiss={() => setSnoozeCalendarFor(null)}
+            />
+          )}
+
+          {/* Query tabs */}
+          <div className="px-3 pt-2 flex items-center gap-1 border-b border-border overflow-x-auto">
+            {queries.map((q) => {
+              const isActive = q.id === activeQueryId
+              const count = inbox.byQueryId[q.id]?.length ?? 0
+              const tabLoading = !!inbox.loading[q.id]
+              return (
+                <button
+                  key={q.id}
+                  onClick={() => setActiveQueryId(q.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-t cursor-pointer transition-colors ${
+                    isActive
+                      ? 'bg-panel text-fg-bright border-b-2 border-accent -mb-px'
+                      : 'text-dim hover:text-fg hover:bg-panel/60'
+                  }`}
+                >
+                  <span>{q.name}</span>
+                  {tabLoading ? (
+                    <Loader2 className="icon-2xs animate-spin text-faint" />
+                  ) : (
+                    count > 0 && <span className="text-faint">{count}</span>
+                  )}
+                </button>
+              )
+            })}
+            <button
+              onClick={onOpenSettings}
+              title="Manage inbox queries"
+              className="ml-auto text-faint hover:text-fg p-1 rounded cursor-pointer"
+            >
+              <SettingsIcon className="icon-xs" />
+            </button>
+          </div>
+
+          {/* Controls */}
+          <div className="px-3 py-2 flex items-center gap-2 border-b border-border shrink-0">
+            <div className="relative flex-1">
+              <Search className="icon-xs absolute left-2 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+              <input
+                type="text"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="Filter loaded items by title, label, author"
+                className="w-full bg-panel border border-border rounded pl-7 pr-2 py-1 text-xs text-fg-bright placeholder-faint outline-none focus:border-accent"
+              />
+            </div>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+              className="bg-panel border border-border rounded px-2 py-1 text-xs text-fg outline-none focus:border-accent cursor-pointer"
+            >
+              <option value="updated">Sort: updated</option>
+              <option value="created">Sort: created</option>
+              <option value="comments">Sort: comments</option>
+            </select>
+            <button
+              onClick={handleRefresh}
+              disabled={loading || !activeQueryId}
+              title="Refresh this query"
+              className="text-dim hover:text-fg hover:bg-surface rounded p-1 transition-colors cursor-pointer disabled:opacity-40"
+            >
+              {loading ? <Loader2 className="icon-xs animate-spin" /> : <RefreshCw className="icon-xs" />}
+            </button>
+          </div>
+
+          {/* Status bar — query string + truncation banner */}
+          {activeQuery && (
+            <div className="px-3 py-1 text-xs text-faint border-b border-border shrink-0 truncate">
+              <code className="text-dim">{activeQuery.query}</code>
+            </div>
+          )}
+          {truncated && (
+            <div className="px-3 py-1.5 text-xs text-warning bg-warning/5 border-b border-border shrink-0 flex items-center gap-1.5">
+              <AlertCircle className="icon-xs shrink-0" />
+              <span>
+                Showing {rawItems.length} most recently updated of {totalCount}.
+                Refine your query to see the rest.
+              </span>
+            </div>
+          )}
+          {error && (
+            <div className="px-3 py-1.5 text-xs text-danger bg-danger/5 border-b border-border shrink-0 flex items-center gap-1.5">
+              <AlertCircle className="icon-xs shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* List */}
+          <div className="flex-1 overflow-y-auto">
+            {sorted.length === 0 && !loading && !error && (
+              <div className="px-4 py-8 text-center text-xs text-faint">
+                {filter ? 'No items match the filter.' : 'No items match this query.'}
+              </div>
+            )}
+            {activeItems.map((it) => renderItemRow(it, false))}
+            {snoozedItems.length > 0 && (
+              <div className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-faint bg-panel/40 border-y border-border">
+                Snoozed · {snoozedItems.length}
+              </div>
+            )}
+            {snoozedItems.map((it) => renderItemRow(it, true))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+/** The "Add item" affordance, styled to match the sidebar's "Add worktree".
+ *  Extracted so both the empty-state and populated Inbox tab share it. */
+function AddItemButton({ onClick }: { onClick: () => void }): JSX.Element {
+  return (
+    <button
+      onClick={onClick}
+      className="group relative w-full flex items-center gap-2 px-3 py-2 text-dim hover:bg-panel-raised transition-colors cursor-pointer overflow-hidden border-b border-border shrink-0"
+    >
+      <span className="absolute left-0 top-0 bottom-0 w-0.5 brand-gradient-flow-bar opacity-0 group-hover:opacity-100 transition-opacity" />
+      <Plus className="icon-sm shrink-0 text-dim group-hover:[stroke:url(#harness-add-gradient)] transition-colors" />
+      <span className="text-sm font-medium brand-gradient-flow-text-hover">Add item</span>
+    </button>
+  )
+}
+
+interface EmptyStateProps {
+  onOpenSettings: () => void
+}
+
+function EmptyState({ onOpenSettings }: EmptyStateProps): JSX.Element {
+  return (
+    <div className="flex-1 flex items-center justify-center">
+      <div className="max-w-sm text-center px-6">
+        <CircleCheck className="icon-xl mx-auto text-faint mb-3" />
+        <div className="text-sm font-semibold text-fg-bright mb-1">
+          No inbox queries yet
+        </div>
+        <div className="text-xs text-dim mb-4 leading-relaxed">
+          Configure one or more GitHub search queries to populate your inbox.
+          For example: <code className="text-fg">is:open is:pr review-requested:@me</code>.
+        </div>
+        <button
+          onClick={onOpenSettings}
+          className="text-xs bg-accent hover:opacity-90 text-app rounded px-3 py-1.5 font-semibold cursor-pointer"
+        >
+          Open Settings
+        </button>
+      </div>
+    </div>
+  )
+}

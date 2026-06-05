@@ -13,12 +13,13 @@ import {
   Activity,
   ShieldAlert,
   HatGlasses,
-  GitPullRequest
+  GitPullRequest,
+  Workflow
 } from 'lucide-react'
 import { useMemo } from 'react'
 import { openReportIssue } from './ReportIssueScreen'
 import { Tooltip } from './Tooltip'
-import { usePrs, useSettings, useSnooze, useWorktrees } from '../store'
+import { useInbox, usePrs, useSettings, useSnooze, useWorktrees } from '../store'
 import { groupWorktrees, type GroupKey } from '../worktree-sort'
 
 interface CollapsedSidebarProps {
@@ -27,6 +28,8 @@ interface CollapsedSidebarProps {
   onNewWorktree: () => void
   onOpenCleanup: () => void
   onOpenCommandCenter: () => void
+  onOpenInbox: () => void
+  inboxActive: boolean
   onOpenNewProject: () => void
   onOpenActivity: () => void
   onOpenMyWeek: () => void
@@ -42,6 +45,8 @@ export function CollapsedSidebar({
   onNewWorktree,
   onOpenCleanup,
   onOpenCommandCenter,
+  onOpenInbox,
+  inboxActive,
   onOpenNewProject,
   onOpenActivity,
   onOpenMyWeek,
@@ -53,7 +58,13 @@ export function CollapsedSidebar({
   const worktrees = useWorktrees().list
   const prs = usePrs()
   const snooze = useSnooze()
+  const inbox = useInbox()
   const viewerLogin = useSettings().viewerLogin
+  const inboxUnreadCount = useMemo(() => {
+    let total = 0
+    for (const items of Object.values(inbox.byQueryId)) total += items.length
+    return total
+  }, [inbox.byQueryId])
   const snoozedPaths = useMemo(() => {
     const m: Record<string, true> = {}
     for (const p of Object.keys(snooze.byPath)) m[p] = true
@@ -166,7 +177,22 @@ export function CollapsedSidebar({
             <LayoutGrid className="icon-sm" />
           </button>
         </Tooltip>
-        <Tooltip label="New project" side="right">
+        <Tooltip label="Workflow" action="toggleInbox" side="right">
+          <button
+            onClick={onOpenInbox}
+            className={`relative rounded p-1.5 transition-colors cursor-pointer ${
+              inboxActive ? 'text-accent bg-surface' : 'text-dim hover:text-fg hover:bg-surface'
+            }`}
+          >
+            <Workflow className="icon-sm" />
+            {inboxUnreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-1 rounded-full bg-accent text-app text-[9px] font-semibold flex items-center justify-center">
+                {inboxUnreadCount > 99 ? '99+' : inboxUnreadCount}
+              </span>
+            )}
+          </button>
+        </Tooltip>
+        <Tooltip label="New project" hotkey="Ctrl+N" side="right">
           <button
             onClick={onOpenNewProject}
             className="text-dim hover:text-fg hover:bg-surface rounded p-1.5 transition-colors cursor-pointer"

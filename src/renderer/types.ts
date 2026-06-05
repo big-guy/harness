@@ -22,6 +22,8 @@ export type { CodexPluginVerification }
 import type { PreventSleepMode } from '../shared/state/settings'
 export type { PreventSleepMode }
 
+import type { Schedule } from '../shared/state/schedules'
+
 /** Per-kind dirtiness flags for a worktree. `git` reflects
  *  uncommitted changes; `scratchpad` reflects a non-empty scratchpad
  *  note. The delete-worktree flow surfaces each kind separately so the
@@ -146,8 +148,8 @@ export type { PerfMetrics, PerfSample }
 import type { CheckStatus, PRReview, PRStatus } from '../shared/state/prs'
 export type { CheckStatus, PRReview, PRStatus }
 
-import type { PRSummary, PRMetadata, ReviewSyncInput, ReviewSyncResult, ReviewSyncComment } from '../shared/github-types'
-export type { PRSummary, PRMetadata, ReviewSyncInput, ReviewSyncResult, ReviewSyncComment }
+import type { PRSummary, PRMetadata, ReviewSyncInput, ReviewSyncResult, ReviewSyncComment, IssueTemplate } from '../shared/github-types'
+export type { PRSummary, PRMetadata, ReviewSyncInput, ReviewSyncResult, ReviewSyncComment, IssueTemplate }
 
 import type { BrowserState, BrowserTabState } from '../shared/state/browser'
 export type { BrowserState, BrowserTabState }
@@ -271,6 +273,40 @@ export interface ElectronAPI {
   refreshPRsAllIfStale(): Promise<boolean>
   refreshPRsOne(worktreePath: string): Promise<boolean>
   refreshPRsOneIfStale(worktreePath: string): Promise<boolean>
+  refreshInboxAll(): Promise<boolean>
+  refreshInboxAllIfStale(): Promise<boolean>
+  refreshInboxOne(queryId: string): Promise<boolean>
+  createInboxWorktree(
+    ref: {
+      kind: 'issue' | 'pr'
+      owner: string
+      repo: string
+      number: number
+      title: string
+      initialPrompt?: string
+    }
+  ): Promise<
+    | { kind: 'pending'; pendingId: string; repoRoot: string; branchName: string; initialPrompt: string }
+    | { kind: 'existing'; worktreePath: string }
+  >
+  listIssueTemplates(owner: string, repo: string): Promise<IssueTemplate[]>
+  createIssue(
+    owner: string,
+    repo: string,
+    fields: { title: string; body: string }
+  ): Promise<{ ok: true; htmlUrl: string; number: number } | { ok: false; error: string }>
+  createInboxComment(
+    owner: string,
+    repo: string,
+    number: number,
+    body: string
+  ): Promise<{ ok: true; htmlUrl: string } | { ok: false; error: string }>
+  closeInboxItem(
+    owner: string,
+    repo: string,
+    number: number,
+    kind: 'issue' | 'pr'
+  ): Promise<{ ok: true } | { ok: false; error: string }>
 
   refreshAnnouncements(): Promise<boolean>
   dismissAnnouncement(id: string): Promise<boolean>
@@ -336,6 +372,11 @@ export interface ElectronAPI {
   setHarnessMcpEnabled(enabled: boolean): Promise<boolean>
   setAutoApprovePermissions(enabled: boolean): Promise<boolean>
   setAutoApproveSteerInstructions(text: string): Promise<boolean>
+  setInboxQueries(queries: { id: string; name: string; query: string }[]): Promise<boolean>
+  setInboxBranchPrefixes(payload: {
+    prBranchPrefix: string
+    issueBranchPrefix: string
+  }): Promise<boolean>
   setClaudeTuiFullscreen(enabled: boolean): Promise<boolean>
   setWsTransportEnabled(enabled: boolean): Promise<boolean>
   setWsTransportPort(port: number): Promise<number>
@@ -406,7 +447,11 @@ export interface ElectronAPI {
   getAvailableEditors(): Promise<{ id: string; name: string }[]>
   snooze(path: string, wakeAt: number): Promise<boolean>
   unsnooze(path: string): Promise<boolean>
+  snoozeInboxItem(key: string, wakeAt: number, updatedAt: string): Promise<boolean>
+  unsnoozeInboxItem(key: string): Promise<boolean>
   setSnoozeDefaultDays(days: number): Promise<boolean>
+  saveSchedule(schedule: Schedule): Promise<boolean>
+  removeSchedule(id: string): Promise<boolean>
   setScratchpadText(worktreePath: string, text: string): Promise<boolean>
   openInEditor(worktreePath: string, filePath?: string): Promise<{ ok: true } | { ok: false; error: string }>
 

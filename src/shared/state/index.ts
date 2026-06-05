@@ -115,6 +115,24 @@ import {
   type RunnersEvent,
   type RunnersState
 } from './runners'
+import {
+  initialInbox,
+  inboxReducer,
+  type InboxEvent,
+  type InboxState
+} from './inbox'
+import {
+  initialInboxSnooze,
+  inboxSnoozeReducer,
+  type InboxSnoozeEvent,
+  type InboxSnoozeState
+} from './inbox-snooze'
+import {
+  initialSchedules,
+  schedulesReducer,
+  type SchedulesEvent,
+  type SchedulesState
+} from './schedules'
 
 export type { SettingsState, SettingsEvent }
 export type { UpdaterState, UpdaterEvent, UpdaterStatus } from './updater'
@@ -210,6 +228,26 @@ export {
 } from './repo-local'
 export type { ConfigHealthState, ConfigLoadError } from './config-health'
 export type { RunnersState, RunnersEvent, RunnerItem } from './runners'
+export type {
+  InboxState,
+  InboxEvent,
+  InboxItem,
+  InboxItemRef,
+  InboxKind,
+  InboxLabel,
+  InboxUser,
+  InboxMilestone
+} from './inbox'
+export type { InboxSnoozeState, InboxSnoozeEvent, InboxSnoozeEntry } from './inbox-snooze'
+export { inboxSnoozeKey } from './inbox-snooze'
+export type {
+  SchedulesState,
+  SchedulesEvent,
+  Schedule,
+  ScheduleRepeat,
+  ScheduleTarget
+} from './schedules'
+export { SCHEDULE_REPEATS, sanitizeSchedules } from './schedules'
 
 export interface AppState {
   settings: SettingsState
@@ -230,6 +268,9 @@ export interface AppState {
   repoLocal: RepoLocalState
   configHealth: ConfigHealthState
   runners: RunnersState
+  inbox: InboxState
+  inboxSnooze: InboxSnoozeState
+  schedules: SchedulesState
 }
 
 export type StateEvent =
@@ -250,6 +291,9 @@ export type StateEvent =
   | SshBootstrapEvent
   | RepoLocalEvent
   | RunnersEvent
+  | InboxEvent
+  | InboxSnoozeEvent
+  | SchedulesEvent
 
 export const initialState: AppState = {
   settings: initialSettings,
@@ -269,7 +313,10 @@ export const initialState: AppState = {
   sshBootstrap: initialSshBootstrap,
   repoLocal: initialRepoLocal,
   configHealth: initialConfigHealth,
-  runners: initialRunners
+  runners: initialRunners,
+  inbox: initialInbox,
+  inboxSnooze: initialInboxSnooze,
+  schedules: initialSchedules
 }
 
 export function rootReducer(state: AppState, event: StateEvent): AppState {
@@ -360,6 +407,15 @@ export function rootReducer(state: AppState, event: StateEvent): AppState {
       runners: runnersReducer(state.runners, event as RunnersEvent)
     }
   }
+  if (event.type.startsWith('inbox/')) {
+    return { ...state, inbox: inboxReducer(state.inbox, event as InboxEvent) }
+  }
+  if (event.type.startsWith('inboxSnooze/')) {
+    return { ...state, inboxSnooze: inboxSnoozeReducer(state.inboxSnooze, event as InboxSnoozeEvent) }
+  }
+  if (event.type.startsWith('schedules/')) {
+    return { ...state, schedules: schedulesReducer(state.schedules, event as SchedulesEvent) }
+  }
   // configHealth has no events — it's seeded at construction only (see
   // config-health.ts), so there's no reducer branch. The field flows through
   // unchanged via the `...state` spreads above.
@@ -411,7 +467,10 @@ export function mergeWireSnapshot(state: WireSnapshotState): AppState {
     sshBootstrap: { ...initialState.sshBootstrap, ...state.sshBootstrap },
     repoLocal: { ...initialState.repoLocal, ...state.repoLocal },
     configHealth: { ...initialState.configHealth, ...state.configHealth },
-    runners: { ...initialState.runners, ...state.runners }
+    runners: { ...initialState.runners, ...state.runners },
+    inbox: { ...initialState.inbox, ...state.inbox },
+    inboxSnooze: { ...initialState.inboxSnooze, ...state.inboxSnooze },
+    schedules: { ...initialState.schedules, ...state.schedules }
   }
 }
 

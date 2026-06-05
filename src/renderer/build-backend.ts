@@ -41,6 +41,7 @@ import type {
 import type { ElectronAPI } from './types'
 import type { PreventSleepMode } from '../shared/state/settings'
 import type { ReviewSyncInput } from '../shared/github-types'
+import type { Schedule } from '../shared/state/schedules'
 
 export type { ElectronOnlyHelpers }
 
@@ -217,6 +218,27 @@ export function buildBackend(
     refreshPRsAllIfStale: () => req('prs:refreshAllIfStale'),
     refreshPRsOne: (worktreePath: string) => req('prs:refreshOne', worktreePath),
     refreshPRsOneIfStale: (worktreePath: string) => req('prs:refreshOneIfStale', worktreePath),
+    refreshInboxAll: () => req('inbox:refreshAll'),
+    refreshInboxAllIfStale: () => req('inbox:refreshAllIfStale'),
+    refreshInboxOne: (queryId: string) => req('inbox:refreshOne', queryId),
+    createInboxWorktree: (
+      ref: {
+        kind: 'issue' | 'pr'
+        owner: string
+        repo: string
+        number: number
+        title: string
+        initialPrompt?: string
+      }
+    ) => req('inbox:createWorktree', ref),
+    listIssueTemplates: (owner: string, repo: string) =>
+      req('inbox:listIssueTemplates', owner, repo),
+    createIssue: (owner: string, repo: string, fields: { title: string; body: string }) =>
+      req('inbox:createIssue', owner, repo, fields),
+    createInboxComment: (owner: string, repo: string, number: number, body: string) =>
+      req('inbox:createComment', owner, repo, number, body),
+    closeInboxItem: (owner: string, repo: string, number: number, kind: 'issue' | 'pr') =>
+      req('inbox:closeItem', owner, repo, number, kind),
 
     refreshAnnouncements: () => req('announcements:refresh'),
     dismissAnnouncement: (id: string) => req('announcements:dismiss', id),
@@ -250,6 +272,10 @@ export function buildBackend(
       req('config:setAutoApprovePermissions', enabled),
     setAutoApproveSteerInstructions: (text: string) =>
       req('config:setAutoApproveSteerInstructions', text),
+    setInboxQueries: (queries: { id: string; name: string; query: string }[]) =>
+      req('config:setInboxQueries', queries),
+    setInboxBranchPrefixes: (payload: { prBranchPrefix: string; issueBranchPrefix: string }) =>
+      req('config:setInboxBranchPrefixes', payload),
     setClaudeTuiFullscreen: (enabled: boolean) => req('config:setClaudeTuiFullscreen', enabled),
     setWsTransportEnabled: (enabled: boolean) => req('config:setWsTransportEnabled', enabled),
     setWsTransportPort: (port: number) => req('config:setWsTransportPort', port),
@@ -404,7 +430,13 @@ export function buildBackend(
 
     snooze: (path: string, wakeAt: number) => req('snooze:snooze', path, wakeAt),
     unsnooze: (path: string) => req('snooze:unsnooze', path),
+    snoozeInboxItem: (key: string, wakeAt: number, updatedAt: string) =>
+      req('inboxSnooze:snooze', key, wakeAt, updatedAt),
+    unsnoozeInboxItem: (key: string) => req('inboxSnooze:unsnooze', key),
     setSnoozeDefaultDays: (days: number) => req('config:setSnoozeDefaultDays', days),
+
+    saveSchedule: (schedule: Schedule) => req('schedules:save', schedule),
+    removeSchedule: (id: string) => req('schedules:remove', id),
 
     setScratchpadText: (worktreePath: string, text: string) =>
       req('scratchpad:setText', worktreePath, text),

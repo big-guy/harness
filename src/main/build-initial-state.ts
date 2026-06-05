@@ -12,6 +12,9 @@ import { initialJsonClaude } from '../shared/state/json-claude'
 import { initialSnooze } from '../shared/state/snooze'
 import { initialAnnouncements } from '../shared/state/announcements'
 import { initialScratchpad } from '../shared/state/scratchpad'
+import { initialInbox } from '../shared/state/inbox'
+import { initialInboxSnooze } from '../shared/state/inbox-snooze'
+import { sanitizeSchedules } from '../shared/state/schedules'
 import { initialSshBootstrap } from '../shared/state/ssh-bootstrap'
 import { initialConfigHealth, type ConfigLoadError } from '../shared/state/config-health'
 import {
@@ -91,6 +94,11 @@ export function buildInitialAppState(
     scratchpad: { byWorktreePath: flattenScratchpadNotes(config.scratchpadNotes) },
     sshBootstrap: initialSshBootstrap,
     runners: { byWorktree: sanitizeRunners(config.runners) },
+    inbox: initialInbox,
+    inboxSnooze: config.inboxSnooze
+      ? { byKey: { ...config.inboxSnooze } }
+      : initialInboxSnooze,
+    schedules: { items: sanitizeSchedules(config.schedules) },
     settings: {
       ...initialSettings,
       themeMode:
@@ -173,7 +181,14 @@ export function buildInitialAppState(
         ? (config.preventSleepMode as PreventSleepMode)
         : 'off',
       // The temporary "+1h" timer never survives a relaunch — always seed null.
-      preventSleepUntil: null
+      preventSleepUntil: null,
+      inboxQueries: Array.isArray(config.inboxQueries) ? config.inboxQueries : [],
+      inboxPRBranchPrefix:
+        typeof config.inboxPRBranchPrefix === 'string' ? config.inboxPRBranchPrefix : 'pr/',
+      inboxIssueBranchPrefix:
+        typeof config.inboxIssueBranchPrefix === 'string'
+          ? config.inboxIssueBranchPrefix
+          : 'issue-'
     }
   }
 }

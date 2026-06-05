@@ -82,6 +82,11 @@ export interface PendingDeletion {
   error?: string
 }
 
+export interface RepoOrigin {
+  owner: string
+  repo: string
+}
+
 export interface WorktreesState {
   /** Flat list of worktrees across every known repo. */
   list: Worktree[]
@@ -91,6 +96,11 @@ export interface WorktreesState {
    * the UI can animate + stream teardown output and the FSM keeps running
    * if the user navigates away. */
   pendingDeletions: PendingDeletion[]
+  /** Parsed `remote.origin.url` for each tracked repoRoot, keyed by the
+   *  root path. Populated by main on startup + whenever repoRoots changes.
+   *  The Inbox view uses this to detect which inbox items already have a
+   *  worktree in Harness. */
+  originByRoot: Record<string, RepoOrigin>
 }
 
 export type WorktreesEvent =
@@ -108,12 +118,14 @@ export type WorktreesEvent =
       payload: { path: string; patch: Partial<PendingDeletion> }
     }
   | { type: 'worktrees/pendingDeletionRemoved'; payload: string }
+  | { type: 'worktrees/originByRootChanged'; payload: Record<string, RepoOrigin> }
 
 export const initialWorktrees: WorktreesState = {
   list: [],
   repoRoots: [],
   pending: [],
-  pendingDeletions: []
+  pendingDeletions: [],
+  originByRoot: {}
 }
 
 export function worktreesReducer(
@@ -170,6 +182,8 @@ export function worktreesReducer(
         ...state,
         pendingDeletions: state.pendingDeletions.filter((d) => d.path !== event.payload)
       }
+    case 'worktrees/originByRootChanged':
+      return { ...state, originByRoot: event.payload }
     default: {
       const _exhaustive: never = event
       void _exhaustive

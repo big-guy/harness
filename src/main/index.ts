@@ -36,6 +36,9 @@ import { PerfMonitor } from './perf-monitor'
 import { setGitHubApiRecorder, setGitHubApiLoggingEnabled } from './github-recorder'
 import { PRPoller } from './pr-poller'
 import { FetchPoller } from './fetch-poller'
+import { InboxPoller } from './inbox-poller'
+import { prepareInboxWorktree, type InboxCreateOutcome } from './inbox-create-worktree'
+import { getRepoOriginInfo } from './git-remote-info'
 import { WorktreesFSM } from './worktrees-fsm'
 import { WorktreeDeletionFSM } from './worktree-deletion-fsm'
 import { PanesFSM, stripTransientTabFields } from './panes-fsm'
@@ -45,11 +48,13 @@ import { ShellAutoCloseMonitor } from './shell-autoclose-monitor'
 import { WakeLockController } from './wake-lock-controller'
 import { WorktreeWatcher } from './worktree-watcher'
 import { SnoozeTimer } from './snooze-timer'
+import { InboxSnoozeTimer } from './inbox-snooze-timer'
+import { ScheduleRunner } from './schedule-runner'
 import { getWeeklyStats } from './weekly-stats'
 import type { TerminalTab, PaneNode, PaneLeaf } from '../shared/state/terminals'
 import { getLeaves, mapLeaves } from '../shared/state/terminals'
 import { listWorktrees, listBranches, continueWorktree, isWorktreeDirty, defaultWorktreeDir, getChangedFiles, getFileDiff, getBranchCommits, getCommitDiff, getCommitMeta, getCommitChangedFiles, getCommitFileDiffSides, getCommitRangeChangedFiles, getCommitRangeFileDiffSides, getMainWorktreeStatus, prepareMainForMerge, mergeWorktreeLocally, getBranchSha, previewMergeConflicts, getBranchDiffStats, listAllFiles, listRecentCommitShas, readWorktreeFile, readWorktreeFileBinary, writeWorktreeFile, getFileDiffSides, getCurrentBranch, symlinkClaudeSettings, type MergeStrategy } from './worktree'
-import { listOpenPRs, testToken, starRepo, unstarRepo, isRepoStarred, mergePR, approvePR, getRepoInfo, getRepoContext, syncPRReview, type GitHubMergeMethod, type MergePRResult } from './github'
+import { listOpenPRs, testToken, starRepo, unstarRepo, isRepoStarred, mergePR, approvePR, getRepoInfo, getRepoContext, syncPRReview, listIssueTemplates, createIssue, createIssueComment, closeInboxItem, type GitHubMergeMethod, type MergePRResult } from './github'
 import type { ReviewSyncInput, ReviewSyncResult } from '../shared/github-types'
 import { AVAILABLE_EDITORS, DEFAULT_EDITOR_ID, openInEditor } from './editor'
 import { setSecret, getSecret, hasSecret, deleteSecret } from './secrets'
@@ -88,6 +93,8 @@ import { registerRepoRoot } from './repo-roots'
 import type { AddRepoResult } from '../shared/repo-pick'
 import { isWorktreeMerged } from '../shared/state/prs'
 import { MAX_WAKE } from '../shared/state/snooze'
+import { inboxSnoozeKey } from '../shared/state/inbox-snooze'
+import { sanitizeSchedule, scheduleWorktreePath } from '../shared/state/schedules'
 import { hasScratchpadNote } from '../shared/state/scratchpad'
 import type { RepoLocalConfig } from '../shared/state/repo-local'
 import {
@@ -197,10 +204,10 @@ void fixPathFromLoginShell().then(bootLocal)
 // EOF — the body is otherwise identical.
 function bootLocal(): void {
 
-// Resolves the caller's MCP scope from their terminal id. Used by both
-// the control HTTP server (on every tool call, authoritative) and
-// writeMcpConfigForTerminal (to seed best-effort HARNESS_* env vars in
-// the spawned bridge). Closes over the local `store` constructed below.
+// Resolves the caller's MCP scope from their terminal id. Used by the
+// control HTTP server on every tool call (authoritative) to map a bridge
+// request back to its worktree. Closes over the local `store` constructed
+// below.
 function resolveCallerScope(terminalId: string) {
   if (!terminalId) return null
   const panes = store.getSnapshot().state.terminals.panes
@@ -639,6 +646,52 @@ store.subscribe((event) => {
   }
 })
 
+// Persist inbox-item snooze entries the same way.
+store.subscribe((event) => {
+  if (event.type.startsWith('inboxSnooze/')) {
+    const byKey = store.getSnapshot().state.inboxSnooze.byKey
+    if (Object.keys(byKey).length === 0) {
+      delete config.inboxSnooze
+    } else {
+      config.inboxSnooze = byKey
+    }
+    saveConfig(config)
+  }
+})
+
+// Persist Workflow schedules so they survive restart.
+store.subscribe((event) => {
+  if (event.type.startsWith('schedules/')) {
+    const items = store.getSnapshot().state.schedules.items
+    if (items.length === 0) {
+      delete config.schedules
+    } else {
+      config.schedules = items
+    }
+    saveConfig(config)
+  }
+})
+
+// Wake snoozed inbox items that changed on GitHub. After each poll writes a
+// query's results, compare every snoozed item's stored `updatedAt` to the
+// fresh one; a difference (new comment, label, edit, state) clears the snooze
+// so the item returns to Active. (The timer covers the wakeAt case.)
+store.subscribe((event) => {
+  if (event.type !== 'inbox/queryResultChanged') return
+  const snap = store.getSnapshot().state
+  const byKey = snap.inboxSnooze.byKey
+  if (Object.keys(byKey).length === 0) return
+  const queryId = (event.payload as { queryId: string }).queryId
+  const items = snap.inbox.byQueryId[queryId] || []
+  for (const item of items) {
+    const key = inboxSnoozeKey(item)
+    const entry = byKey[key]
+    if (entry && item.updatedAt !== entry.updatedAt) {
+      store.dispatch({ type: 'inboxSnooze/clear', payload: key })
+    }
+  }
+})
+
 // When a session ID is discovered from a hook event (e.g. Codex assigns
 // its own session ID), persist panes immediately so the ID survives a quit.
 store.subscribe((event) => {
@@ -714,6 +767,37 @@ const fetchPoller = new FetchPoller({
 })
 
 const announcementsPoller = new AnnouncementsPoller(store)
+
+const inboxPoller = new InboxPoller(store, {
+  getQueries: () => store.getSnapshot().state.settings.inboxQueries,
+  getRepoRoots: () => config.repoRoots || []
+})
+
+/** Resolve every tracked repoRoot's origin owner/repo and dispatch to the
+ *  store. Cheap (one `git config` per repo), so we re-run it from scratch
+ *  on any repo-list change rather than diffing. */
+async function refreshOriginByRoot(): Promise<void> {
+  const roots = config.repoRoots || []
+  const entries: [string, { owner: string; repo: string }][] = []
+  await Promise.all(
+    roots.map(async (root) => {
+      const info = await getRepoOriginInfo(root)
+      if (info) entries.push([root, info])
+    })
+  )
+  store.dispatch({
+    type: 'worktrees/originByRootChanged',
+    payload: Object.fromEntries(entries)
+  })
+}
+
+// Re-resolve owner/repo for every tracked repo whenever the repo list
+// changes. Inbox uses this to detect which items already have a worktree.
+store.subscribe((event) => {
+  if (event.type === 'worktrees/reposChanged') {
+    void refreshOriginByRoot()
+  }
+})
 
 ptyManager.setStore(store)
 ptyManager.setSendSignal((channel, ...args) => transport.sendSignal(channel, ...args))
@@ -1072,9 +1156,9 @@ const worktreesFSM = new WorktreesFSM(store, {
   getRepoRoots: () => config.repoRoots || [],
   getWorktreeSetupCmd: () => config.worktreeSetupCommand || '',
   getWorktreeBaseMode: () => config.worktreeBase || DEFAULT_WORKTREE_BASE,
-  onWorktreeCreated: ({ createdPath, initialPrompt, teleportSessionId, agentKind, model }) => {
+  onWorktreeCreated: ({ createdPath, initialPrompt, teleportSessionId, agentKind, model, claudeTabType }) => {
     void prPoller.refreshAll()
-    panesFSM.ensureInitialized(createdPath, { initialPrompt, teleportSessionId, agentKind, model })
+    panesFSM.ensureInitialized(createdPath, { initialPrompt, teleportSessionId, agentKind, model, claudeTabType })
     if (teleportSessionId) {
       setTimeout(() => void worktreesFSM.refreshList(), 10_000)
     }
@@ -1102,6 +1186,100 @@ const worktreeWatcher = new WorktreeWatcher(() => {
 store.subscribe((event) => {
   if (event.type !== 'worktrees/listChanged') return
   worktreeWatcher.sync(store.getSnapshot().state.worktrees.list)
+})
+
+/** Branch-name-safe slug from a schedule title. */
+function slugForSchedule(title: string): string {
+  const s = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 32)
+  return s || 'task'
+}
+
+/** Deliver a scheduled prompt to a worktree's agent. Prefers an existing
+ *  awake agent tab (the active one first, then any), else spawns a fresh
+ *  json-claude chat and kicks it off with the prompt. */
+function deliverScheduleToWorktree(worktreePath: string, prompt: string): void {
+  if (!prompt) return
+  const tree = store.getSnapshot().state.terminals.panes[worktreePath]
+  const leaves = tree ? getLeaves(tree) : []
+  const sendable = (t: TerminalTab): boolean =>
+    t.type === 'agent' || (t.type === 'json-claude' && t.mode !== 'asleep')
+  let target: TerminalTab | undefined
+  for (const leaf of leaves) {
+    const active = leaf.tabs.find((t) => t.id === leaf.activeTabId)
+    if (active && sendable(active)) {
+      target = active
+      break
+    }
+  }
+  if (!target) {
+    for (const leaf of leaves) {
+      const c = leaf.tabs.find(sendable)
+      if (c) {
+        target = c
+        break
+      }
+    }
+  }
+  if (target?.type === 'json-claude') {
+    jsonClaudeManager.send(target.id, prompt)
+    return
+  }
+  if (target?.type === 'agent') {
+    // Bracketed paste so multi-line prompts land as one block on stdin.
+    ptyManager.write(target.id, '\x1b[200~' + prompt + '\x1b[201~')
+    return
+  }
+  // No live agent in this worktree — spawn a chat and send the prompt.
+  const sessionId = crypto.randomUUID()
+  panesFSM.addTab(worktreePath, {
+    id: sessionId,
+    type: 'json-claude',
+    label: 'Chat',
+    sessionId,
+    mode: 'awake'
+  })
+  startJsonClaudeSession(sessionId, worktreePath)
+  jsonClaudeManager.send(sessionId, prompt)
+}
+
+// Fires Workflow schedules. Repo targets create a fresh worktree and run the
+// prompt there; worktree targets send the prompt to that worktree's agent.
+const scheduleRunner = new ScheduleRunner(store, {
+  fire: async (schedule) => {
+    const prompt = schedule.prompt.trim()
+    if (schedule.target.kind === 'repo') {
+      // Force json-mode so the agent starts main-side (eagerly, headless) —
+      // a scheduled worktree must run without the user switching to it.
+      const outcome = await worktreesFSM.runPending({
+        id: `sched-${schedule.id}-${Date.now()}`,
+        repoRoot: schedule.target.repoRoot,
+        branchName: `schedule/${slugForSchedule(schedule.title)}-${Date.now().toString(36)}`,
+        initialPrompt: prompt || undefined,
+        claudeTabType: 'json'
+      })
+      // Record the created worktree so the schedule shows as "Active" while
+      // it lives, and so the MCP complete endpoint can map it back.
+      const createdPath =
+        'createdPath' in outcome ? outcome.createdPath : undefined
+      if (createdPath) {
+        const current = store
+          .getSnapshot()
+          .state.schedules.items.find((s) => s.id === schedule.id)
+        if (current) {
+          store.dispatch({
+            type: 'schedules/updated',
+            payload: { ...current, lastWorktreePath: createdPath }
+          })
+        }
+      }
+    } else {
+      deliverScheduleToWorktree(schedule.target.worktreePath, prompt)
+    }
+  }
 })
 
 const activityDeriver = new ActivityDeriver(store)
@@ -1292,6 +1470,9 @@ store.subscribe((event) => {
 
 const snoozeTimer = new SnoozeTimer(store)
 snoozeTimer.start()
+const inboxSnoozeTimer = new InboxSnoozeTimer(store)
+inboxSnoozeTimer.start()
+scheduleRunner.start()
 
 // Toggle "Warn Before Quitting". Shared by the Settings IPC handler and the
 // app-menu checkbox (wired into the desktop shell), so both stay in sync.
@@ -1878,6 +2059,101 @@ function registerIpcHandlers(): void {
     }
   )
 
+  transport.onRequest('inbox:refreshAll', async (_ctx) => {
+    await inboxPoller.refreshAll()
+    return true
+  })
+  transport.onRequest('inbox:refreshAllIfStale', (_ctx) => {
+    inboxPoller.refreshAllIfStale()
+    return true
+  })
+  transport.onRequest('inbox:refreshOne', async (_ctx, queryId: string) => {
+    await inboxPoller.refreshById(queryId)
+    return true
+  })
+
+  transport.onRequest('inbox:listIssueTemplates', async (_ctx, owner: string, repo: string) => {
+    if (!owner || !repo) return []
+    return listIssueTemplates(owner, repo)
+  })
+
+  transport.onRequest(
+    'inbox:createComment',
+    async (_ctx, owner: string, repo: string, number: number, body: string) => {
+      if (!owner || !repo || typeof number !== 'number') {
+        return { ok: false as const, error: 'Invalid item reference' }
+      }
+      return createIssueComment(owner, repo, number, typeof body === 'string' ? body : '')
+    }
+  )
+
+  transport.onRequest(
+    'inbox:closeItem',
+    async (_ctx, owner: string, repo: string, number: number, kind: 'issue' | 'pr') => {
+      if (!owner || !repo || typeof number !== 'number') {
+        return { ok: false as const, error: 'Invalid item reference' }
+      }
+      const result = await closeInboxItem(owner, repo, number, kind === 'pr' ? 'pr' : 'issue')
+      if (result.ok) inboxPoller.refreshAllIfStale()
+      return result
+    }
+  )
+
+  transport.onRequest(
+    'inbox:createIssue',
+    async (_ctx, owner: string, repo: string, fields: { title?: unknown; body?: unknown }) => {
+      if (!owner || !repo) return { ok: false as const, error: 'Repository not specified' }
+      const title = typeof fields?.title === 'string' ? fields.title : ''
+      const body = typeof fields?.body === 'string' ? fields.body : ''
+      const result = await createIssue(owner, repo, { title, body })
+      if (result.ok) {
+        // Surface the new issue in the Inbox on the next poll.
+        inboxPoller.refreshAllIfStale()
+      }
+      return result
+    }
+  )
+
+  transport.onRequest(
+    'inbox:createWorktree',
+    async (
+      _ctx,
+      ref: {
+        kind: 'issue' | 'pr'
+        owner: string
+        repo: string
+        number: number
+        title: string
+        initialPrompt?: string
+      }
+    ): Promise<InboxCreateOutcome> => {
+      if (!ref || typeof ref !== 'object') {
+        throw new Error('Invalid inbox item reference')
+      }
+      const outcome = await prepareInboxWorktree(ref, {
+        getRepoRoots: () => config.repoRoots || [],
+        getOriginInfo: getRepoOriginInfo,
+        getWorktreeList: () => store.getSnapshot().state.worktrees.list,
+        generatePendingId: () => `pending-inbox-${ref.kind}-${ref.number}-${Date.now()}`,
+        getPRBranchPrefix: () =>
+          store.getSnapshot().state.settings.inboxPRBranchPrefix || 'pr/',
+        getIssueBranchPrefix: () =>
+          store.getSnapshot().state.settings.inboxIssueBranchPrefix || 'issue-'
+      })
+      if (outcome.kind === 'pending') {
+        // Fire-and-forget; the renderer focuses pendingId and watches
+        // the pending state transitions via the usual store events.
+        void worktreesFSM.runPending({
+          id: outcome.pendingId,
+          repoRoot: outcome.repoRoot,
+          branchName: outcome.branchName,
+          initialPrompt: outcome.initialPrompt
+        })
+      }
+      return outcome
+    }
+  )
+
   transport.onRequest('stats:getWeekly', async (_ctx) => {
     const snap = store.getSnapshot().state
     return getWeeklyStats(snap.prs, snap.worktrees)
@@ -2287,6 +2563,67 @@ function registerIpcHandlers(): void {
       type: 'settings/autoApproveSteerInstructionsChanged',
       payload: config.autoApproveSteerInstructions || ''
     })
+    return true
+  })
+
+  transport.onRequest(
+    'config:setInboxBranchPrefixes',
+    (_ctx, payload: { prBranchPrefix?: unknown; issueBranchPrefix?: unknown }) => {
+      const prRaw = typeof payload?.prBranchPrefix === 'string' ? payload.prBranchPrefix : ''
+      const issueRaw =
+        typeof payload?.issueBranchPrefix === 'string' ? payload.issueBranchPrefix : ''
+      const prPrefix = prRaw.trimStart()
+      const issuePrefix = issueRaw.trimStart()
+      if (!/^[A-Za-z0-9_./-]*$/.test(prPrefix)) {
+        throw new Error('PR branch prefix may only contain A-Z, a-z, 0-9, _, ., -, /')
+      }
+      if (!/^[A-Za-z0-9_./-]*$/.test(issuePrefix)) {
+        throw new Error('Issue branch prefix may only contain A-Z, a-z, 0-9, _, ., -, /')
+      }
+      config.inboxPRBranchPrefix = prPrefix
+      config.inboxIssueBranchPrefix = issuePrefix
+      saveConfig(config)
+      store.dispatch({
+        type: 'settings/inboxBranchPrefixesChanged',
+        payload: { prBranchPrefix: prPrefix, issueBranchPrefix: issuePrefix }
+      })
+      return true
+    }
+  )
+
+  transport.onRequest('config:setInboxQueries', (_ctx, queries: unknown) => {
+    const cleaned: { id: string; name: string; query: string }[] = []
+    if (Array.isArray(queries)) {
+      for (const raw of queries) {
+        if (!raw || typeof raw !== 'object') continue
+        const r = raw as Record<string, unknown>
+        const id = typeof r.id === 'string' ? r.id.trim() : ''
+        const name = typeof r.name === 'string' ? r.name.trim() : ''
+        const query = typeof r.query === 'string' ? r.query.trim() : ''
+        if (!id || !name || !query) continue
+        cleaned.push({ id, name, query })
+      }
+    }
+    const prev = store.getSnapshot().state.settings.inboxQueries
+    if (cleaned.length === 0) {
+      delete config.inboxQueries
+    } else {
+      config.inboxQueries = cleaned
+    }
+    saveConfig(config)
+    store.dispatch({ type: 'settings/inboxQueriesChanged', payload: cleaned })
+
+    // Drop stale per-query state for ids that were removed, then refresh
+    // queries that are newly added or whose query string changed.
+    const keepIds = cleaned.map((q) => q.id)
+    store.dispatch({ type: 'inbox/queriesPruned', payload: { keepIds } })
+    inboxPoller.pruneTo(keepIds)
+    const prevById = new Map(prev.map((q) => [q.id, q.query]))
+    for (const q of cleaned) {
+      if (prevById.get(q.id) !== q.query) {
+        void inboxPoller.refreshById(q.id)
+      }
+    }
     return true
   })
 
@@ -3955,6 +4292,49 @@ function registerIpcHandlers(): void {
   })
 
   transport.onRequest(
+    'inboxSnooze:snooze',
+    (_ctx, key: string, wakeAt: number, updatedAt: string) => {
+      if (typeof key !== 'string' || !key) return false
+      const wake = Number(wakeAt)
+      if (!Number.isFinite(wake)) return false
+      const now = Date.now()
+      if (wake !== MAX_WAKE && wake < now + 86400000 - 60000) return false
+      store.dispatch({
+        type: 'inboxSnooze/set',
+        payload: {
+          key,
+          snoozedAt: now,
+          wakeAt: wake,
+          updatedAt: typeof updatedAt === 'string' ? updatedAt : ''
+        }
+      })
+      return true
+    }
+  )
+
+  transport.onRequest('inboxSnooze:unsnooze', (_ctx, key: string) => {
+    if (typeof key !== 'string' || !key) return false
+    store.dispatch({ type: 'inboxSnooze/clear', payload: key })
+    return true
+  })
+
+  // Upsert a Workflow schedule. The renderer assigns the id (so it can edit
+  // an existing one by passing the same id); the server sanitizes and rejects
+  // malformed drafts. Returns false when the draft is invalid.
+  transport.onRequest('schedules:save', (_ctx, raw: unknown) => {
+    const schedule = sanitizeSchedule(raw)
+    if (!schedule) return false
+    store.dispatch({ type: 'schedules/added', payload: schedule })
+    return true
+  })
+
+  transport.onRequest('schedules:remove', (_ctx, id: string) => {
+    if (typeof id !== 'string' || !id) return false
+    store.dispatch({ type: 'schedules/removed', payload: { id } })
+    return true
+  })
+
+  transport.onRequest(
     'scratchpad:setText',
     (_ctx, worktreePath: string, text: string) => {
       if (typeof worktreePath !== 'string' || !worktreePath) return false
@@ -4091,6 +4471,9 @@ async function runBoot(): Promise<void> {
     void refreshViewerLogin()
     prPoller.start()
     void prPoller.refreshAll()
+    inboxPoller.start()
+    void inboxPoller.refreshAll()
+    void refreshOriginByRoot()
 
     await refreshHarnessStarState()
   })()
@@ -4369,6 +4752,91 @@ async function runBoot(): Promise<void> {
           }
         })
         return { name }
+      }
+    },
+    inbox: {
+      createIssue: async (owner, repo, fields) => {
+        const result = await createIssue(owner, repo, fields)
+        // Surface the new issue in the Inbox on the next poll (same as the
+        // inbox:createIssue IPC handler the Add-item modal uses).
+        if (result.ok) inboxPoller.refreshAllIfStale()
+        return result
+      },
+      getOriginInfo: (repoRoot) => getRepoOriginInfo(repoRoot),
+      getList: (idOrName, filter) => {
+        const snap = store.getSnapshot().state
+        const queries = snap.settings.inboxQueries
+        const available = queries.map((qq) => ({ id: qq.id, name: qq.name }))
+        const needle = idOrName.trim().toLowerCase()
+        const q =
+          queries.find((qq) => qq.id.toLowerCase() === needle) ??
+          queries.find((qq) => qq.name.toLowerCase() === needle)
+        if (!q) {
+          return {
+            ok: false as const,
+            error: idOrName
+              ? `no inbox query matches "${idOrName}" (by id or name)`
+              : 'query (inbox query name or id) is required',
+            available
+          }
+        }
+        const all = snap.inbox.byQueryId[q.id] ?? []
+        const terms = (filter ?? '').toLowerCase().split(/\s+/).filter(Boolean)
+        const matched = all.filter((it) => {
+          if (terms.length === 0) return true
+          const hay = `${it.owner}/${it.repo}#${it.number} ${it.title} ${
+            it.author?.login ?? ''
+          } ${it.labels.map((l) => l.name).join(' ')} ${it.state} ${it.kind}`.toLowerCase()
+          return terms.every((t) => hay.includes(t))
+        })
+        return {
+          ok: true as const,
+          query: { id: q.id, name: q.name },
+          total: all.length,
+          matched: matched.length,
+          items: matched.map((it) => ({
+            key: `${it.kind}:${it.owner}/${it.repo}#${it.number}`,
+            kind: it.kind,
+            repo: `${it.owner}/${it.repo}`,
+            number: it.number,
+            title: it.title,
+            url: it.url,
+            state: it.state,
+            author: it.author?.login ?? null,
+            labels: it.labels.map((l) => l.name),
+            assignees: it.assignees.map((a) => a.login),
+            commentCount: it.commentCount,
+            createdAt: it.createdAt,
+            updatedAt: it.updatedAt,
+            bodyPreview: it.bodyPreview
+          }))
+        }
+      }
+    },
+    schedules: {
+      completeScheduledWork: (worktreePath, summary) => {
+        const snap = store.getSnapshot().state
+        const sched = snap.schedules.items.find(
+          (s) => scheduleWorktreePath(s) === worktreePath
+        )
+        if (!sched) {
+          return { ok: false as const, error: 'no schedule is associated with this worktree' }
+        }
+        // Record the summary so it survives in the "Past" view, then delete
+        // the worktree (force — the agent declared the work done; a dirty
+        // tree shouldn't block the autonomous cleanup).
+        store.dispatch({
+          type: 'schedules/updated',
+          payload: { ...sched, lastSummary: summary, lastRunAt: new Date().toISOString() }
+        })
+        const wt = snap.worktrees.list.find((w) => w.path === worktreePath)
+        worktreeDeletionFSM.enqueue({
+          repoRoot: wt?.repoRoot ?? sched.target.repoRoot,
+          path: worktreePath,
+          branch: wt?.branch ?? '',
+          force: true
+        })
+        return { ok: true as const, title: sched.title }
       }
     },
     runWorktreeSetup: (ctx) => worktreesFSM.runWorktreeSetup(ctx),

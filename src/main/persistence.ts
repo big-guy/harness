@@ -24,6 +24,8 @@ import type { SnoozeEntry } from '../shared/state/snooze'
 import type { RepoLocalConfig } from '../shared/state/repo-local'
 import type { RunnerItem } from '../shared/state/runners'
 import type { PreventSleepMode } from '../shared/state/settings'
+import type { InboxSnoozeEntry } from '../shared/state/inbox-snooze'
+import type { Schedule } from '../shared/state/schedules'
 
 export type { PersistedPane, PersistedPaneNode, PersistedTab }
 
@@ -282,6 +284,12 @@ export interface Config {
   snooze?: Record<string, SnoozeEntry>
   // Default duration (days) for plain-click snooze. Min 1, default 7.
   snoozeDefaultDays?: number
+  // Snoozed inbox items keyed by `<kind>:<owner>/<repo>#<number>`. Wakes
+  // when wakeAt is reached or the item changes (updatedAt advances).
+  inboxSnooze?: Record<string, InboxSnoozeEntry>
+  // User-defined Workflow schedules (Schedule tab). Each fires a prompt at a
+  // chosen time, once or on a repeat, targeting a repo or a worktree.
+  schedules?: Schedule[]
   // When true, high-volume diagnostic log categories (currently
   // [github-api] per-call lines) are written to debug.log. Default off.
   expandedDiagnosticLoggingEnabled?: boolean
@@ -310,6 +318,11 @@ export interface Config {
   // session is processing | always. Default 'off'. The transient "+1h" timer
   // (preventSleepUntil) is session-only and deliberately NOT persisted here.
   preventSleepMode?: PreventSleepMode
+  // Named GitHub search-issues queries that drive the Inbox view.
+  inboxQueries?: { id: string; name: string; query: string }[]
+  // Branch-name prefixes used when the Inbox creates a worktree.
+  inboxPRBranchPrefix?: string
+  inboxIssueBranchPrefix?: string
 }
 
 export const DEFAULT_WORKTREE_BASE: 'remote' | 'local' = 'remote'
