@@ -517,6 +517,9 @@ export function ReviewPane({
       if (e.key === 'f') {
         e.preventDefault()
         setFileTreeCollapsed((v) => !v)
+      } else if (e.key === 'g') {
+        e.preventDefault()
+        if (pr) setShowPrDescription((v) => !v)
       } else if (e.key === 'a') {
         e.preventDefault()
         setCommentMenuNonce((n) => n + 1)
@@ -530,7 +533,7 @@ export function ReviewPane({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [active])
+  }, [active, !!pr])
 
   // Run the search (debounced). Fetches + caches each file's modified content
   // on first use, then matches case-insensitively across every file.
@@ -586,15 +589,6 @@ export function ReviewPane({
   return (
     <div ref={rootRef} tabIndex={-1} className="relative flex flex-col h-full w-full bg-bg outline-none">
       {showShortcuts && <ReviewShortcutsPopup onClose={() => setShowShortcuts(false)} />}
-      {showPrDescription && pr && (
-        <PrDescriptionPanel
-          title={pr.title}
-          number={pr.number}
-          body={pr.body}
-          url={pr.url}
-          onClose={() => setShowPrDescription(false)}
-        />
-      )}
       {findOpen && (
         <div className="absolute top-1 right-3 z-[60] flex items-center gap-2 rounded border border-border-strong bg-panel-raised shadow-lg px-2 py-1.5 text-xs">
           <Search className="icon-xs text-faint shrink-0" />
@@ -817,6 +811,15 @@ export function ReviewPane({
               active={active}
             />
           </div>
+          {showPrDescription && pr && (
+            <PrDescriptionPane
+              title={pr.title}
+              number={pr.number}
+              body={pr.body}
+              url={pr.url}
+              onClose={() => setShowPrDescription(false)}
+            />
+          )}
         </div>
         )}
 
@@ -1349,6 +1352,7 @@ const REVIEW_SHORTCUTS: [string, string][] = [
   ['a', 'Comment list (↑/↓ then Enter)'],
   ['r', 'Mark file viewed / unviewed'],
   ['f', 'Hide / show file browser'],
+  ['g', 'Show / hide PR description'],
   ['s / d', 'Side-by-side / unified diff'],
   ['w', 'Toggle word wrap'],
   ['q', 'Toggle whitespace'],
@@ -1402,7 +1406,9 @@ function ReviewShortcutsPopup({ onClose }: { onClose: () => void }): JSX.Element
   )
 }
 
-function PrDescriptionPanel({
+/** PR description docked at the bottom of the file-browser column. Toggled by
+ *  the "PR description" toolbar button (or the `g` shortcut); off by default. */
+function PrDescriptionPane({
   title,
   number,
   body,
@@ -1415,53 +1421,34 @@ function PrDescriptionPanel({
   url: string
   onClose: () => void
 }): JSX.Element {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
   return (
-    <div
-      className="absolute inset-0 z-50 flex items-center justify-center bg-black/40"
-      onClick={onClose}
-    >
-      <div
-        className="w-[42rem] max-w-[90%] max-h-[80%] flex flex-col rounded-lg border border-border-strong bg-panel-raised shadow-lg"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
-          <GitPullRequest className="icon-sm text-faint shrink-0" />
-          <a
-            href={url}
-            target="_blank"
-            rel="noreferrer"
-            className="text-base font-medium text-fg hover:underline truncate"
-          >
-            {title} <span className="text-faint">#{number}</span>
-          </a>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="ml-auto shrink-0 text-faint hover:text-fg cursor-pointer"
-          >
-            <X className="icon-base" />
-          </button>
-        </div>
-        <div className="markdown overflow-y-auto px-4 py-3 text-sm">
-          {body.trim() ? (
-            <ReactMarkdown remarkPlugins={REVIEW_MD_PLUGINS} rehypePlugins={REVIEW_REHYPE_PLUGINS}>
-              {body}
-            </ReactMarkdown>
-          ) : (
-            <span className="text-faint italic">No description provided.</span>
-          )}
-        </div>
+    <div className="shrink-0 flex flex-col min-h-0 max-h-[45%] border-t border-border">
+      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border shrink-0">
+        <GitPullRequest className="icon-xs text-faint shrink-0" />
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs font-medium text-fg hover:underline truncate"
+        >
+          {title} <span className="text-faint">#{number}</span>
+        </a>
+        <button
+          onClick={onClose}
+          aria-label="Hide PR description"
+          className="ml-auto shrink-0 text-faint hover:text-fg cursor-pointer"
+        >
+          <X className="icon-xs" />
+        </button>
+      </div>
+      <div className="markdown overflow-y-auto px-3 py-2 text-xs">
+        {body.trim() ? (
+          <ReactMarkdown remarkPlugins={REVIEW_MD_PLUGINS} rehypePlugins={REVIEW_REHYPE_PLUGINS}>
+            {body}
+          </ReactMarkdown>
+        ) : (
+          <span className="text-faint italic">No description provided.</span>
+        )}
       </div>
     </div>
   )
