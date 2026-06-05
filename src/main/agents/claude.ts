@@ -127,25 +127,34 @@ export function sessionFileExists(cwd: string, sessionId: string, configDir?: st
   }
 }
 
-export function latestSessionId(cwd: string, configDir?: string): string | null {
+export function listSessions(
+  cwd: string,
+  configDir?: string
+): Array<{ sessionId: string; mtimeMs: number }> {
   try {
     const encoded = cwd.replace(/[^a-zA-Z0-9]/g, '-')
     const dir = join(claudeProjectsRoot(configDir), encoded)
-    const files = readdirSync(dir).filter((f) => f.endsWith('.jsonl'))
-    if (files.length === 0) return null
-    let bestId: string | null = null
-    let bestMtime = -Infinity
-    for (const file of files) {
-      const mtime = statSync(join(dir, file)).mtimeMs
-      if (mtime > bestMtime) {
-        bestMtime = mtime
-        bestId = file.replace(/\.jsonl$/, '')
+    const out: Array<{ sessionId: string; mtimeMs: number }> = []
+    for (const file of readdirSync(dir)) {
+      if (!file.endsWith('.jsonl')) continue
+      try {
+        out.push({
+          sessionId: file.replace(/\.jsonl$/, ''),
+          mtimeMs: statSync(join(dir, file)).mtimeMs
+        })
+      } catch {
+        // Raced unlink between readdir and stat — skip.
       }
     }
-    return bestId
+    out.sort((a, b) => b.mtimeMs - a.mtimeMs)
+    return out
   } catch {
-    return null
+    return []
   }
+}
+
+export function latestSessionId(cwd: string, configDir?: string): string | null {
+  return listSessions(cwd, configDir)[0]?.sessionId ?? null
 }
 
 export function buildSpawnArgs(opts: AgentSpawnOpts): string {
@@ -161,6 +170,12 @@ export function buildSpawnArgs(opts: AgentSpawnOpts): string {
   const pluginFlag = ` --plugin-dir ${shellQuote(harnessPluginDir())}`
   const tuiPrefix = opts.tuiFullscreen ? 'CLAUDE_CODE_NO_FLICKER=1 ' : ''
   const cmd = `${tuiPrefix}${opts.command}${modelFlag}${nameFlag}${systemPromptFlag}${pluginFlag}`
+
+  // Fork: branch the source session into a new one. Claude mints the new id
+  // and we discover it from the first hook event (no --session-id to pin).
+  if (opts.forkFromSessionId) {
+    return `${cmd} --resume ${opts.forkFromSessionId} --fork-session`
+  }
 
   if (opts.teleportSessionId && opts.sessionId) {
     const exists = sessionFileExists(opts.cwd, opts.sessionId, opts.configDir)

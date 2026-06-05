@@ -8,6 +8,10 @@ export interface AgentSpawnOpts {
   command: string
   cwd: string
   sessionId?: string
+  /** Fork source: when set, the agent resumes this session but branches it
+   *  into a brand-new one (Claude `--fork-session`, Codex `fork <id>`),
+   *  leaving the source untouched. Takes precedence over sessionId. */
+  forkFromSessionId?: string
   initialPrompt?: string
   teleportSessionId?: string
   sessionName?: string
@@ -53,6 +57,10 @@ export interface AgentModule {
   stripHooksFromWorktree(worktreePath: string): boolean
   sessionFileExists(cwd: string, sessionId: string, configDir?: string): boolean
   latestSessionId(cwd: string, configDir?: string): string | null
+  /** This agent's recorded sessions for a worktree, newest first by mtime.
+   *  Powers "resume the last known session" and excludes already-open ids
+   *  at the call site. */
+  listSessions(cwd: string, configDir?: string): Array<{ sessionId: string; mtimeMs: number }>
   buildSpawnArgs(opts: AgentSpawnOpts): string
 }
 
