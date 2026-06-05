@@ -55,6 +55,8 @@ export function ReviewPane({
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set())
   const [fileTreeWidth, setFileTreeWidth] = useState<number>(240)
   const [fileTreeCollapsed, setFileTreeCollapsed] = useState(false)
+  // Bumped by the `a` shortcut to open + focus the comment-list dropdown.
+  const [commentMenuNonce, setCommentMenuNonce] = useState(0)
   // Hoisted above ReviewDiffPane so the choice persists as the reviewer
   // clicks through files in the same review session.
   const [wordWrap, setWordWrap] = useState(false)
@@ -503,16 +505,28 @@ export function ReviewPane({
     return () => window.removeEventListener('keydown', onKey, true)
   }, [active])
 
-  // `f` toggles the file browser. Handled here (not in ReviewFileTree) since
-  // that component is unmounted while collapsed and couldn't bring itself back.
+  // Pane-level single-key shortcuts. Handled here (not in ReviewFileTree)
+  // because `f` must work while the tree is collapsed/unmounted, and `a`
+  // drives the comment dropdown that lives in this component's toolbar.
   useEffect(() => {
     if (!active) return
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key !== 'f' || e.metaKey || e.ctrlKey || e.altKey) return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
       const el = e.target as HTMLElement | null
       if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return
-      e.preventDefault()
-      setFileTreeCollapsed((v) => !v)
+      if (e.key === 'f') {
+        e.preventDefault()
+        setFileTreeCollapsed((v) => !v)
+      } else if (e.key === 'a') {
+        e.preventDefault()
+        setCommentMenuNonce((n) => n + 1)
+      } else if (e.key === 'q') {
+        e.preventDefault()
+        setShowWhitespace((v) => !v)
+      } else if (e.key === 'w') {
+        e.preventDefault()
+        setWordWrap((v) => !v)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -657,6 +671,7 @@ export function ReviewPane({
 
           <CommentDropdown
             comments={comments}
+            openNonce={commentMenuNonce}
             onCopy={handleCopyComments}
             onSelect={(c) => {
               setSelectedFile(c.filePath)
@@ -1179,14 +1194,49 @@ function ReviewerStatus({ reviews }: { reviews: PRReview[] }): JSX.Element | nul
 function CommentDropdown({
   comments,
   onSelect,
-  onCopy
+  onCopy,
+  openNonce
 }: {
   comments: ReviewComment[]
   onSelect: (c: ReviewComment) => void
   onCopy: () => void
+  /** Bumped by the parent's `a` shortcut to open + focus the list. */
+  openNonce?: number
 }): JSX.Element {
   const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(0)
   const wrapRef = useRef<HTMLDivElement | null>(null)
+  const listRef = useRef<HTMLDivElement | null>(null)
+  const activeItemRef = useRef<HTMLButtonElement | null>(null)
+
+  const sorted = useMemo(
+    () =>
+      [...comments].sort(
+        (a, b) => a.filePath.localeCompare(b.filePath) || a.lineNumber - b.lineNumber
+      ),
+    [comments]
+  )
+
+  // Open via the parent `a` shortcut.
+  useEffect(() => {
+    if (!openNonce) return
+    if (sorted.length === 0) return
+    setOpen(true)
+    setActiveIndex(0)
+  }, [openNonce])
+
+  // Focus the list whenever it opens so arrow-key nav has a home, and keep
+  // the active index in range as comments come and go.
+  useEffect(() => {
+    if (!open) return
+    setActiveIndex((i) => Math.min(Math.max(i, 0), Math.max(sorted.length - 1, 0)))
+    requestAnimationFrame(() => listRef.current?.focus({ preventScroll: true }))
+  }, [open])
+
+  // Keep the highlighted row scrolled into view.
+  useEffect(() => {
+    if (open) activeItemRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [open, activeIndex])
 
   useEffect(() => {
     if (!open) return
@@ -1198,9 +1248,36 @@ function CommentDropdown({
     return () => window.removeEventListener('mousedown', close)
   }, [open])
 
-  const sorted = [...comments].sort(
-    (a, b) => a.filePath.localeCompare(b.filePath) || a.lineNumber - b.lineNumber
-  )
+  // Arrow/space/enter navigation. Capture phase so it beats the file-nav
+  // window listener (which also acts on Arrow keys).
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        e.stopPropagation()
+        setActiveIndex((i) => Math.min(i + 1, sorted.length - 1))
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        e.stopPropagation()
+        setActiveIndex((i) => Math.max(i - 1, 0))
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        e.stopPropagation()
+        const c = sorted[activeIndex]
+        if (c) {
+          onSelect(c)
+          setOpen(false)
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        setOpen(false)
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [open, sorted, activeIndex, onSelect])
 
   return (
     <div ref={wrapRef} className="relative">
@@ -1215,7 +1292,9 @@ function CommentDropdown({
       </button>
       {open && comments.length > 0 && (
         <div
-          className="absolute z-50 top-full left-0 mt-1 w-[28rem] max-h-[20rem] overflow-y-auto bg-panel-raised border border-border-strong rounded shadow-lg py-1"
+          ref={listRef}
+          tabIndex={-1}
+          className="absolute z-50 top-full left-0 mt-1 w-[28rem] max-h-[20rem] overflow-y-auto bg-panel-raised border border-border-strong rounded shadow-lg py-1 outline-none"
           onMouseDown={(e) => e.stopPropagation()}
         >
           <button
@@ -1228,16 +1307,21 @@ function CommentDropdown({
             <Clipboard className="icon-xs" />
             Copy all comments to clipboard
           </button>
-          {sorted.map((c) => {
+          {sorted.map((c, i) => {
             const name = c.filePath.split('/').pop() || c.filePath
+            const isActive = i === activeIndex
             return (
               <button
                 key={c.id}
+                ref={isActive ? activeItemRef : undefined}
+                onMouseMove={() => setActiveIndex(i)}
                 onClick={() => {
                   onSelect(c)
                   setOpen(false)
                 }}
-                className="w-full text-left px-3 py-1.5 hover:bg-panel transition-colors cursor-pointer"
+                className={`w-full text-left px-3 py-1.5 transition-colors cursor-pointer ${
+                  isActive ? 'bg-panel' : 'hover:bg-panel'
+                }`}
               >
                 <div className="flex items-center gap-2 text-xs">
                   <span className="font-mono text-fg truncate">{name}</span>
@@ -1262,9 +1346,12 @@ const REVIEW_SHORTCUTS: [string, string][] = [
   ['n', 'Next unreviewed file'],
   ['m', 'Previous unreviewed file'],
   ['] / [', 'Next / previous comment in file'],
+  ['a', 'Comment list (↑/↓ then Enter)'],
   ['r', 'Mark file viewed / unviewed'],
   ['f', 'Hide / show file browser'],
   ['s / d', 'Side-by-side / unified diff'],
+  ['w', 'Toggle word wrap'],
+  ['q', 'Toggle whitespace'],
   ['c', 'Comment on hovered line (or file)'],
   ['?', 'Toggle this help']
 ]
